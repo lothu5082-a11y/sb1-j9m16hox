@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mic, Gamepad2, Shield, Sparkles, Brain, Phone, ChevronRight } from 'lucide-react-native';
+import { Mic, Shield, Sparkles, Brain, Phone, Wand2, ChevronRight } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import GlowButton from '../../components/GlowButton';
 
@@ -9,44 +10,44 @@ const { width } = Dimensions.get('window');
 
 const slides = [
   {
-    title: 'Meet Nova',
-    subtitle: 'Your Intelligent Future Assistant',
-    description: 'Nova is a powerful AI assistant that understands your voice, controls your phone, and helps you everywhere.',
+    title: 'Meet Vexora',
+    subtitle: 'Your AI-Powered Life Assistant',
+    description: 'Vexora is a powerful AI assistant that understands your voice, controls your phone, and helps you accomplish anything — faster.',
     icon: Sparkles,
     gradient: [Colors.background, '#0D1B2A'] as const,
   },
   {
     title: 'Voice Control',
-    subtitle: 'Just say "Hey Nova"',
-    description: 'Control your entire phone with voice commands. Open apps, send messages, take photos, and more — hands-free.',
+    subtitle: 'Say "Hey Vexora"',
+    description: 'Hands-free control of your entire phone. Open apps, send messages, set reminders, and more — all with your voice.',
     icon: Mic,
     gradient: [Colors.background, '#0A1929'] as const,
   },
   {
-    title: 'Gaming Assistant',
-    subtitle: 'Level up your gameplay',
-    description: 'Nova optimizes performance, reduces lag, and provides voice commands while you game. Your silent gaming companion.',
-    icon: Gamepad2,
+    title: 'AI Agent',
+    subtitle: 'Tasks on Autopilot',
+    description: 'Break complex goals into steps. Vexora plans, executes, and tracks your tasks — asking for approval before important actions.',
+    icon: Brain,
     gradient: [Colors.background, '#1A0A2E'] as const,
   },
   {
-    title: 'Smart & Secure',
-    subtitle: 'Privacy first, always',
-    description: 'Voice recognition, fingerprint lock, encrypted chats. Nova only works fully for you — the phone owner.',
+    title: 'Smart Creation',
+    subtitle: 'Generate Anything',
+    description: 'Create AI images, write code, draft emails, summarize videos, and produce content across all formats.',
+    icon: Wand2,
+    gradient: [Colors.background, '#1A0A0A'] as const,
+  },
+  {
+    title: 'Privacy First',
+    subtitle: 'Secure by Design',
+    description: 'Biometric lock, encrypted conversations, and user-controlled memory. Vexora only works fully for you.',
     icon: Shield,
     gradient: [Colors.background, '#0A1A0A'] as const,
   },
   {
-    title: 'AI Superpowers',
-    subtitle: 'Powered by the best AI',
-    description: 'Generate images, summarize videos, write code, search the internet. Switch between Gemini, OpenAI, and Groq.',
-    icon: Brain,
-    gradient: [Colors.background, '#1A0A0A'] as const,
-  },
-  {
     title: 'Smart Calling',
-    subtitle: 'Never miss important calls',
-    description: 'Nova answers calls when you are busy, delivers custom messages, and lets you reply through voice.',
+    subtitle: 'Never Miss a Call',
+    description: "Vexora answers calls when you're busy, announces callers, and lets you respond with a voice command.",
     icon: Phone,
     gradient: [Colors.background, '#0A1A1A'] as const,
   },
@@ -69,6 +70,10 @@ export default function OnboardingScreen() {
 
   const handleSkip = () => {
     goToSlide(slides.length - 1);
+  };
+
+  const handleGetStarted = () => {
+    router.replace('/(tabs)');
   };
 
   return (
@@ -125,7 +130,7 @@ export default function OnboardingScreen() {
               <GlowButton title="Next" onPress={handleNext} icon={<ChevronRight color={Colors.background} size={18} />} />
             </>
           ) : (
-            <GlowButton title="Get Started" onPress={() => {}} size="lg" style={styles.getStartedButton} />
+            <GlowButton title="Get Started" onPress={handleGetStarted} size="lg" style={styles.getStartedButton} />
           )}
         </View>
       </View>

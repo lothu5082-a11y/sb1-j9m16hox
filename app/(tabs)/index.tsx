@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
-import { Mic, MessageSquare, Image, Gamepad2, Settings, Sparkles, Phone, Shield, ChevronRight } from 'lucide-react-native';
+import { Mic, MessageSquare, Image, Gamepad2, Settings, Sparkles, Phone, Shield, ChevronRight, Brain, Search } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import VoiceOrb from '../../components/VoiceOrb';
 import FeatureCard from '../../components/FeatureCard';
@@ -11,10 +11,10 @@ import StatusBadge from '../../components/StatusBadge';
 const { width } = Dimensions.get('window');
 
 const quickActions = [
-  { icon: <MessageSquare color={Colors.primary} size={22} />, title: 'Chat', description: 'Ask Nova anything', route: '/chat' },
-  { icon: <Image color={Colors.secondary} size={22} />, title: 'Generate', description: 'Create AI images', route: '/generate' },
-  { icon: <Gamepad2 color={Colors.accent} size={22} />, title: 'Game Mode', description: 'Optimize & play', route: '/gaming' },
-  { icon: <Phone color={Colors.success} size={22} />, title: 'Call Assist', description: 'Smart call handling', route: '/settings' },
+  { icon: <MessageSquare color={Colors.primary} size={22} />, title: 'Chat', description: 'Ask Vexora anything', route: '/chat' },
+  { icon: <Image color={Colors.secondary} size={22} />, title: 'Create', description: 'AI Studio', route: '/generate' },
+  { icon: <Search color={Colors.accent} size={22} />, title: 'Research', description: 'Web Search', route: '/chat' },
+  { icon: <Mic color={Colors.success} size={22} />, title: 'Voice', description: 'Voice Mode', route: '/chat' },
 ];
 
 export default function HomeScreen() {
@@ -30,14 +30,14 @@ export default function HomeScreen() {
             <View style={styles.headerTop}>
               <View>
                 <Text style={styles.greeting}>Good Evening</Text>
-                <Text style={styles.appName}>Nova</Text>
+                <Text style={styles.appName}>Vexora</Text>
               </View>
               <View style={styles.headerBadges}>
                 <StatusBadge label="Online" active />
-                <StatusBadge label="Gemini" color={Colors.secondary} active />
+                <StatusBadge label="AI Ready" color={Colors.secondary} active />
               </View>
             </View>
-            <Text style={styles.slogan}>Your Intelligent Future Assistant</Text>
+            <Text style={styles.slogan}>Your AI-Powered Life Assistant</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInUp.duration(800).delay(200)} style={styles.orbSection}>
@@ -53,7 +53,7 @@ export default function HomeScreen() {
             <Text style={styles.listeningText}>
               {isListening ? 'Listening...' : 'Tap to speak'}
             </Text>
-            <Text style={styles.wakeWordText}>or say "Hey Nova"</Text>
+            <Text style={styles.wakeWordText}>or say "Hey Vexora"</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInUp.duration(800).delay(400)} style={styles.quickActionsSection}>
@@ -74,20 +74,26 @@ export default function HomeScreen() {
             <FeatureCard
               icon={<Sparkles color={Colors.primary} size={22} />}
               title="AI Assistant"
-              description="Answer questions, write code, create content, and search the internet"
+              description="Natural conversations, voice commands, and smart task planning"
               active
             />
             <View style={styles.featureGap} />
             <FeatureCard
-              icon={<Shield color={Colors.success} size={22} />}
-              title="Privacy Mode"
-              description="Voice recognition, fingerprint lock, and encrypted conversations"
+              icon={<Brain color={Colors.secondary} size={22} />}
+              title="Agent Mode"
+              description="Break complex tasks into steps and execute them automatically"
             />
             <View style={styles.featureGap} />
             <FeatureCard
-              icon={<Gamepad2 color={Colors.accent} size={22} />}
-              title="Gaming Overlay"
-              description="Performance boost, voice commands, and floating assistant while gaming"
+              icon={<Shield color={Colors.success} size={22} />}
+              title="Privacy Shield"
+              description="Biometric lock, encrypted storage, and user-controlled memory"
+            />
+            <View style={styles.featureGap} />
+            <FeatureCard
+              icon={<Search color={Colors.accent} size={22} />}
+              title="Research Engine"
+              description="Real-time web search, fact-finding, and multi-source summaries"
             />
           </Animated.View>
         </ScrollView>

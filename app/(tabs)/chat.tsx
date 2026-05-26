@@ -15,16 +15,19 @@ interface Message {
 }
 
 const sampleMessages: Message[] = [
-  { id: '1', text: 'Hey Nova, what can you do?', isUser: true, time: '7:32 PM' },
-  { id: '2', text: 'I can help you with almost anything! I can answer questions, generate images, control your phone, assist while gaming, handle calls, and much more. Just ask!', isUser: false, time: '7:32 PM' },
+  { id: '1', text: 'Hey Vexora, what can you do?', isUser: true, time: '7:32 PM' },
+  { id: '2', text: "I'm Vexora, your AI-powered assistant! I can handle voice commands, control your device, search the web in real-time, generate images, write and debug code, draft emails, summarize content, assist while you game, manage calls, and much more. Just ask!", isUser: false, time: '7:32 PM' },
   { id: '3', text: 'Can you open YouTube and play some music?', isUser: true, time: '7:33 PM' },
   { id: '4', text: 'Opening YouTube now. I\'ve started playing your "Chill Vibes" playlist. Want me to adjust the volume or play something else?', isUser: false, time: '7:33 PM' },
 ];
+
+const aiModes = ['Assistant', 'Study', 'Coding', 'Creative', 'Business', 'Travel'];
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(sampleMessages);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedMode, setSelectedMode] = useState('Assistant');
   const scrollViewRef = useRef<ScrollView>(null);
 
   const sendMessage = () => {
@@ -44,7 +47,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
-        text: "I'm processing your request. As Nova, I can help with voice commands, phone control, gaming assistance, and much more. This is a demo response.",
+        text: "I'm Vexora, your AI-powered assistant. I can help with voice commands, device control, research, image generation, code, and much more. This is a demo response.",
         isUser: false,
         time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
       };
@@ -62,14 +65,36 @@ export default function ChatScreen() {
               <Sparkles color={Colors.primary} size={18} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Nova</Text>
-              <Text style={styles.headerStatus}>Online - Gemini</Text>
+              <Text style={styles.headerTitle}>Vexora</Text>
+              <Text style={styles.headerStatus}>Online · AI Ready</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.clearButton}>
             <Trash2 color={Colors.textTertiary} size={18} />
           </TouchableOpacity>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.modesRow}
+          style={styles.modesScroll}
+        >
+          {aiModes.map((mode) => (
+            <TouchableOpacity
+              key={mode}
+              onPress={() => setSelectedMode(mode)}
+              style={[
+                styles.modeChip,
+                selectedMode === mode && styles.modeChipSelected,
+              ]}
+            >
+              <Text style={[styles.modeChipText, selectedMode === mode && styles.modeChipTextSelected]}>
+                {mode}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         <ScrollView
           ref={scrollViewRef}
@@ -91,7 +116,7 @@ export default function ChatScreen() {
           {isTyping && (
             <View style={styles.typingContainer}>
               <View style={styles.typingAvatar}>
-                <Text style={styles.typingAvatarText}>N</Text>
+                <Text style={styles.typingAvatarText}>V</Text>
               </View>
               <View style={styles.typingBubble}>
                 <View style={styles.typingDots}>
@@ -112,7 +137,7 @@ export default function ChatScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Ask Nova anything..."
+                placeholder="Ask Vexora anything..."
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}
@@ -182,6 +207,42 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: Spacing.sm,
+  },
+  modesScroll: {
+    flexGrow: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modesRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  modeChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  modeChipSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modeChipText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+  },
+  modeChipTextSelected: {
+    color: Colors.primary,
   },
   messagesContainer: {
     flex: 1,

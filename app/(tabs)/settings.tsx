@@ -19,6 +19,9 @@ import {
   ChevronRight,
   Sparkles,
   Crown,
+  Database,
+  HardDrive,
+  Trash2,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
@@ -92,6 +95,15 @@ const settingStyles = StyleSheet.create({
   },
 });
 
+const aiModes = [
+  { id: 'assistant', label: 'Assistant' },
+  { id: 'study', label: 'Study' },
+  { id: 'coding', label: 'Coding' },
+  { id: 'creative', label: 'Creative' },
+  { id: 'business', label: 'Business' },
+  { id: 'travel', label: 'Travel' },
+];
+
 export default function SettingsScreen() {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [wakeWord, setWakeWord] = useState(false);
@@ -102,11 +114,15 @@ export default function SettingsScreen() {
   const [biometricLock, setBiometricLock] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gemini');
+  const [selectedMode, setSelectedMode] = useState('assistant');
+  const [userMemory, setUserMemory] = useState(true);
+  const [conversationHistory, setConversationHistory] = useState(true);
 
   const aiModels = [
     { id: 'gemini', name: 'Gemini', color: Colors.primary },
     { id: 'openai', name: 'OpenAI', color: Colors.secondary },
     { id: 'groq', name: 'Groq', color: Colors.accent },
+    { id: 'claude', name: 'Claude', color: '#FF6B35' },
   ];
 
   return (
@@ -166,7 +182,7 @@ export default function SettingsScreen() {
               <SettingRow
                 icon={<Sparkles color={wakeWord ? Colors.primary : Colors.textTertiary} size={20} />}
                 title="Wake Word"
-                subtitle='Say "Hey Nova" to activate'
+                subtitle='Say "Hey Vexora" to activate'
                 value={wakeWord}
                 onValueChange={setWakeWord}
                 color={Colors.primary}
@@ -176,7 +192,7 @@ export default function SettingsScreen() {
               <SettingRow
                 icon={<Smartphone color={floatingBubble ? Colors.success : Colors.textTertiary} size={20} />}
                 title="Floating Assistant"
-                subtitle="AI bubble over other apps"
+                subtitle="Vexora bubble over other apps"
                 value={floatingBubble}
                 onValueChange={setFloatingBubble}
                 color={Colors.success}
@@ -189,6 +205,31 @@ export default function SettingsScreen() {
                 subtitle="English"
                 color={Colors.secondary}
               />
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.duration(600).delay(250)} style={styles.section}>
+            <Text style={styles.sectionTitle}>AI Modes</Text>
+            <View style={styles.modesGrid}>
+              {aiModes.map((mode) => (
+                <TouchableOpacity
+                  key={mode.id}
+                  onPress={() => setSelectedMode(mode.id)}
+                  style={[
+                    styles.modeChip,
+                    selectedMode === mode.id && styles.modeChipSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modeChipText,
+                      selectedMode === mode.id && styles.modeChipTextSelected,
+                    ]}
+                  >
+                    {mode.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </Animated.View>
 
@@ -212,7 +253,7 @@ export default function SettingsScreen() {
               <SettingRow
                 icon={<Phone color={autoAnswer ? Colors.success : Colors.textTertiary} size={20} />}
                 title="Auto Answer Calls"
-                subtitle="Nova answers when you are busy"
+                subtitle="Vexora answers when you are busy"
                 value={autoAnswer}
                 onValueChange={setAutoAnswer}
                 color={Colors.success}
@@ -253,6 +294,47 @@ export default function SettingsScreen() {
             </View>
           </Animated.View>
 
+          <Animated.View entering={FadeInUp.duration(600).delay(550)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Memory & Data</Text>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Brain color={userMemory ? Colors.primary : Colors.textTertiary} size={20} />}
+                title="User Memory"
+                subtitle="Vexora remembers your preferences"
+                value={userMemory}
+                onValueChange={setUserMemory}
+                color={Colors.primary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<HardDrive color={conversationHistory ? Colors.secondary : Colors.textTertiary} size={20} />}
+                title="Conversation History"
+                subtitle="Save chat history locally"
+                value={conversationHistory}
+                onValueChange={setConversationHistory}
+                color={Colors.secondary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Database color={Colors.textTertiary} size={20} />}
+                title="Export Data"
+                subtitle="Download your data"
+                color={Colors.secondary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Trash2 color={Colors.error} size={20} />}
+                title="Clear Memory"
+                subtitle="Delete all stored preferences"
+                color={Colors.error}
+                rightElement={<ChevronRight color={Colors.error} size={16} />}
+              />
+            </View>
+          </Animated.View>
+
           <Animated.View entering={FadeInUp.duration(600).delay(600)} style={styles.section}>
             <Text style={styles.sectionTitle}>Notifications</Text>
             <View style={styles.settingsGap}>
@@ -272,7 +354,7 @@ export default function SettingsScreen() {
               <LinearGradient colors={['rgba(255, 109, 0, 0.15)', 'rgba(255, 109, 0, 0.05)']} style={styles.premiumCard}>
                 <Crown color={Colors.accent} size={24} />
                 <View style={styles.premiumText}>
-                  <Text style={styles.premiumTitle}>Upgrade to Nova Pro</Text>
+                  <Text style={styles.premiumTitle}>Upgrade to Vexora Pro</Text>
                   <Text style={styles.premiumDesc}>Unlock all AI models, unlimited generation, and more</Text>
                 </View>
                 <ChevronRight color={Colors.accent} size={18} />
@@ -281,8 +363,8 @@ export default function SettingsScreen() {
           </Animated.View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Nova v1.0.0</Text>
-            <Text style={styles.footerSubtext}>Your Intelligent Future Assistant</Text>
+            <Text style={styles.footerText}>Vexora AI v1.0.0</Text>
+            <Text style={styles.footerSubtext}>Your AI-Powered Life Assistant</Text>
           </View>
         </ScrollView>
       </LinearGradient>
@@ -328,19 +410,22 @@ const styles = StyleSheet.create({
   },
   modelRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.md,
   },
   modelCard: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     gap: Spacing.sm,
+    minWidth: '45%',
+    flex: 1,
   },
   modelName: {
     fontSize: FontSizes.sm,
@@ -351,6 +436,33 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+  },
+  modesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  modeChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    minWidth: '30%',
+    alignItems: 'center',
+  },
+  modeChipSelected: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+  },
+  modeChipText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+  },
+  modeChipTextSelected: {
+    color: Colors.primary,
   },
   settingsGap: {
     marginBottom: Spacing.md,
