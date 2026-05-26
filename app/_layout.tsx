@@ -39,6 +39,12 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="premium" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="voice" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="agent" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="media" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="messaging" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="productivity" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="calling" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="light" />

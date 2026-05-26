@@ -2,23 +2,35 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
-import { Mic, MessageSquare, Image, Gamepad2, Settings, Sparkles, Phone, Shield, ChevronRight, Brain, Search } from 'lucide-react-native';
+import {
+  Mic, MessageSquare, Sparkles, Phone, Shield, ChevronRight, Brain, Search,
+  Bot, Eye, CheckSquare, Radio,
+} from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import VoiceOrb from '../../components/VoiceOrb';
 import FeatureCard from '../../components/FeatureCard';
 import StatusBadge from '../../components/StatusBadge';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
 const quickActions = [
-  { icon: <MessageSquare color={Colors.primary} size={22} />, title: 'Chat', description: 'Ask Vexora anything', route: '/chat' },
-  { icon: <Image color={Colors.secondary} size={22} />, title: 'Create', description: 'AI Studio', route: '/generate' },
-  { icon: <Search color={Colors.accent} size={22} />, title: 'Research', description: 'Web Search', route: '/chat' },
-  { icon: <Mic color={Colors.success} size={22} />, title: 'Voice', description: 'Voice Mode', route: '/chat' },
+  { icon: <MessageSquare color={Colors.primary} size={22} />, title: 'Chat', description: 'Ask Vexora anything', route: '/(tabs)/chat' },
+  { icon: <Radio color={Colors.secondary} size={22} />, title: 'Voice', description: 'Wake word & training', route: '/voice' },
+  { icon: <Bot color={Colors.accent} size={22} />, title: 'AI Agent', description: 'Automate tasks', route: '/agent' },
+  { icon: <CheckSquare color={Colors.success} size={22} />, title: 'Productivity', description: 'Tasks & notes', route: '/productivity' },
+];
+
+const featureHub = [
+  { icon: Eye, label: 'Media Analysis', desc: 'Image, video & screen AI', route: '/media', color: Colors.secondary },
+  { icon: MessageSquare, label: 'Messaging AI', desc: 'Draft, translate & reply', route: '/messaging', color: Colors.primary },
+  { icon: Phone, label: 'Call Assistant', desc: 'Voice call control', route: '/calling', color: Colors.success },
+  { icon: Search, label: 'Research', desc: 'Web & fact search', route: '/(tabs)/chat', color: Colors.accent },
 ];
 
 export default function HomeScreen() {
   const [isListening, setIsListening] = useState(false);
+  const router = useRouter();
 
   const toggleListening = () => setIsListening(!isListening);
 
@@ -60,7 +72,12 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
               {quickActions.map((action, index) => (
-                <TouchableOpacity key={index} activeOpacity={0.7} style={styles.quickActionCard}>
+                <TouchableOpacity
+                  key={index}
+                  activeOpacity={0.7}
+                  style={styles.quickActionCard}
+                  onPress={() => router.push(action.route as any)}
+                >
                   <View style={styles.quickActionIcon}>{action.icon}</View>
                   <Text style={styles.quickActionTitle}>{action.title}</Text>
                   <Text style={styles.quickActionDesc}>{action.description}</Text>
@@ -69,8 +86,32 @@ export default function HomeScreen() {
             </View>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.duration(800).delay(600)} style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Capabilities</Text>
+          <Animated.View entering={FadeInUp.duration(800).delay(550)} style={styles.featureHubSection}>
+            <Text style={styles.sectionTitle}>Feature Hub</Text>
+            <View style={styles.featureHubGrid}>
+              {featureHub.map((item, i) => {
+                const ItemIcon = item.icon;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.featureHubCard}
+                    activeOpacity={0.7}
+                    onPress={() => router.push(item.route as any)}
+                  >
+                    <View style={[styles.featureHubIcon, { backgroundColor: item.color + '15' }]}>
+                      <ItemIcon color={item.color} size={20} />
+                    </View>
+                    <Text style={styles.featureHubLabel}>{item.label}</Text>
+                    <Text style={styles.featureHubDesc}>{item.desc}</Text>
+                    <ChevronRight color={Colors.textTertiary} size={14} style={styles.featureHubArrow} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.duration(800).delay(700)} style={styles.featuresSection}>
+            <Text style={styles.sectionTitle}>AI Capabilities</Text>
             <FeatureCard
               icon={<Sparkles color={Colors.primary} size={22} />}
               title="AI Assistant"
@@ -82,6 +123,7 @@ export default function HomeScreen() {
               icon={<Brain color={Colors.secondary} size={22} />}
               title="Agent Mode"
               description="Break complex tasks into steps and execute them automatically"
+              onPress={() => router.push('/agent' as any)}
             />
             <View style={styles.featureGap} />
             <FeatureCard
@@ -219,6 +261,45 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     textAlign: 'center',
+  },
+  featureHubSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  featureHubGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  featureHubCard: {
+    width: (width - Spacing.lg * 2 - Spacing.md) / 2,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  featureHubIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  featureHubLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  featureHubDesc: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    lineHeight: 16,
+  },
+  featureHubArrow: {
+    marginTop: Spacing.xs,
   },
   featuresSection: {
     paddingHorizontal: Spacing.lg,
