@@ -1,0 +1,104 @@
+name: Build Vexora AI APK
+
+on:
+  push:
+    branches:
+      - claude/vexora-ai-overview-cMaQ1
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Expo prebuild (generate native Android project)
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK_PATH"
+          ls -lh "$APK_PATH"
+
+      - name: Rename APK
+        run: |
+          cp "${{ steps.find_apk.outputs.apk_path }}" vexora-ai-debug.apk
+          echo "APK size: $(ls -lh vexora-ai-debug.apk | awk '{print $5}')"
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexora-ai-apk
+          path: vexora-ai-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: "Vexora AI — Build ${{ github.run_number }}"
+          body: |
+            ## Vexora AI Debug Build
+
+            **Branch:** `${{ github.ref_name }}`
+            **Commit:** `${{ github.sha }}`
+
+            ### Install on Android
+            1. Download `vexora-ai-debug.apk` below
+            2. Open it on your Android phone
+            3. Allow "Install from unknown sources" if prompted
+            4. Install and launch Vexora AI
+
+            > This is a debug build for testing. Production builds will be signed.
+          files: vexora-ai-debug.apk
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
