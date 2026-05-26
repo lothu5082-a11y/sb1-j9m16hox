@@ -55,24 +55,13 @@ jobs:
           key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Bundle JavaScript into APK assets
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file node_modules/expo-router/entry.js \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/
-        env:
-          EXPO_NO_TELEMETRY: 1
-
-      - name: Build debug APK
+      - name: Build debug APK (with bundled JS)
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug -PbundleInDebug=true --no-daemon
         env:
           GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
+          EXPO_NO_TELEMETRY: 1
 
       - name: Find APK
         id: find_apk
