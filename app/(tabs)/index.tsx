@@ -4,13 +4,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import {
   Mic, MessageSquare, Sparkles, Phone, Shield, ChevronRight, Brain, Search,
-  Bot, Eye, CheckSquare, Radio,
+  Bot, Eye, CheckSquare, Radio, TrendingUp,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import VoiceOrb from '../../components/VoiceOrb';
 import FeatureCard from '../../components/FeatureCard';
 import StatusBadge from '../../components/StatusBadge';
 import { useRouter } from 'expo-router';
+import { useTasks } from '../../hooks/useTasks';
+import { useHabits } from '../../hooks/useHabits';
+import { useNotes } from '../../hooks/useNotes';
 
 const { width } = Dimensions.get('window');
 
@@ -28,9 +31,19 @@ const featureHub = [
   { icon: Search, label: 'Research', desc: 'Web & fact search', route: '/(tabs)/chat', color: Colors.accent },
 ];
 
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good Morning';
+  if (h < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
 export default function HomeScreen() {
   const [isListening, setIsListening] = useState(false);
   const router = useRouter();
+  const { stats: taskStats } = useTasks();
+  const { todayStats: habitStats } = useHabits();
+  const { notes } = useNotes();
 
   const toggleListening = () => setIsListening(!isListening);
 
@@ -41,7 +54,7 @@ export default function HomeScreen() {
           <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
             <View style={styles.headerTop}>
               <View>
-                <Text style={styles.greeting}>Good Evening</Text>
+                <Text style={styles.greeting}>{getGreeting()}</Text>
                 <Text style={styles.appName}>Vexora</Text>
               </View>
               <View style={styles.headerBadges}>
@@ -67,6 +80,48 @@ export default function HomeScreen() {
             </Text>
             <Text style={styles.wakeWordText}>or say "Hey Vexora"</Text>
           </Animated.View>
+
+          {(taskStats.total > 0 || habitStats.total > 0) && (
+            <Animated.View entering={FadeInUp.duration(800).delay(350)} style={styles.dashboardSection}>
+              <Text style={styles.sectionTitle}>Today's Progress</Text>
+              <View style={styles.dashboardRow}>
+                <TouchableOpacity
+                  style={styles.dashboardCard}
+                  onPress={() => router.push('/productivity' as any)}
+                  activeOpacity={0.8}
+                >
+                  <CheckSquare color={Colors.secondary} size={18} />
+                  <Text style={styles.dashboardValue}>{taskStats.done}/{taskStats.total}</Text>
+                  <Text style={styles.dashboardLabel}>Tasks Done</Text>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, {
+                      width: taskStats.total > 0 ? `${(taskStats.done / taskStats.total) * 100}%` : '0%',
+                      backgroundColor: Colors.secondary,
+                    }]} />
+                  </View>
+                </TouchableOpacity>
+                {habitStats.total > 0 && (
+                  <TouchableOpacity
+                    style={styles.dashboardCard}
+                    onPress={() => router.push('/productivity' as any)}
+                    activeOpacity={0.8}
+                  >
+                    <TrendingUp color={Colors.success} size={18} />
+                    <Text style={[styles.dashboardValue, { color: Colors.success }]}>
+                      {habitStats.completed}/{habitStats.total}
+                    </Text>
+                    <Text style={styles.dashboardLabel}>Habits Today</Text>
+                    <View style={styles.progressBar}>
+                      <View style={[styles.progressFill, {
+                        width: habitStats.total > 0 ? `${(habitStats.completed / habitStats.total) * 100}%` : '0%',
+                        backgroundColor: Colors.success,
+                      }]} />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </Animated.View>
+          )}
 
           <Animated.View entering={FadeInUp.duration(800).delay(400)} style={styles.quickActionsSection}>
             <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -261,6 +316,44 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     textAlign: 'center',
+  },
+  dashboardSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  dashboardRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  dashboardCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 4,
+  },
+  dashboardValue: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '700',
+    color: Colors.secondary,
+    marginTop: 4,
+  },
+  dashboardLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.backgroundTertiary,
+    marginTop: Spacing.sm,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   featureHubSection: {
     paddingHorizontal: Spacing.lg,
