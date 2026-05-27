@@ -155,23 +155,11 @@ jobs:
           key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Pre-bundle JS
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx expo export:embed \
-            --platform android \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/ 2>&1 | tee /tmp/prebundle.log
-          echo "=== Bundle size: $(du -sh android/app/src/main/assets/index.android.bundle 2>/dev/null || echo 'NOT CREATED') ==="
-        env:
-          EXPO_NO_TELEMETRY: 1
-          NODE_ENV: production
-
-      - name: Build debug APK
+      - name: Build release APK (bundle embedded, no Metro needed)
         run: |
           set -o pipefail
           cd android
-          ./gradlew assembleDebug \
+          ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
             --info \
@@ -202,7 +190,7 @@ jobs:
       - name: Find APK
         id: find_apk
         run: |
-          APK_PATH=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "Found APK: $APK_PATH"
           ls -lh "$APK_PATH"
