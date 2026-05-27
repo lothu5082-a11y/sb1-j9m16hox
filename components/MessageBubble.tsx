@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Clipboard, Share, Alert,
+  Clipboard, Share, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Copy, RefreshCw, Share2, Check, Code, User, Sparkles } from 'lucide-react-native';
@@ -12,6 +12,7 @@ export interface DisplayMessage {
   text: string;
   isUser: boolean;
   time: string;
+  imageUrl?: string;
   status?: 'sending' | 'sent' | 'error';
 }
 
@@ -248,7 +249,14 @@ export default function MessageBubble({ message, onRegenerate }: MessageBubblePr
       </View>
       <View style={styles.aiBubbleWrap}>
         <View style={styles.aiBubble}>
-          {renderMarkdown(message.text, false)}
+          {message.imageUrl ? (
+            <Image
+              source={{ uri: message.imageUrl }}
+              style={styles.generatedImage}
+              resizeMode="cover"
+            />
+          ) : null}
+          {message.text ? renderMarkdown(message.text, false) : null}
         </View>
         <View style={styles.aiActions}>
           <Text style={styles.time}>{message.time}</Text>
@@ -365,6 +373,14 @@ const styles = StyleSheet.create({
   },
   blockquoteText: { color: Colors.textSecondary, fontStyle: 'italic' },
   hr: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.sm },
+
+  generatedImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: BorderRadius.md,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
 
   // Code block
   codeBlock: {

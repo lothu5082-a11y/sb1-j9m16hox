@@ -7,6 +7,25 @@ export interface Message {
 
 export type AIMode = 'online' | 'offline';
 
+export const SPECIALISTS: Record<string, { label: string; emoji: string; prompt: string }> = {
+  general:     { label: 'General',     emoji: '✨', prompt: '' },
+  research:    { label: 'Research',    emoji: '🔍', prompt: 'You are a research specialist. Provide comprehensive, well-structured research with facts, data, and clear summaries.' },
+  writing:     { label: 'Writing',     emoji: '✍️', prompt: 'You are an expert writing coach. Help craft clear, engaging, well-structured content. Proofread, improve, rewrite, or create from scratch.' },
+  coding:      { label: 'Coding',      emoji: '💻', prompt: 'You are a senior software engineer. Provide working, efficient code in code blocks with the language specified. Explain your approach concisely.' },
+  study:       { label: 'Study',       emoji: '📚', prompt: 'You are a patient, encouraging tutor. Explain concepts step by step with examples and analogies. Offer quizzes or flashcards when helpful.' },
+  business:    { label: 'Business',    emoji: '💼', prompt: 'You are a strategic business consultant. Give practical, actionable advice on strategy, marketing, operations, and growth.' },
+  creative:    { label: 'Creative',    emoji: '🎨', prompt: 'You are a creative director and storyteller. Be imaginative and inspiring. Help with stories, scripts, poems, creative writing, and original ideas.' },
+  planning:    { label: 'Planning',    emoji: '📋', prompt: 'You are an expert project manager. Help organize tasks, create plans, set milestones, break down complex goals, and track progress.' },
+  travel:      { label: 'Travel',      emoji: '✈️', prompt: 'You are a knowledgeable travel guide. Share helpful tips, itineraries, local insights, packing lists, and budget advice.' },
+  design:      { label: 'Design',      emoji: '🖌️', prompt: 'You are a UX and design thinking expert. Help with design concepts, user experience, visual direction, and creative direction.' },
+};
+
+export async function generateImage(prompt: string): Promise<string> {
+  const encoded = encodeURIComponent(prompt);
+  const seed = Math.floor(Math.random() * 99999);
+  return `https://image.pollinations.ai/prompt/${encoded}?width=768&height=768&nologo=true&seed=${seed}`;
+}
+
 const VEXORA_SYSTEM = `You are Vexora, a premium AI-powered personal assistant. You are helpful, friendly, concise, and intelligent. You assist with tasks, answer questions, help with productivity, research, coding, creative writing, math, translation, and provide smart responses. Keep replies conversational and to the point. When showing code, always use proper markdown code blocks with the language specified.`;
 
 const OFFLINE_SYSTEM = `You are Vexora running in offline mode. Keep responses short, practical, and helpful. Focus on what you can do: basic writing help, simple calculations, definitions, reminders, translations of common phrases, and general knowledge.`;
@@ -88,12 +107,14 @@ export async function deleteMemory(id: string): Promise<void> {
   await storage.setJSON('vexora:memory', items.filter(i => i.id !== id));
 }
 
-async function buildSystemPrompt(offline: boolean): Promise<string> {
+async function buildSystemPrompt(offline: boolean, specialist = 'general'): Promise<string> {
   const base = offline ? OFFLINE_SYSTEM : VEXORA_SYSTEM;
+  const specPrompt = SPECIALISTS[specialist]?.prompt ?? '';
+  const combined = specPrompt ? `${base}\n\n${specPrompt}` : base;
   const memory = await getMemory();
-  if (!memory.length) return base;
+  if (!memory.length) return combined;
   const memStr = memory.map(m => `- ${m.key}: ${m.value}`).join('\n');
-  return `${base}\n\nUser preferences:\n${memStr}`;
+  return `${combined}\n\nUser preferences:\n${memStr}`;
 }
 
 // ── Offline AI ────────────────────────────────────────────────────────────────
@@ -154,8 +175,8 @@ async function callOfflineAI(messages: Message[]): Promise<string> {
 
 // ── Cloud providers ───────────────────────────────────────────────────────────
 
-async function callFree(messages: Message[]): Promise<string> {
-  const system = await buildSystemPrompt(false);
+async function callFree(messages: Message[], specialist = 'general'): Promise<string> {
+  const system = await buildSystemPrompt(false, specialist);
   const res = await fetch('https://text.pollinations.ai/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -173,9 +194,9 @@ async function callFree(messages: Message[]): Promise<string> {
   return text.trim() || 'No response';
 }
 
-async function callOllama(messages: Message[]): Promise<string> {
+async function callOllama(messages: Message[], specialist = 'general'): Promise<string> {
   const cfg = await getOllamaConfig();
-  const system = await buildSystemPrompt(false);
+  const system = await buildSystemPrompt(false, specialist);
   const res = await fetch(`${cfg.url}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -197,8 +218,8 @@ async function callOllama(messages: Message[]): Promise<string> {
   return data.message?.content ?? 'No response';
 }
 
-async function callGemini(apiKey: string, messages: Message[]): Promise<string> {
-  const system = await buildSystemPrompt(false);
+async function callGemini(apiKey: string, messages: Message[], specialist = 'general'): Promise<string> {
+  const system = await buildSystemPrompt(false, specialist);
   const contents = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
@@ -219,8 +240,8 @@ async function callGemini(apiKey: string, messages: Message[]): Promise<string> 
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? 'No response';
 }
 
-async function callGroq(apiKey: string, messages: Message[]): Promise<string> {
-  const system = await buildSystemPrompt(false);
+async function callGroq(apiKey: string, messages: Message[], specialist = 'general'): Promise<string> {
+  const system = await buildSystemPrompt(false, specialist);
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -238,8 +259,8 @@ async function callGroq(apiKey: string, messages: Message[]): Promise<string> {
   return data.choices?.[0]?.message?.content ?? 'No response';
 }
 
-async function callOpenAI(apiKey: string, messages: Message[]): Promise<string> {
-  const system = await buildSystemPrompt(false);
+async function callOpenAI(apiKey: string, messages: Message[], specialist = 'general'): Promise<string> {
+  const system = await buildSystemPrompt(false, specialist);
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -256,8 +277,8 @@ async function callOpenAI(apiKey: string, messages: Message[]): Promise<string> 
   return data.choices?.[0]?.message?.content ?? 'No response';
 }
 
-async function callClaude(apiKey: string, messages: Message[]): Promise<string> {
-  const system = await buildSystemPrompt(false);
+async function callClaude(apiKey: string, messages: Message[], specialist = 'general'): Promise<string> {
+  const system = await buildSystemPrompt(false, specialist);
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -282,10 +303,11 @@ async function callClaude(apiKey: string, messages: Message[]): Promise<string> 
 export async function sendToAI(
   model: string,
   messages: Message[],
+  specialist = 'general',
 ): Promise<{ reply: string; mode: AIMode }> {
 
   if (model === 'ollama') {
-    const reply = await callOllama(messages);
+    const reply = await callOllama(messages, specialist);
     return { reply, mode: 'online' };
   }
 
@@ -298,7 +320,7 @@ export async function sendToAI(
 
   if (model === 'free') {
     try {
-      const reply = await callFree(messages);
+      const reply = await callFree(messages, specialist);
       return { reply, mode: 'online' };
     } catch {
       const reply = await callOfflineAI(messages);
@@ -312,10 +334,10 @@ export async function sendToAI(
 
   let reply: string;
   switch (model) {
-    case 'gemini': reply = await callGemini(key, messages); break;
-    case 'groq':   reply = await callGroq(key, messages); break;
-    case 'openai': reply = await callOpenAI(key, messages); break;
-    case 'claude': reply = await callClaude(key, messages); break;
+    case 'gemini': reply = await callGemini(key, messages, specialist); break;
+    case 'groq':   reply = await callGroq(key, messages, specialist); break;
+    case 'openai': reply = await callOpenAI(key, messages, specialist); break;
+    case 'claude': reply = await callClaude(key, messages, specialist); break;
     default: throw new Error('Unknown model');
   }
   return { reply, mode: 'online' };

@@ -11,17 +11,19 @@ import * as DocumentPicker from 'expo-document-picker';
 import {
   Menu, Plus, Settings, Mic, MicOff, Send, Image as ImageIcon,
   Paperclip, Camera, Volume2, VolumeX, WifiOff, Wifi, Sparkles,
-  ChevronDown,
+  ChevronDown, Wrench, Search,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import Sidebar, { Conversation } from '../../components/Sidebar';
 import MessageBubble, { DisplayMessage } from '../../components/MessageBubble';
 import WelcomeView from '../../components/WelcomeView';
 import SettingsModal from '../../components/SettingsModal';
+import ToolsPanel from '../../components/ToolsPanel';
+import SearchModal from '../../components/SearchModal';
 import { useVoice } from '../../hooks/useVoice';
 import {
   sendToAI, Message as AIMessage, checkConnectivity,
-  invalidateConnectivityCache,
+  invalidateConnectivityCache, generateImage, SPECIALISTS,
 } from '../../lib/ai';
 import { storage } from '../../lib/storage';
 
@@ -93,6 +95,10 @@ export default function ChatScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'general' | 'api' | 'voice' | 'memory'>('general');
   const [modelPickerVisible, setModelPickerVisible] = useState(false);
+  const [specialist, setSpecialist] = useState('general');
+  const [specialistPickerVisible, setSpecialistPickerVisible] = useState(false);
+  const [toolsVisible, setToolsVisible] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const sidebarAnim = useRef(new Animated.Value(-SIDEBAR_W)).current;
@@ -183,6 +189,40 @@ export default function ChatScreen() {
     if (!text.trim() || isTyping) return;
     const trimmed = text.trim();
 
+    // Image generation command
+    const imageMatch = trimmed.match(/^\/image\s+(.+)/i);
+    if (imageMatch) {
+      const prompt = imageMatch[1];
+      const userMsg: DisplayMessage = {
+        id: genId(), text: trimmed, isUser: true,
+        time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      };
+      setMessages(prev => [...prev, userMsg]);
+      setInputText('');
+      setIsTyping(true);
+      try {
+        const imgUrl = await generateImage(prompt);
+        const replyMsg: DisplayMessage = {
+          id: genId(), text: `Generated image for: *${prompt}*`, isUser: false,
+          imageUrl: imgUrl,
+          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        };
+        setMessages(prev => {
+          const updated = [...prev, replyMsg];
+          storage.setJSON(`vexora:msgs:${activeConvId}`, updated);
+          return updated;
+        });
+      } catch (err: any) {
+        setMessages(prev => [...prev, {
+          id: genId(), text: `Image generation failed: ${err.message}`, isUser: false,
+          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        }]);
+      } finally {
+        setIsTyping(false);
+      }
+      return;
+    }
+
     const userMsg: DisplayMessage = {
       id: genId(), text: trimmed, isUser: true,
       time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
@@ -196,7 +236,7 @@ export default function ChatScreen() {
     const newHistory = [...aiHistory, userAIMsg];
 
     try {
-      const { reply, mode } = await sendToAI(selectedModel, newHistory);
+      const { reply, mode } = await sendToAI(selectedModel, newHistory, specialist);
       setLastMode(mode);
       setIsOnline(mode === 'online');
 
@@ -242,7 +282,7 @@ export default function ChatScreen() {
     } finally {
       setIsTyping(false);
     }
-  }, [messages, aiHistory, isTyping, selectedModel, activeConvId, voiceEnabled, voice, saveConversations]);
+  }, [messages, aiHistory, isTyping, selectedModel, specialist, activeConvId, voiceEnabled, voice, saveConversations]);
 
   const sendMessage = () => sendMessageWithText(inputText);
 
@@ -332,12 +372,15 @@ export default function ChatScreen() {
               </View>
               <View style={s.statusRow}>
                 <View style={[s.statusDot, { backgroundColor: isOnline ? Colors.success : Colors.warning }]} />
-                <Text style={s.statusText}>{isOnline ? 'Online' : 'Offline'} · {MODEL_LABELS[selectedModel]}</Text>
+                <Text style={s.statusText}>{isOnline ? 'Online' : 'Offline'} · {MODEL_LABELS[selectedModel]} · {SPECIALISTS[specialist]?.emoji ?? '✨'}</Text>
                 <ChevronDown color={Colors.textTertiary} size={11} />
               </View>
             </TouchableOpacity>
 
             <View style={s.topRight}>
+              <TouchableOpacity style={s.topBtn} onPress={() => setSearchVisible(true)}>
+                <Search color={Colors.textSecondary} size={20} />
+              </TouchableOpacity>
               <TouchableOpacity style={s.topBtn} onPress={() => setVoiceEnabled(v => !v)}>
                 {voiceEnabled ? <Volume2 color={Colors.primary} size={20} /> : <VolumeX color={Colors.textTertiary} size={20} />}
               </TouchableOpacity>
@@ -439,6 +482,17 @@ export default function ChatScreen() {
             <TouchableOpacity style={s.actionBtn} onPress={pickDocument}>
               <Paperclip color={Colors.textSecondary} size={18} />
             </TouchableOpacity>
+            <TouchableOpacity style={s.actionBtn} onPress={() => setToolsVisible(true)}>
+              <Wrench color={Colors.textSecondary} size={18} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.actionBtn, specialist !== 'general' && s.actionBtnActive]}
+              onPress={() => setSpecialistPickerVisible(true)}
+            >
+              <Text style={[s.specialistEmoji, specialist !== 'general' && { opacity: 1 }]}>
+                {SPECIALISTS[specialist]?.emoji ?? '✨'}
+              </Text>
+            </TouchableOpacity>
             <View style={{ flex: 1 }} />
             <View style={s.connBadge}>
               {isOnline ? <Wifi color={Colors.success} size={12} /> : <WifiOff color={Colors.warning} size={12} />}
@@ -485,6 +539,42 @@ export default function ChatScreen() {
         onVoiceToggle={setVoiceEnabled}
         activeTab={settingsTab}
       />
+
+      {/* Tools panel */}
+      <ToolsPanel
+        visible={toolsVisible}
+        onClose={() => setToolsVisible(false)}
+        onSendToChat={sendMessageWithText}
+        selectedModel={selectedModel}
+      />
+
+      {/* Universal search */}
+      <SearchModal
+        visible={searchVisible}
+        onClose={() => setSearchVisible(false)}
+        onSelectConversation={(id) => { selectConversation(id); closeSidebar(); }}
+      />
+
+      {/* Specialist picker */}
+      <Modal visible={specialistPickerVisible} transparent animationType="slide" onRequestClose={() => setSpecialistPickerVisible(false)}>
+        <Pressable style={s.pickerOverlay} onPress={() => setSpecialistPickerVisible(false)}>
+          <View style={s.pickerSheet}>
+            <View style={s.handle} />
+            <Text style={s.pickerTitle}>AI Specialist Mode</Text>
+            {Object.entries(SPECIALISTS).map(([key, spec]) => (
+              <TouchableOpacity
+                key={key}
+                style={[s.pickerRow, specialist === key && s.pickerRowActive]}
+                onPress={() => { setSpecialist(key); setSpecialistPickerVisible(false); }}
+              >
+                <Text style={s.specEmoji}>{spec.emoji}</Text>
+                <Text style={[s.pickerLabel, specialist === key && { color: Colors.primary }]}>{spec.label}</Text>
+                {specialist === key && <Text style={{ color: Colors.primary, fontWeight: '700' }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -527,8 +617,11 @@ const s = StyleSheet.create({
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   actionBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   actionBtnMic: { backgroundColor: Colors.error, borderColor: Colors.error },
+  actionBtnActive: { backgroundColor: 'rgba(0,212,255,0.12)', borderColor: 'rgba(0,212,255,0.3)' },
+  specialistEmoji: { fontSize: 16, opacity: 0.5 },
   connBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   connText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  specEmoji: { fontSize: 18, width: 26, textAlign: 'center' },
 
   pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
   pickerSheet: { backgroundColor: '#0C0C14', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: Spacing.xl + 8, borderWidth: 1, borderColor: Colors.border },
