@@ -32,42 +32,37 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Print Android SDK environment
+      - name: Resolve and install NDK
         run: |
+          # sdkmanager is not in PATH by default — use full path
+          SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}"
-          echo "ANDROID_HOME=${ANDROID_HOME}"
-          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-not set}"
-          echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-not set}"
-          echo "--- Installed NDK versions ---"
-          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "No ndk/ directory"
-          echo "--- Installed build-tools ---"
-          ls "${ANDROID_SDK_ROOT}/build-tools/" 2>/dev/null || echo "No build-tools"
-          echo "--- Installed platforms ---"
-          ls "${ANDROID_SDK_ROOT}/platforms/" 2>/dev/null || echo "No platforms"
+          echo "Available NDK versions before install:"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none yet)"
 
-      - name: Accept Android SDK licenses and install required components
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
-          # Install NDK 27.1.12297006 (required by RN 0.81 new architecture)
-          sdkmanager "ndk;27.1.12297006" || true
+          # Accept all licenses and try to install the exact version RN 0.81 needs
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "ndk;27.1.12297006" 2>&1 || true
+
+          echo "Available NDK versions after install:"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none)"
+
+          # Pick the best NDK 27.x available (exact match preferred, then latest 27.x)
           NDK_PATH="${ANDROID_SDK_ROOT}/ndk/27.1.12297006"
+          if [ ! -d "$NDK_PATH" ]; then
+            FALLBACK=$(ls -d "${ANDROID_SDK_ROOT}/ndk/27."* 2>/dev/null | sort -V | tail -1)
+            NDK_PATH="${FALLBACK}"
+          fi
+
           if [ -d "$NDK_PATH" ]; then
+            NDK_VER=$(basename "$NDK_PATH")
             echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
             echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-            echo "✓ NDK 27.1.12297006 ready at $NDK_PATH"
+            echo "SELECTED_NDK_VERSION=$NDK_VER" >> $GITHUB_ENV
+            echo "Using NDK: $NDK_PATH"
           else
-            # Fall back to any available NDK 27.x
-            FALLBACK=$(ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null | grep "^27\." | tail -1)
-            if [ -n "$FALLBACK" ]; then
-              NDK_PATH="${ANDROID_SDK_ROOT}/ndk/${FALLBACK}"
-              echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
-              echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-              echo "⚠ Using fallback NDK $FALLBACK at $NDK_PATH"
-            else
-              echo "✗ No NDK 27.x found — build may fail"
-              ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || true
-            fi
+            echo "ERROR: No NDK 27.x found — build will fail"
+            exit 1
           fi
 
       - name: Install dependencies
@@ -77,6 +72,21 @@ jobs:
         run: npx expo prebuild --platform android --clean --no-install
         env:
           EXPO_NO_TELEMETRY: 1
+
+      - name: Patch NDK version in app/build.gradle
+        run: |
+          # RN's gradle plugin hardcodes 27.1.12297006 from libs.versions.toml.
+          # If a different 27.x was selected, patch the generated build.gradle.
+          NEEDED="27.1.12297006"
+          SELECTED="${SELECTED_NDK_VERSION}"
+          echo "Need: $NEEDED  |  Selected: $SELECTED"
+          if [ "$SELECTED" != "$NEEDED" ]; then
+            sed -i "s/ndkVersion rootProject.ext.ndkVersion/ndkVersion \"${SELECTED}\"/" android/app/build.gradle
+            echo "Patched android/app/build.gradle ndkVersion → $SELECTED"
+            grep "ndkVersion" android/app/build.gradle
+          else
+            echo "Exact NDK version matches — no patch needed"
+          fi
 
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
