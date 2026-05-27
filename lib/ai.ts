@@ -12,12 +12,30 @@ async function getApiKeys() {
   return keys ?? {};
 }
 
+// Free — no API key needed, powered by Pollinations.ai
+async function callFree(messages: Message[]): Promise<string> {
+  const res = await fetch('https://text.pollinations.ai/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: VEXORA_SYSTEM },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+      ],
+      model: 'openai',
+      seed: Math.floor(Math.random() * 10000),
+    }),
+  });
+  if (!res.ok) throw new Error('Free AI unavailable, try again');
+  const text = await res.text();
+  return text.trim() || 'No response';
+}
+
 async function callGemini(apiKey: string, messages: Message[]): Promise<string> {
   const contents = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }],
   }));
-
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
     {
@@ -37,10 +55,7 @@ async function callGemini(apiKey: string, messages: Message[]): Promise<string> 
 async function callGroq(apiKey: string, messages: Message[]): Promise<string> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'llama-3.1-70b-versatile',
       messages: [
@@ -58,10 +73,7 @@ async function callGroq(apiKey: string, messages: Message[]): Promise<string> {
 async function callOpenAI(apiKey: string, messages: Message[]): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: 'gpt-3.5-turbo',
       messages: [
@@ -96,13 +108,15 @@ async function callClaude(apiKey: string, messages: Message[]): Promise<string> 
 }
 
 export async function sendToAI(model: string, messages: Message[]): Promise<string> {
+  if (model === 'free') return callFree(messages);
+
   const keys = await getApiKeys();
   const key = keys[model];
-  if (!key) throw new Error(`No API key for ${model}. Add it in Settings.`);
+  if (!key) throw new Error(`No API key for ${model}. Go to Settings → API Keys to add one, or switch to the Free model.`);
 
   switch (model) {
     case 'gemini': return callGemini(key, messages);
-    case 'groq': return callGroq(key, messages);
+    case 'groq':   return callGroq(key, messages);
     case 'openai': return callOpenAI(key, messages);
     case 'claude': return callClaude(key, messages);
     default: throw new Error('Unknown model');

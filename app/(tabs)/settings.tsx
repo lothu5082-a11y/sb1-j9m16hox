@@ -137,10 +137,11 @@ export default function SettingsScreen() {
   ];
 
   const aiModels = [
-    { id: 'gemini', name: 'Gemini', color: Colors.primary },
-    { id: 'openai', name: 'OpenAI', color: Colors.secondary },
-    { id: 'groq', name: 'Groq', color: Colors.accent },
-    { id: 'claude', name: 'Claude', color: '#FF6B35' },
+    { id: 'free',   name: 'Free AI', color: Colors.success },
+    { id: 'gemini', name: 'Gemini',  color: Colors.primary },
+    { id: 'openai', name: 'OpenAI',  color: Colors.secondary },
+    { id: 'groq',   name: 'Groq',    color: Colors.accent },
+    { id: 'claude', name: 'Claude',  color: '#FF6B35' },
   ];
 
   return (
@@ -189,7 +190,7 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, { fontSize: FontSizes.xs, textTransform: 'none', letterSpacing: 0, color: Colors.textTertiary, marginTop: -8, marginBottom: Spacing.md }]}>
               Gemini & Groq are free · Keys saved on device only
             </Text>
-            {aiModels.map((model) => {
+            {aiModels.filter(m => m.id !== 'free').map((model) => {
               const hasKey = !!apiKeys[model.id];
               const isEditing = editingKey === model.id;
               return (

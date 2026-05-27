@@ -40,7 +40,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<DisplayMessage[]>([
     {
       id: '0',
-      text: "Hi! I'm Vexora 👋\nAdd your API key in Settings to enable real AI. I support Gemini (free), Groq (free), OpenAI, and Claude.",
+      text: "Hi! I'm Vexora 👋\nI'm running on Free AI — no key needed. Just type and I'll reply! For faster/smarter responses, add a Gemini or Groq key in Settings.",
       isUser: false,
       time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     },
@@ -49,7 +49,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedMode, setSelectedMode] = useState('Assistant');
-  const [selectedModel, setSelectedModel] = useState('gemini');
+  const [selectedModel, setSelectedModel] = useState('free');
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
