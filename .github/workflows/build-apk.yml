@@ -146,6 +146,16 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android/gradlew
 
+      - name: Free disk space
+        run: |
+          echo "=== Disk before cleanup ===" && df -h /
+          # Remove large pre-installed tools not needed for Android builds
+          sudo rm -rf /usr/share/dotnet /usr/local/share/boost /opt/ghc 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/emulator 2>/dev/null || true
+          sudo apt-get clean -qq 2>/dev/null || true
+          docker system prune -af 2>/dev/null || true
+          echo "=== Disk after cleanup ===" && df -h /
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -158,22 +168,25 @@ jobs:
       - name: Build release APK (bundle embedded, no Metro needed)
         run: |
           set -o pipefail
+          echo "=== Disk space before build ===" && df -h /
           cd android
           ./gradlew assembleRelease \
             --no-daemon \
             --stacktrace \
-            --info \
+            --warn \
             2>&1 | tee /tmp/gradle.log || {
               echo ""
               echo "========= GRADLE FAILURE SUMMARY ========="
-              grep -A 20 "What went wrong" /tmp/gradle.log | head -80
-              echo "------ Last 60 lines of build log --------"
-              tail -60 /tmp/gradle.log
+              grep -A 30 "What went wrong" /tmp/gradle.log | head -120
+              echo "------ Last 100 lines of build log -------"
+              tail -100 /tmp/gradle.log
+              echo "=== Disk space after failed build ===" && df -h /
               echo "==========================================="
               exit 1
             }
+          echo "=== Disk space after build ===" && df -h /
         env:
-          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3g -Dorg.gradle.daemon=false'
           EXPO_NO_TELEMETRY: 1
 
       - name: Upload build logs on failure
