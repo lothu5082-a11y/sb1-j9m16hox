@@ -32,42 +32,47 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Show Android SDK environment
+        run: |
+          echo "=== Android SDK environment ==="
+          echo "ANDROID_SDK_ROOT: ${ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME: ${ANDROID_HOME}"
+          echo "--- NDK versions pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none)"
+          echo "--- CMake versions pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/cmake/" 2>/dev/null || echo "  (none)"
+          echo "--- Build-tools pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/build-tools/" 2>/dev/null || echo "  (none)"
+          echo "--- Platforms pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/platforms/" 2>/dev/null || echo "  (none)"
+          echo "--- Java version ---"
+          java -version
+          echo "--- Node version ---"
+          node --version
+
       - name: Install Android SDK components and NDK
         run: |
           SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}"
 
           # Accept all licenses first
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
 
-          # Install required SDK components
-          echo "Installing Android SDK platform 36 and build-tools 36.0.0..."
-          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" 2>&1 || true
+          # Install required SDK components (safe to re-install if already present)
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" 2>&1 | tail -5 || true
+          "$SDKMANAGER" "cmake;3.22.1" 2>&1 | tail -5 || true
+          "$SDKMANAGER" "ndk;27.1.12297006" 2>&1 | tail -5 || true
 
-          # Install CMake 3.22.1 — used by reanimated, worklets, and ReactAndroid.
-          # 3.22.1 is a known Android SDK package; 3.30.5 may not be packaged.
-          # Setting CMAKE_VERSION=3.22.1 overrides ReactAndroid's 3.30.5 default
-          # so every native module uses the same installed CMake version.
-          echo "Installing CMake 3.22.1..."
-          "$SDKMANAGER" "cmake;3.22.1" 2>&1 || true
-
-          echo "Available NDK versions before NDK install:"
-          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none yet)"
-
-          # Try to install the exact NDK version RN 0.81 needs
-          echo "Installing NDK 27.1.12297006..."
-          "$SDKMANAGER" "ndk;27.1.12297006" 2>&1 || true
-
-          echo "Available NDK versions after install:"
+          echo "--- NDK versions after install ---"
           ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none)"
+          echo "--- CMake versions after install ---"
+          ls "${ANDROID_SDK_ROOT}/cmake/" 2>/dev/null || echo "  (none)"
 
-          # Pick the best NDK 27.x available (exact match preferred, then latest 27.x)
+          # Pick NDK: exact 27.1.12297006 preferred, fall back to any 27.x
           NDK_PATH="${ANDROID_SDK_ROOT}/ndk/27.1.12297006"
           if [ ! -d "$NDK_PATH" ]; then
             FALLBACK=$(ls -d "${ANDROID_SDK_ROOT}/ndk/27."* 2>/dev/null | sort -V | tail -1)
             NDK_PATH="${FALLBACK}"
           fi
-
           if [ -d "$NDK_PATH" ]; then
             NDK_VER=$(basename "$NDK_PATH")
             echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
@@ -75,51 +80,67 @@ jobs:
             echo "SELECTED_NDK_VERSION=$NDK_VER" >> $GITHUB_ENV
             echo "Using NDK: $NDK_PATH"
           else
-            echo "ERROR: No NDK 27.x found — build will fail"
+            echo "ERROR: No NDK 27.x found"
             exit 1
           fi
 
-          # Show installed CMake versions
-          echo "Installed CMake versions:"
-          ls "${ANDROID_SDK_ROOT}/cmake/" 2>/dev/null || echo "  (none in SDK cmake dir)"
+          # Pick CMake: prefer 3.22.1, otherwise use highest installed version
+          CMAKE_DIR="${ANDROID_SDK_ROOT}/cmake"
+          if [ -d "${CMAKE_DIR}/3.22.1" ]; then
+            SELECTED_CMAKE="3.22.1"
+          else
+            SELECTED_CMAKE=$(ls "${CMAKE_DIR}/" 2>/dev/null | sort -V | tail -1)
+          fi
+          if [ -n "$SELECTED_CMAKE" ]; then
+            echo "SELECTED_CMAKE_VERSION=$SELECTED_CMAKE" >> $GITHUB_ENV
+            echo "Using CMake: $SELECTED_CMAKE"
+          else
+            echo "WARNING: No CMake found in Android SDK. AGP will auto-download."
+          fi
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci 2>&1 | tail -20
 
-      - name: Run Expo prebuild (generate native Android project)
-        run: npx expo prebuild --platform android --clean --no-install
+      - name: Run Expo prebuild
+        run: |
+          npx expo prebuild --platform android --clean --no-install 2>&1 | tee /tmp/prebuild.log
+          echo "=== Prebuild complete. android/ contents: ==="
+          ls android/ 2>/dev/null || echo "ERROR: android/ not generated"
+          echo "Gradle wrapper:"
+          cat android/gradle/wrapper/gradle-wrapper.properties 2>/dev/null || echo "(not found)"
         env:
           EXPO_NO_TELEMETRY: 1
 
-      - name: Patch NDK version and CI optimizations
+      - name: Patch NDK + CMake + CI optimisations
         run: |
           NEEDED="27.1.12297006"
           SELECTED="${SELECTED_NDK_VERSION}"
-          echo "Required NDK: $NEEDED  |  Available NDK: $SELECTED"
+          echo "NDK needed: $NEEDED | available: $SELECTED"
+          echo "CMake available: ${SELECTED_CMAKE_VERSION}"
 
+          # 1. Patch NDK version if runner doesn't have exact 27.1.12297006
           if [ "$SELECTED" != "$NEEDED" ]; then
-            echo "Patching all NDK version references from $NEEDED → $SELECTED"
-            # 1. Patch app/build.gradle (used by the app module itself)
             sed -i "s/ndkVersion rootProject.ext.ndkVersion/ndkVersion \"${SELECTED}\"/" android/app/build.gradle
-            echo "android/app/build.gradle ndkVersion:"
+            echo "android/app/build.gradle ndkVersion → patched to $SELECTED"
             grep "ndkVersion" android/app/build.gradle
 
-            # 2. Patch react-native's libs.versions.toml — root source that
-            #    ExpoRootProjectPlugin reads to set rootProject.ext.ndkVersion,
-            #    which ALL autolinked native modules inherit.
             TOML="node_modules/react-native/gradle/libs.versions.toml"
             sed -i "s/ndkVersion = \"${NEEDED}\"/ndkVersion = \"${SELECTED}\"/" "$TOML"
-            echo "Patched $TOML:"
+            echo "libs.versions.toml ndkVersion → patched to $SELECTED"
             grep "ndkVersion" "$TOML"
           else
-            echo "NDK $NEEDED is available — no NDK patches needed"
+            echo "NDK exact match — no NDK patch needed"
           fi
 
-          # CI optimisation: build arm64-v8a only (covers all modern Android phones)
-          # Avoids compiling 4× native code which saves ~15 min and reduces OOM risk
-          echo "Patching gradle.properties: limit to arm64-v8a only for CI..."
+          # 2. Set CMAKE_VERSION in GITHUB_ENV so Gradle step picks it up
+          if [ -n "${SELECTED_CMAKE_VERSION}" ]; then
+            echo "CMAKE_VERSION=${SELECTED_CMAKE_VERSION}" >> $GITHUB_ENV
+            echo "CMAKE_VERSION set to ${SELECTED_CMAKE_VERSION}"
+          fi
+
+          # 3. arm64-v8a only for CI — 4× faster, covers all modern phones
           sed -i "s/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/" android/gradle.properties
-          echo "reactNativeArchitectures after patch:"
+          echo "reactNativeArchitectures:"
           grep "reactNativeArchitectures" android/gradle.properties
 
       - name: Make Gradle wrapper executable
@@ -134,13 +155,14 @@ jobs:
           key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Pre-bundle JS (isolate Metro from Gradle)
+      - name: Pre-bundle JS
         run: |
           mkdir -p android/app/src/main/assets
           npx expo export:embed \
             --platform android \
             --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/
+            --assets-dest android/app/src/main/res/ 2>&1 | tee /tmp/prebundle.log
+          echo "=== Bundle size: $(du -sh android/app/src/main/assets/index.android.bundle 2>/dev/null || echo 'NOT CREATED') ==="
         env:
           EXPO_NO_TELEMETRY: 1
           NODE_ENV: production
@@ -149,21 +171,33 @@ jobs:
         run: |
           set -o pipefail
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log || {
-            echo ""
-            echo "====== GRADLE FAILURE SUMMARY ======"
-            grep -A 15 "What went wrong" /tmp/gradle.log | head -60
-            echo "------"
-            echo "Last 40 lines of Gradle log:"
-            tail -40 /tmp/gradle.log
-            echo "======================================"
-            exit 1
-          }
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --info \
+            2>&1 | tee /tmp/gradle.log || {
+              echo ""
+              echo "========= GRADLE FAILURE SUMMARY ========="
+              grep -A 20 "What went wrong" /tmp/gradle.log | head -80
+              echo "------ Last 60 lines of build log --------"
+              tail -60 /tmp/gradle.log
+              echo "==========================================="
+              exit 1
+            }
         env:
           GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
           EXPO_NO_TELEMETRY: 1
-          # Override ReactAndroid's cmake 3.30.5 default → use the installed 3.22.1
-          CMAKE_VERSION: '3.22.1'
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-logs
+          path: |
+            /tmp/prebuild.log
+            /tmp/prebundle.log
+            /tmp/gradle.log
+          retention-days: 7
 
       - name: Find APK
         id: find_apk
