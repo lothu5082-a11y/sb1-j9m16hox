@@ -100,10 +100,21 @@ jobs:
           key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Build debug APK (with bundled JS)
+      - name: Pre-bundle JS (isolate Metro from Gradle)
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx expo export:embed \
+            --platform android \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res/
+        env:
+          EXPO_NO_TELEMETRY: 1
+          NODE_ENV: production
+
+      - name: Build debug APK (native only, bundle pre-built)
         run: |
           cd android
-          ./gradlew assembleDebug -PbundleInDebug=true --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
         env:
           GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
           EXPO_NO_TELEMETRY: 1
