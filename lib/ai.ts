@@ -12,7 +12,24 @@ async function getApiKeys() {
   return keys ?? {};
 }
 
-// Free — no API key needed, powered by Pollinations.ai
+export async function getOllamaConfig(): Promise<{ url: string; model: string }> {
+  const cfg = await storage.getJSON<{ url: string; model: string }>('vexora:ollama');
+  return cfg ?? { url: 'http://192.168.1.100:11434', model: 'llama3.2' };
+}
+
+export async function saveOllamaConfig(url: string, model: string) {
+  await storage.setJSON('vexora:ollama', { url: url.replace(/\/$/, ''), model });
+}
+
+export async function testOllamaConnection(url: string): Promise<string[]> {
+  const base = url.replace(/\/$/, '');
+  const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error(`Cannot reach Ollama at ${base}`);
+  const data = await res.json();
+  return (data.models ?? []).map((m: any) => m.name as string);
+}
+
+// Free — no API key, powered by Pollinations.ai
 async function callFree(messages: Message[]): Promise<string> {
   const res = await fetch('https://text.pollinations.ai/', {
     method: 'POST',
@@ -29,6 +46,30 @@ async function callFree(messages: Message[]): Promise<string> {
   if (!res.ok) throw new Error('Free AI unavailable, try again');
   const text = await res.text();
   return text.trim() || 'No response';
+}
+
+// Ollama — local server on your PC/laptop, same Wi-Fi network
+async function callOllama(messages: Message[]): Promise<string> {
+  const cfg = await getOllamaConfig();
+  const res = await fetch(`${cfg.url}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: cfg.model,
+      messages: [
+        { role: 'system', content: VEXORA_SYSTEM },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+      ],
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Ollama error: ${txt || res.status}`);
+  }
+  const data = await res.json();
+  return data.message?.content ?? 'No response';
 }
 
 async function callGemini(apiKey: string, messages: Message[]): Promise<string> {
@@ -108,11 +149,12 @@ async function callClaude(apiKey: string, messages: Message[]): Promise<string> 
 }
 
 export async function sendToAI(model: string, messages: Message[]): Promise<string> {
-  if (model === 'free') return callFree(messages);
+  if (model === 'free')   return callFree(messages);
+  if (model === 'ollama') return callOllama(messages);
 
   const keys = await getApiKeys();
   const key = keys[model];
-  if (!key) throw new Error(`No API key for ${model}. Go to Settings → API Keys to add one, or switch to the Free model.`);
+  if (!key) throw new Error(`No API key for ${model}. Go to Settings → API Keys, or use Free AI / Ollama.`);
 
   switch (model) {
     case 'gemini': return callGemini(key, messages);

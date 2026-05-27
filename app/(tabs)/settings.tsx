@@ -9,7 +9,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
-import { saveApiKey, loadApiKeys } from '../../lib/ai';
+import { saveApiKey, loadApiKeys, saveOllamaConfig, getOllamaConfig, testOllamaConnection } from '../../lib/ai';
 import { storage } from '../../lib/storage';
 
 interface SettingRowProps {
@@ -109,13 +109,32 @@ export default function SettingsScreen() {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState('');
+  const [ollamaUrl, setOllamaUrl] = useState('http://192.168.1.100:11434');
+  const [ollamaModel, setOllamaModel] = useState('llama3.2');
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaTesting, setOllamaTesting] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'ok' | 'error'>('idle');
 
   useEffect(() => {
     loadApiKeys().then(setApiKeys);
-    storage.getJSON<string>('vexora:selected_model').then(m => {
-      if (m) setSelectedModel(m);
-    });
+    storage.getJSON<string>('vexora:selected_model').then(m => { if (m) setSelectedModel(m); });
+    getOllamaConfig().then(cfg => { setOllamaUrl(cfg.url); setOllamaModel(cfg.model); });
   }, []);
+
+  const handleTestOllama = async () => {
+    setOllamaTesting(true);
+    setOllamaStatus('idle');
+    try {
+      const models = await testOllamaConnection(ollamaUrl);
+      setOllamaModels(models);
+      setOllamaStatus('ok');
+      await saveOllamaConfig(ollamaUrl, ollamaModel);
+    } catch {
+      setOllamaStatus('error');
+    } finally {
+      setOllamaTesting(false);
+    }
+  };
 
   const handleSelectModel = (id: string) => {
     setSelectedModel(id);
@@ -138,6 +157,7 @@ export default function SettingsScreen() {
 
   const aiModels = [
     { id: 'free',   name: 'Free AI', color: Colors.success },
+    { id: 'ollama', name: 'Ollama',  color: '#8B5CF6' },
     { id: 'gemini', name: 'Gemini',  color: Colors.primary },
     { id: 'openai', name: 'OpenAI',  color: Colors.secondary },
     { id: 'groq',   name: 'Groq',    color: Colors.accent },
@@ -190,7 +210,7 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, { fontSize: FontSizes.xs, textTransform: 'none', letterSpacing: 0, color: Colors.textTertiary, marginTop: -8, marginBottom: Spacing.md }]}>
               Gemini & Groq are free · Keys saved on device only
             </Text>
-            {aiModels.filter(m => m.id !== 'free').map((model) => {
+            {aiModels.filter(m => m.id !== 'free' && m.id !== 'ollama').map((model) => {
               const hasKey = !!apiKeys[model.id];
               const isEditing = editingKey === model.id;
               return (
@@ -237,6 +257,62 @@ export default function SettingsScreen() {
                 </View>
               );
             })}
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.duration(600).delay(160)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Ollama (Local AI)</Text>
+            <Text style={[styles.sectionTitle, { fontSize: FontSizes.xs, textTransform: 'none', letterSpacing: 0, color: Colors.textTertiary, marginTop: -8, marginBottom: Spacing.md }]}>
+              Run any model on your PC — phone connects over Wi-Fi
+            </Text>
+            <View style={[settingStyles.container, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing.md }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+                <View style={[settingStyles.iconWrap, { borderColor: '#8B5CF6' }]}>
+                  <Brain color="#8B5CF6" size={18} />
+                </View>
+                <Text style={[settingStyles.title, { flex: 1 }]}>Ollama Server</Text>
+                {ollamaStatus === 'ok' && <Text style={{ color: Colors.success, fontSize: FontSizes.xs, fontWeight: '700' }}>● Connected</Text>}
+                {ollamaStatus === 'error' && <Text style={{ color: Colors.error, fontSize: FontSizes.xs, fontWeight: '700' }}>✕ Failed</Text>}
+              </View>
+              <TextInput
+                style={[styles.keyInput, { borderColor: '#8B5CF680' }]}
+                value={ollamaUrl}
+                onChangeText={setOllamaUrl}
+                placeholder="http://192.168.1.100:11434"
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TextInput
+                style={[styles.keyInput, { borderColor: '#8B5CF650' }]}
+                value={ollamaModel}
+                onChangeText={v => { setOllamaModel(v); saveOllamaConfig(ollamaUrl, v); }}
+                placeholder="Model name (e.g. llama3.2, mistral)"
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {ollamaModels.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {ollamaModels.map(m => (
+                      <TouchableOpacity key={m} onPress={() => { setOllamaModel(m); saveOllamaConfig(ollamaUrl, m); }}
+                        style={[styles.speedChip, ollamaModel === m && { borderColor: '#8B5CF6', backgroundColor: 'rgba(139,92,246,.1)' }]}>
+                        <Text style={[styles.speedChipText, ollamaModel === m && { color: '#8B5CF6' }]}>{m}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
+              <TouchableOpacity onPress={handleTestOllama} disabled={ollamaTesting}
+                style={{ backgroundColor: '#8B5CF6', borderRadius: BorderRadius.md, padding: Spacing.sm + 2, alignItems: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: FontSizes.sm }}>
+                  {ollamaTesting ? 'Testing...' : 'Test & Connect'}
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 }}>
+                {'On your PC: install ollama.com → run "ollama serve" → make sure firewall allows port 11434'}
+              </Text>
+            </View>
           </Animated.View>
 
           <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.section}>
