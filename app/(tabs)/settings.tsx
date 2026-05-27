@@ -7,11 +7,9 @@ import {
   Brain,
   Mic,
   Gamepad2,
-  Shield,
   Phone,
   Smartphone,
   Globe,
-  Volume2,
   Bell,
   Lock,
   Eye,
@@ -22,6 +20,9 @@ import {
   Database,
   HardDrive,
   Trash2,
+  Zap,
+  Palette,
+  Vibrate,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
@@ -117,6 +118,15 @@ export default function SettingsScreen() {
   const [selectedMode, setSelectedMode] = useState('assistant');
   const [userMemory, setUserMemory] = useState(true);
   const [conversationHistory, setConversationHistory] = useState(true);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [hapticFeedback, setHapticFeedback] = useState(true);
+  const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
+
+  const animationSpeeds = [
+    { id: 'slow' as const, label: 'Slow' },
+    { id: 'normal' as const, label: 'Normal' },
+    { id: 'fast' as const, label: 'Fast' },
+  ];
 
   const aiModels = [
     { id: 'gemini', name: 'Gemini', color: Colors.primary },
@@ -335,6 +345,59 @@ export default function SettingsScreen() {
             </View>
           </Animated.View>
 
+          <Animated.View entering={FadeInUp.duration(600).delay(580)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Appearance & Animations</Text>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Zap color={animationsEnabled ? Colors.primary : Colors.textTertiary} size={20} />}
+                title="Animations"
+                subtitle="Smooth transitions and effects"
+                value={animationsEnabled}
+                onValueChange={setAnimationsEnabled}
+                color={Colors.primary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Vibrate color={hapticFeedback ? Colors.secondary : Colors.textTertiary} size={20} />}
+                title="Haptic Feedback"
+                subtitle="Vibration on button press"
+                value={hapticFeedback}
+                onValueChange={setHapticFeedback}
+                color={Colors.secondary}
+              />
+            </View>
+            <View style={[styles.settingsGap, { marginBottom: 0 }]}>
+              <View style={[settingStyles.container, { flexDirection: 'column', alignItems: 'flex-start', gap: Spacing.md }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+                  <View style={[settingStyles.iconWrap, { borderColor: Colors.border }]}>
+                    <Palette color={Colors.accent} size={20} />
+                  </View>
+                  <View>
+                    <Text style={settingStyles.title}>Animation Speed</Text>
+                    <Text style={settingStyles.subtitle}>Controls transition timing</Text>
+                  </View>
+                </View>
+                <View style={styles.speedRow}>
+                  {animationSpeeds.map((s) => (
+                    <TouchableOpacity
+                      key={s.id}
+                      onPress={() => setAnimationSpeed(s.id)}
+                      style={[
+                        styles.speedChip,
+                        animationSpeed === s.id && { borderColor: Colors.accent, backgroundColor: Colors.accent + '15' },
+                      ]}
+                    >
+                      <Text style={[styles.speedChipText, animationSpeed === s.id && { color: Colors.accent }]}>
+                        {s.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+
           <Animated.View entering={FadeInUp.duration(600).delay(600)} style={styles.section}>
             <Text style={styles.sectionTitle}>Notifications</Text>
             <View style={styles.settingsGap}>
@@ -466,6 +529,25 @@ const styles = StyleSheet.create({
   },
   settingsGap: {
     marginBottom: Spacing.md,
+  },
+  speedRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    width: '100%',
+  },
+  speedChip: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundTertiary,
+    alignItems: 'center',
+  },
+  speedChipText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textTertiary,
   },
   premiumCard: {
     flexDirection: 'row',

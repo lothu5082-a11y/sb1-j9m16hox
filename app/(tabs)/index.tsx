@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
 import { useHabits } from '../../hooks/useHabits';
 import { useNotes } from '../../hooks/useNotes';
+import AnimatedButton from '../../components/AnimatedButton';
 
 const { width } = Dimensions.get('window');
 
@@ -67,14 +68,14 @@ export default function HomeScreen() {
 
           <Animated.View entering={FadeInUp.duration(800).delay(200)} style={styles.orbSection}>
             <VoiceOrb isListening={isListening} size={160} />
-            <TouchableOpacity onPress={toggleListening} activeOpacity={0.8} style={styles.micButton}>
+            <AnimatedButton onPress={toggleListening} style={styles.micButton} scaleDown={0.90}>
               <LinearGradient
                 colors={isListening ? [Colors.primary, Colors.primaryDark] : [Colors.surface, Colors.surfaceLight]}
                 style={styles.micGradient}
               >
                 <Mic color={isListening ? Colors.background : Colors.primary} size={28} />
               </LinearGradient>
-            </TouchableOpacity>
+            </AnimatedButton>
             <Text style={styles.listeningText}>
               {isListening ? 'Listening...' : 'Tap to speak'}
             </Text>
@@ -127,16 +128,15 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.quickActionsGrid}>
               {quickActions.map((action, index) => (
-                <TouchableOpacity
+                <AnimatedButton
                   key={index}
-                  activeOpacity={0.7}
                   style={styles.quickActionCard}
                   onPress={() => router.push(action.route as any)}
                 >
                   <View style={styles.quickActionIcon}>{action.icon}</View>
                   <Text style={styles.quickActionTitle}>{action.title}</Text>
                   <Text style={styles.quickActionDesc}>{action.description}</Text>
-                </TouchableOpacity>
+                </AnimatedButton>
               ))}
             </View>
           </Animated.View>
@@ -147,10 +147,9 @@ export default function HomeScreen() {
               {featureHub.map((item, i) => {
                 const ItemIcon = item.icon;
                 return (
-                  <TouchableOpacity
+                  <AnimatedButton
                     key={i}
                     style={styles.featureHubCard}
-                    activeOpacity={0.7}
                     onPress={() => router.push(item.route as any)}
                   >
                     <View style={[styles.featureHubIcon, { backgroundColor: item.color + '15' }]}>
@@ -159,7 +158,7 @@ export default function HomeScreen() {
                     <Text style={styles.featureHubLabel}>{item.label}</Text>
                     <Text style={styles.featureHubDesc}>{item.desc}</Text>
                     <ChevronRight color={Colors.textTertiary} size={14} style={styles.featureHubArrow} />
-                  </TouchableOpacity>
+                  </AnimatedButton>
                 );
               })}
             </View>
