@@ -44,9 +44,12 @@ jobs:
           echo "Installing Android SDK platform 36 and build-tools 36.0.0..."
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" 2>&1 || true
 
-          # Install CMake 3.30.5 — required by React Native 0.81 New Architecture
-          echo "Installing CMake 3.30.5..."
-          "$SDKMANAGER" "cmake;3.30.5" 2>&1 || true
+          # Install CMake 3.22.1 — used by reanimated, worklets, and ReactAndroid.
+          # 3.22.1 is a known Android SDK package; 3.30.5 may not be packaged.
+          # Setting CMAKE_VERSION=3.22.1 overrides ReactAndroid's 3.30.5 default
+          # so every native module uses the same installed CMake version.
+          echo "Installing CMake 3.22.1..."
+          "$SDKMANAGER" "cmake;3.22.1" 2>&1 || true
 
           echo "Available NDK versions before NDK install:"
           ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none yet)"
@@ -159,7 +162,8 @@ jobs:
         env:
           GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
           EXPO_NO_TELEMETRY: 1
-          CMAKE_VERSION: '3.30.5'
+          # Override ReactAndroid's cmake 3.30.5 default → use the installed 3.22.1
+          CMAKE_VERSION: '3.22.1'
 
       - name: Find APK
         id: find_apk
