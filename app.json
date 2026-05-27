@@ -35,6 +35,13 @@
           "microphonePermission": "Allow Vexora to use the microphone for voice commands",
           "speechRecognitionPermission": "Allow Vexora to recognise your speech"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Vexora to access your photos for AI image analysis",
+          "cameraPermission": "Allow Vexora to use the camera for AI image analysis"
+        }
       ]
     ],
     "experiments": {
