@@ -31,6 +31,10 @@ jobs:
         run: npx expo export --platform web
         env:
           EXPO_NO_TELEMETRY: 1
+          PUBLIC_URL: /sb1-j9m16hox
+
+      - name: Add 404.html for SPA routing
+        run: cp dist/index.html dist/404.html
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
