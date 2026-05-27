@@ -4,11 +4,12 @@ import {
   TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Send, Mic, Sparkles, Trash2, Key } from 'lucide-react-native';
+import { Send, Mic, MicOff, Sparkles, Trash2, Volume2, VolumeX } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
 import { sendToAI, Message as AIMessage } from '../../lib/ai';
 import { storage } from '../../lib/storage';
+import { useVoice } from '../../hooks/useVoice';
 
 interface DisplayMessage {
   id: string;
@@ -50,7 +51,16 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedMode, setSelectedMode] = useState('Assistant');
   const [selectedModel, setSelectedModel] = useState('free');
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const voice = useVoice({
+    onResult: (text) => {
+      setInputText(text);
+      // auto-send after a short delay so user sees what was heard
+      setTimeout(() => sendMessageWithText(text), 400);
+    },
+  });
 
   useEffect(() => {
     storage.getJSON<string>('vexora:selected_model').then(m => {
@@ -63,13 +73,13 @@ export default function ChatScreen() {
     setAiHistory([]);
   };
 
-  const sendMessage = async () => {
-    const text = inputText.trim();
-    if (!text || isTyping) return;
+  const sendMessageWithText = async (text: string) => {
+    if (!text.trim() || isTyping) return;
+    const trimmed = text.trim();
 
     const userMsg: DisplayMessage = {
       id: Date.now().toString(),
-      text,
+      text: trimmed,
       isUser: true,
       time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     };
@@ -78,40 +88,36 @@ export default function ChatScreen() {
     setIsTyping(true);
 
     const modePrefix = MODE_SYSTEM[selectedMode] ? `[${selectedMode} mode] ` : '';
-    const userAIMsg: AIMessage = { role: 'user', content: modePrefix + text };
+    const userAIMsg: AIMessage = { role: 'user', content: modePrefix + trimmed };
     const newHistory = [...aiHistory, userAIMsg];
 
     try {
       const reply = await sendToAI(selectedModel, newHistory);
       const assistantMsg: AIMessage = { role: 'assistant', content: reply };
       setAiHistory([...newHistory, assistantMsg]);
-
-      setMessages(prev => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          text: reply,
-          isUser: false,
-          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-        },
-      ]);
+      const replyMsg: DisplayMessage = {
+        id: (Date.now() + 1).toString(),
+        text: reply,
+        isUser: false,
+        time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      };
+      setMessages(prev => [...prev, replyMsg]);
+      if (voiceEnabled) voice.speak(reply);
     } catch (err: any) {
       const errText = err.message?.includes('No API key')
         ? "No API key found. Go to Settings → add your key for the selected model."
         : `Error: ${err.message}`;
       setMessages(prev => [
         ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          text: errText,
-          isUser: false,
-          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-        },
+        { id: (Date.now() + 1).toString(), text: errText, isUser: false,
+          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) },
       ]);
     } finally {
       setIsTyping(false);
     }
   };
+
+  const sendMessage = () => sendMessageWithText(inputText);
 
   return (
     <View style={styles.container}>
@@ -126,9 +132,16 @@ export default function ChatScreen() {
               <Text style={styles.headerStatus}>Online · {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.clearButton} onPress={clearChat}>
-            <Trash2 color={Colors.textTertiary} size={18} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity style={styles.clearButton} onPress={() => setVoiceEnabled(v => !v)}>
+              {voiceEnabled
+                ? <Volume2 color={Colors.primary} size={18} />
+                : <VolumeX color={Colors.textTertiary} size={18} />}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.clearButton} onPress={clearChat}>
+              <Trash2 color={Colors.textTertiary} size={18} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -183,12 +196,32 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
+        {voice.state === 'listening' && (
+          <View style={styles.listeningBar}>
+            <View style={styles.listeningDots}>
+              {[0,1,2,3,4].map(i => (
+                <View key={i} style={[styles.listeningDot, { opacity: 0.4 + i * 0.12 }]} />
+              ))}
+            </View>
+            <Text style={styles.listeningText}>
+              {voice.transcript || 'Listening...'}
+            </Text>
+          </View>
+        )}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inputContainer}>
           <View style={styles.inputRow}>
+            <TouchableOpacity
+              onPress={voice.toggle}
+              style={[styles.micButton, voice.isListening && styles.micButtonActive]}
+            >
+              {voice.isListening
+                ? <MicOff color={Colors.background} size={18} />
+                : <Mic color={Colors.primary} size={18} />}
+            </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder={MODE_HINTS[selectedMode]}
+                placeholder={voice.isListening ? 'Listening...' : MODE_HINTS[selectedMode]}
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}
@@ -290,4 +323,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5, shadowRadius: 10, elevation: 6,
   },
   sendButtonDisabled: { backgroundColor: Colors.surface, shadowOpacity: 0, elevation: 0 },
+  micButton: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  micButtonActive: {
+    backgroundColor: Colors.primary, borderColor: Colors.primary,
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6, shadowRadius: 10, elevation: 6,
+  },
+  listeningBar: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.primary,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+  },
+  listeningDots: { flexDirection: 'row', gap: 3, alignItems: 'center' },
+  listeningDot: {
+    width: 4, height: 12, borderRadius: 2, backgroundColor: Colors.primary,
+  },
+  listeningText: { flex: 1, fontSize: FontSizes.sm, color: Colors.primary, fontStyle: 'italic' },
 });
