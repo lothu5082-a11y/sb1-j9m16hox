@@ -73,19 +73,26 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: 1
 
-      - name: Patch NDK version in app/build.gradle
+      - name: Patch NDK version everywhere (if using fallback)
         run: |
-          # RN's gradle plugin hardcodes 27.1.12297006 from libs.versions.toml.
-          # If a different 27.x was selected, patch the generated build.gradle.
           NEEDED="27.1.12297006"
           SELECTED="${SELECTED_NDK_VERSION}"
-          echo "Need: $NEEDED  |  Selected: $SELECTED"
+          echo "Required NDK: $NEEDED  |  Available NDK: $SELECTED"
           if [ "$SELECTED" != "$NEEDED" ]; then
+            echo "Patching all NDK version references from $NEEDED → $SELECTED"
+            # 1. Patch app/build.gradle (used by the app module itself)
             sed -i "s/ndkVersion rootProject.ext.ndkVersion/ndkVersion \"${SELECTED}\"/" android/app/build.gradle
-            echo "Patched android/app/build.gradle ndkVersion → $SELECTED"
             grep "ndkVersion" android/app/build.gradle
+
+            # 2. Patch react-native's libs.versions.toml — this is the root source that
+            #    the RN gradle plugin reads to set rootProject.ext.ndkVersion, which ALL
+            #    autolinked native modules inherit for their NDK version.
+            TOML="node_modules/react-native/gradle/libs.versions.toml"
+            sed -i "s/ndkVersion = \"${NEEDED}\"/ndkVersion = \"${SELECTED}\"/" "$TOML"
+            echo "Patched $TOML:"
+            grep "ndkVersion" "$TOML"
           else
-            echo "Exact NDK version matches — no patch needed"
+            echo "NDK $NEEDED is available — no patches needed"
           fi
 
       - name: Make Gradle wrapper executable
@@ -113,8 +120,15 @@ jobs:
 
       - name: Build debug APK (native only, bundle pre-built)
         run: |
+          set -o pipefail
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle.log || {
+            echo ""
+            echo "====== GRADLE FAILURE SUMMARY ======"
+            grep -A 8 "What went wrong" /tmp/gradle.log | head -20
+            echo "======================================"
+            exit 1
+          }
         env:
           GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false'
           EXPO_NO_TELEMETRY: 1
