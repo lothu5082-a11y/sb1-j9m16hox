@@ -32,20 +32,42 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK 27.1.12297006
+      - name: Print Android SDK environment
         run: |
-          echo "y" | sdkmanager "ndk;27.1.12297006" || true
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-not set}"
+          echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-not set}"
+          echo "--- Installed NDK versions ---"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "No ndk/ directory"
+          echo "--- Installed build-tools ---"
+          ls "${ANDROID_SDK_ROOT}/build-tools/" 2>/dev/null || echo "No build-tools"
+          echo "--- Installed platforms ---"
+          ls "${ANDROID_SDK_ROOT}/platforms/" 2>/dev/null || echo "No platforms"
+
+      - name: Accept Android SDK licenses and install required components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
+          # Install NDK 27.1.12297006 (required by RN 0.81 new architecture)
+          sdkmanager "ndk;27.1.12297006" || true
           NDK_PATH="${ANDROID_SDK_ROOT}/ndk/27.1.12297006"
           if [ -d "$NDK_PATH" ]; then
             echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
             echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
-            echo "NDK installed at $NDK_PATH"
+            echo "✓ NDK 27.1.12297006 ready at $NDK_PATH"
           else
-            echo "NDK auto-install failed, checking existing NDK..."
-            ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "No NDK directory found"
+            # Fall back to any available NDK 27.x
+            FALLBACK=$(ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null | grep "^27\." | tail -1)
+            if [ -n "$FALLBACK" ]; then
+              NDK_PATH="${ANDROID_SDK_ROOT}/ndk/${FALLBACK}"
+              echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+              echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+              echo "⚠ Using fallback NDK $FALLBACK at $NDK_PATH"
+            else
+              echo "✗ No NDK 27.x found — build may fail"
+              ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || true
+            fi
           fi
 
       - name: Install dependencies
