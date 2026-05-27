@@ -27,13 +27,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web app
-        run: npx expo export --platform web
-        env:
-          EXPO_NO_TELEMETRY: 1
-
-      - name: Add 404.html for SPA routing
-        run: cp dist/index.html dist/404.html
+      - name: Copy web preview to dist
+        run: cp -r web-preview dist
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
