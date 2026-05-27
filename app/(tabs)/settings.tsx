@@ -1,31 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import {
-  Settings as SettingsIcon,
-  Brain,
-  Mic,
-  Gamepad2,
-  Phone,
-  Smartphone,
-  Globe,
-  Bell,
-  Lock,
-  Eye,
-  Fingerprint,
-  ChevronRight,
-  Sparkles,
-  Crown,
-  Database,
-  HardDrive,
-  Trash2,
-  Zap,
-  Palette,
-  Vibrate,
+  Settings as SettingsIcon, Brain, Mic, Gamepad2, Phone, Smartphone,
+  Globe, Bell, Lock, Eye, Fingerprint, ChevronRight, Sparkles, Crown,
+  Database, HardDrive, Trash2, Zap, Palette, Vibrate, Key, Check,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
+import { saveApiKey, loadApiKeys } from '../../lib/ai';
+import { storage } from '../../lib/storage';
 
 interface SettingRowProps {
   icon: React.ReactNode;
@@ -121,6 +106,29 @@ export default function SettingsScreen() {
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState('');
+
+  useEffect(() => {
+    loadApiKeys().then(setApiKeys);
+    storage.getJSON<string>('vexora:selected_model').then(m => {
+      if (m) setSelectedModel(m);
+    });
+  }, []);
+
+  const handleSelectModel = (id: string) => {
+    setSelectedModel(id);
+    storage.setJSON('vexora:selected_model', id);
+  };
+
+  const handleSaveKey = async (modelId: string) => {
+    if (!keyInput.trim()) return;
+    await saveApiKey(modelId, keyInput.trim());
+    setApiKeys(prev => ({ ...prev, [modelId]: keyInput.trim() }));
+    setEditingKey(null);
+    setKeyInput('');
+  };
 
   const animationSpeeds = [
     { id: 'slow' as const, label: 'Slow' },
@@ -150,7 +158,7 @@ export default function SettingsScreen() {
               {aiModels.map((model) => (
                 <TouchableOpacity
                   key={model.id}
-                  onPress={() => setSelectedModel(model.id)}
+                  onPress={() => handleSelectModel(model.id)}
                   style={[
                     styles.modelCard,
                     selectedModel === model.id && { borderColor: model.color, backgroundColor: model.color + '10' },
@@ -174,6 +182,60 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.duration(600).delay(150)} style={styles.section}>
+            <Text style={styles.sectionTitle}>API Keys</Text>
+            <Text style={[styles.sectionTitle, { fontSize: FontSizes.xs, textTransform: 'none', letterSpacing: 0, color: Colors.textTertiary, marginTop: -8, marginBottom: Spacing.md }]}>
+              Gemini & Groq are free · Keys saved on device only
+            </Text>
+            {aiModels.map((model) => {
+              const hasKey = !!apiKeys[model.id];
+              const isEditing = editingKey === model.id;
+              return (
+                <View key={model.id} style={[styles.settingsGap]}>
+                  <View style={[settingStyles.container, { flexDirection: 'column', alignItems: 'stretch', gap: Spacing.sm }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+                      <View style={[settingStyles.iconWrap, { borderColor: hasKey ? model.color : Colors.border }]}>
+                        <Key color={hasKey ? model.color : Colors.textTertiary} size={18} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={settingStyles.title}>{model.name}</Text>
+                        <Text style={settingStyles.subtitle}>{hasKey ? '● Key saved' : 'No key — tap to add'}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => { setEditingKey(isEditing ? null : model.id); setKeyInput(''); }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ color: isEditing ? Colors.error : model.color, fontSize: FontSizes.sm, fontWeight: '700' }}>
+                          {isEditing ? 'Cancel' : hasKey ? 'Edit' : 'Add'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {isEditing && (
+                      <View style={{ flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' }}>
+                        <TextInput
+                          style={[styles.keyInput, { borderColor: model.color + '60' }]}
+                          placeholder={`Paste ${model.name} API key...`}
+                          placeholderTextColor={Colors.textTertiary}
+                          value={keyInput}
+                          onChangeText={setKeyInput}
+                          secureTextEntry
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <TouchableOpacity
+                          onPress={() => handleSaveKey(model.id)}
+                          style={[styles.saveKeyBtn, { backgroundColor: model.color }]}
+                        >
+                          <Check color={Colors.background} size={18} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
           </Animated.View>
 
           <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.section}>
@@ -529,6 +591,23 @@ const styles = StyleSheet.create({
   },
   settingsGap: {
     marginBottom: Spacing.md,
+  },
+  keyInput: {
+    flex: 1,
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    color: Colors.text,
+    fontSize: FontSizes.sm,
+  },
+  saveKeyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   speedRow: {
     flexDirection: 'row',

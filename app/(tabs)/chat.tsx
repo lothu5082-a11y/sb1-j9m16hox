@@ -1,59 +1,116 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TextInput,
+  TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
-import { Send, Mic, ImagePlus, Sparkles, Trash2 } from 'lucide-react-native';
+import { Send, Mic, Sparkles, Trash2, Key } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
-import GlowButton from '../../components/GlowButton';
+import { sendToAI, Message as AIMessage } from '../../lib/ai';
+import { storage } from '../../lib/storage';
 
-interface Message {
+interface DisplayMessage {
   id: string;
   text: string;
   isUser: boolean;
   time: string;
 }
 
-const sampleMessages: Message[] = [
-  { id: '1', text: 'Hey Vexora, what can you do?', isUser: true, time: '7:32 PM' },
-  { id: '2', text: "I'm Vexora, your AI-powered assistant! I can handle voice commands, control your device, search the web in real-time, generate images, write and debug code, draft emails, summarize content, assist while you game, manage calls, and much more. Just ask!", isUser: false, time: '7:32 PM' },
-  { id: '3', text: 'Can you open YouTube and play some music?', isUser: true, time: '7:33 PM' },
-  { id: '4', text: 'Opening YouTube now. I\'ve started playing your "Chill Vibes" playlist. Want me to adjust the volume or play something else?', isUser: false, time: '7:33 PM' },
-];
-
 const aiModes = ['Assistant', 'Study', 'Coding', 'Creative', 'Business', 'Travel'];
 
+const MODE_HINTS: Record<string, string> = {
+  Assistant: 'Ask Vexora anything...',
+  Study: 'What do you want to learn?',
+  Coding: 'Paste code or describe a problem...',
+  Creative: 'Let\'s create something together...',
+  Business: 'Ask about strategy, emails, plans...',
+  Travel: 'Where do you want to go?',
+};
+
+const MODE_SYSTEM: Record<string, string> = {
+  Study: 'You are a patient and thorough tutor. Explain concepts clearly with examples.',
+  Coding: 'You are an expert software engineer. Give concise, working code with brief explanations.',
+  Creative: 'You are a creative writing partner. Be imaginative, poetic, and inspiring.',
+  Business: 'You are a business consultant. Give practical, actionable professional advice.',
+  Travel: 'You are a knowledgeable travel guide. Share helpful tips, places, and local insights.',
+};
+
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<Message[]>(sampleMessages);
+  const [messages, setMessages] = useState<DisplayMessage[]>([
+    {
+      id: '0',
+      text: "Hi! I'm Vexora 👋\nAdd your API key in Settings to enable real AI. I support Gemini (free), Groq (free), OpenAI, and Claude.",
+      isUser: false,
+      time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    },
+  ]);
+  const [aiHistory, setAiHistory] = useState<AIMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedMode, setSelectedMode] = useState('Assistant');
+  const [selectedModel, setSelectedModel] = useState('gemini');
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
+  useEffect(() => {
+    storage.getJSON<string>('vexora:selected_model').then(m => {
+      if (m) setSelectedModel(m);
+    });
+  }, []);
 
-    const userMsg: Message = {
+  const clearChat = () => {
+    setMessages([]);
+    setAiHistory([]);
+  };
+
+  const sendMessage = async () => {
+    const text = inputText.trim();
+    if (!text || isTyping) return;
+
+    const userMsg: DisplayMessage = {
       id: Date.now().toString(),
-      text: inputText.trim(),
+      text,
       isUser: true,
       time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     };
-
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "I'm Vexora, your AI-powered assistant. I can help with voice commands, device control, research, image generation, code, and much more. This is a demo response.",
-        isUser: false,
-        time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+    const modePrefix = MODE_SYSTEM[selectedMode] ? `[${selectedMode} mode] ` : '';
+    const userAIMsg: AIMessage = { role: 'user', content: modePrefix + text };
+    const newHistory = [...aiHistory, userAIMsg];
+
+    try {
+      const reply = await sendToAI(selectedModel, newHistory);
+      const assistantMsg: AIMessage = { role: 'assistant', content: reply };
+      setAiHistory([...newHistory, assistantMsg]);
+
+      setMessages(prev => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          text: reply,
+          isUser: false,
+          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        },
+      ]);
+    } catch (err: any) {
+      const errText = err.message?.includes('No API key')
+        ? "No API key found. Go to Settings → add your key for the selected model."
+        : `Error: ${err.message}`;
+      setMessages(prev => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          text: errText,
+          isUser: false,
+          time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -66,10 +123,10 @@ export default function ChatScreen() {
             </View>
             <View>
               <Text style={styles.headerTitle}>Vexora</Text>
-              <Text style={styles.headerStatus}>Online · AI Ready</Text>
+              <Text style={styles.headerStatus}>Online · {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.clearButton}>
+          <TouchableOpacity style={styles.clearButton} onPress={clearChat}>
             <Trash2 color={Colors.textTertiary} size={18} />
           </TouchableOpacity>
         </View>
@@ -84,10 +141,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               key={mode}
               onPress={() => setSelectedMode(mode)}
-              style={[
-                styles.modeChip,
-                selectedMode === mode && styles.modeChipSelected,
-              ]}
+              style={[styles.modeChip, selectedMode === mode && styles.modeChipSelected]}
             >
               <Text style={[styles.modeChipText, selectedMode === mode && styles.modeChipTextSelected]}>
                 {mode}
@@ -131,29 +185,24 @@ export default function ChatScreen() {
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inputContainer}>
           <View style={styles.inputRow}>
-            <TouchableOpacity style={styles.attachButton}>
-              <ImagePlus color={Colors.textTertiary} size={20} />
-            </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Ask Vexora anything..."
+                placeholder={MODE_HINTS[selectedMode]}
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}
                 multiline
                 maxLength={2000}
+                onSubmitEditing={sendMessage}
               />
             </View>
-            <TouchableOpacity style={styles.micInputButton}>
-              <Mic color={Colors.primary} size={20} />
-            </TouchableOpacity>
             <TouchableOpacity
               onPress={sendMessage}
-              style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-              disabled={!inputText.trim()}
+              style={[styles.sendButton, (!inputText.trim() || isTyping) && styles.sendButtonDisabled]}
+              disabled={!inputText.trim() || isTyping}
             >
-              <Send color={inputText.trim() ? Colors.background : Colors.textTertiary} size={18} />
+              <Send color={inputText.trim() && !isTyping ? Colors.background : Colors.textTertiary} size={18} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -163,203 +212,82 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  gradient: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  gradient: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xxxl + Spacing.md,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxxl + Spacing.md,
+    paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   novaAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(0, 229, 255, 0.12)',
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1.5, borderColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  headerStatus: {
-    fontSize: FontSizes.xs,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  clearButton: {
-    padding: Spacing.sm,
-  },
-  modesScroll: {
-    flexGrow: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  modesRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-  },
+  headerTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text },
+  headerStatus: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '500' },
+  clearButton: { padding: Spacing.sm },
+  modesScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  modesRow: { flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
   modeChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+    borderColor: Colors.border, backgroundColor: Colors.surface,
   },
   modeChipSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
+    borderColor: Colors.primary, backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
   },
-  modeChipText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-  },
-  modeChipTextSelected: {
-    color: Colors.primary,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    paddingVertical: Spacing.lg,
-  },
+  modeChipText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.textTertiary },
+  modeChipTextSelected: { color: Colors.primary },
+  messagesContainer: { flex: 1 },
+  messagesContent: { paddingVertical: Spacing.lg },
   dateSeparator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    marginVertical: Spacing.md,
-    gap: Spacing.md,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, marginVertical: Spacing.md, gap: Spacing.md,
   },
-  dateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dateText: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-    fontWeight: '500',
-  },
+  dateLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dateText: { fontSize: FontSizes.xs, color: Colors.textTertiary, fontWeight: '500' },
   typingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, marginBottom: Spacing.md,
   },
   typingAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(0, 229, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm,
   },
-  typingAvatarText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
+  typingAvatarText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.primary },
   typingBubble: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderBottomLeftRadius: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md + 4,
-    paddingVertical: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    borderBottomLeftRadius: Spacing.xs, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.md + 4, paddingVertical: Spacing.md,
   },
-  typingDots: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.primary,
-  },
+  typingDots: { flexDirection: 'row', gap: 4 },
+  typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
   dot1: { opacity: 0.4 },
   dot2: { opacity: 0.7 },
   dot3: { opacity: 1 },
   inputContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg,
+    paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: Spacing.sm,
-  },
-  attachButton: {
-    padding: Spacing.sm + 2,
-  },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
   inputWrapper: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    maxHeight: 100,
+    flex: 1, backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: Spacing.md, maxHeight: 100,
   },
-  input: {
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    paddingVertical: Spacing.sm + 2,
-    lineHeight: 20,
-  },
-  micInputButton: {
-    padding: Spacing.sm + 2,
-  },
+  input: { fontSize: FontSizes.md, color: Colors.text, paddingVertical: Spacing.sm + 2, lineHeight: 20 },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 6,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5, shadowRadius: 10, elevation: 6,
   },
-  sendButtonDisabled: {
-    backgroundColor: Colors.surface,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
+  sendButtonDisabled: { backgroundColor: Colors.surface, shadowOpacity: 0, elevation: 0 },
 });
