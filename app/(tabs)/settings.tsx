@@ -13,29 +13,28 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import {
   Settings as SettingsIcon,
-  Brain,
+  Cpu,
   Mic,
-  Gamepad2,
+  Zap,
   Shield,
   Smartphone,
-  Globe,
   Lock,
   Eye,
   Fingerprint,
   ChevronRight,
   Crown,
-  Wifi,
   WifiOff,
-  Zap,
+  Wifi,
   Database,
   CheckCircle,
+  Bell,
+  ClipboardList,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
 import { setAIConfig } from './chat';
 
-// Shared module-level AI config (also exported for chat screen)
-export let vexoraAIConfig = { provider: 'local', apiKey: '' };
+export let riukaAIConfig = { provider: 'local', apiKey: '' };
 
 interface SettingRowProps {
   icon: React.ReactNode;
@@ -97,48 +96,34 @@ const settingStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  textWrap: {
-    flex: 1,
-  },
-  title: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 1,
-  },
-  subtitle: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-  },
+  textWrap: { flex: 1 },
+  title: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: 1 },
+  subtitle: { fontSize: FontSizes.xs, color: Colors.textTertiary },
 });
 
 const PROVIDERS = [
-  { id: 'local', name: 'Local', color: Colors.secondary },
+  { id: 'local', name: 'On-Device', color: Colors.secondary },
   { id: 'openai', name: 'OpenAI', color: Colors.primary },
-  { id: 'gemini', name: 'Gemini', color: Colors.warning },
+  { id: 'gemini', name: 'Gemini', color: Colors.accent },
   { id: 'claude', name: 'Claude', color: '#7C3AED' },
-  { id: 'groq', name: 'Groq', color: Colors.accent },
+  { id: 'groq', name: 'Groq', color: '#F97316' },
 ];
 
-const PERF_MODES = ['Performance', 'Balanced', 'Battery'];
-
-// Fake memory counts
 let memoryData = { preferences: 3, facts: 7, context: 12 };
 
 export default function SettingsScreen() {
-  const [selectedProvider, setSelectedProvider] = useState(vexoraAIConfig.provider);
-  const [apiKey, setApiKey] = useState(vexoraAIConfig.apiKey);
+  const [selectedProvider, setSelectedProvider] = useState(riukaAIConfig.provider);
+  const [apiKey, setApiKey] = useState(riukaAIConfig.apiKey);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [wakeWord, setWakeWord] = useState(false);
   const [floatingAssistant, setFloatingAssistant] = useState(true);
 
-  const [autoGaming, setAutoGaming] = useState(false);
-  const [perfMonitor, setPerfMonitor] = useState(true);
-  const [perfMode, setPerfMode] = useState('Balanced');
+  const [notifAutoReply, setNotifAutoReply] = useState(true);
+  const [clipAutoAnalyze, setClipAutoAnalyze] = useState(true);
+  const [accessibilityPilot, setAccessibilityPilot] = useState(false);
 
-  const [memoryCount] = useState(memoryData.preferences + memoryData.facts + memoryData.context);
   const [memCounts, setMemCounts] = useState({ ...memoryData });
 
   const [biometricLock, setBiometricLock] = useState(false);
@@ -148,15 +133,15 @@ export default function SettingsScreen() {
 
   const saveAIConfig = () => {
     const newConfig = { provider: selectedProvider, apiKey };
-    vexoraAIConfig = newConfig;
+    riukaAIConfig = newConfig;
     setAIConfig(newConfig);
-    Alert.alert('Saved', `AI provider set to ${selectedProvider === 'local' ? 'Local' : PROVIDERS.find(p => p.id === selectedProvider)?.name ?? selectedProvider}.`);
+    Alert.alert('Saved', `Brain engine set to ${PROVIDERS.find((p) => p.id === selectedProvider)?.name ?? selectedProvider}.`);
   };
 
   const clearMemories = () => {
-    Alert.alert('Clear Memories', 'Are you sure you want to clear all stored memories?', [
+    Alert.alert('Clear Memory Banks', 'Erase all stored context, preferences, and facts?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => setMemCounts({ preferences: 0, facts: 0, context: 0 }) },
+      { text: 'Erase', style: 'destructive', onPress: () => setMemCounts({ preferences: 0, facts: 0, context: 0 }) },
     ]);
   };
 
@@ -173,9 +158,9 @@ export default function SettingsScreen() {
             <Text style={styles.headerTitle}>Settings</Text>
           </Animated.View>
 
-          {/* AI Provider */}
+          {/* Brain Engine */}
           <Animated.View entering={FadeInUp.duration(600).delay(80)} style={styles.section}>
-            <Text style={styles.sectionTitle}>AI Provider</Text>
+            <Text style={styles.sectionTitle}>Brain Engine</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.providerScroll} contentContainerStyle={styles.providerScrollContent}>
               {PROVIDERS.map((p) => {
                 const active = selectedProvider === p.id;
@@ -188,7 +173,7 @@ export default function SettingsScreen() {
                       active && { borderColor: p.color, backgroundColor: p.color + '18', shadowColor: p.color, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
                     ]}
                   >
-                    <Brain color={active ? p.color : Colors.textTertiary} size={20} />
+                    <Cpu color={active ? p.color : Colors.textTertiary} size={20} />
                     <Text style={[styles.providerName, active && { color: p.color }]}>{p.name}</Text>
                     {active && <View style={[styles.providerDot, { backgroundColor: p.color }]} />}
                   </TouchableOpacity>
@@ -224,20 +209,16 @@ export default function SettingsScreen() {
                 <Text style={styles.saveButtonText}>Apply</Text>
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity style={styles.docsLink}>
-              <Text style={styles.docsLinkText}>How to get API keys →</Text>
-            </TouchableOpacity>
           </Animated.View>
 
-          {/* Voice & Assistant */}
+          {/* Voice & Wake Word */}
           <Animated.View entering={FadeInUp.duration(600).delay(160)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Voice & Assistant</Text>
+            <Text style={styles.sectionTitle}>Voice & Wake Word</Text>
             <View style={styles.settingsGap}>
               <SettingRow
                 icon={<Mic color={voiceEnabled ? Colors.primary : Colors.textTertiary} size={20} />}
                 title="Voice Assistant"
-                subtitle="Enable voice commands"
+                subtitle="Enable spoken commands"
                 value={voiceEnabled}
                 onValueChange={setVoiceEnabled}
                 color={Colors.primary}
@@ -246,8 +227,8 @@ export default function SettingsScreen() {
             <View style={styles.settingsGap}>
               <SettingRow
                 icon={<Zap color={wakeWord ? Colors.primary : Colors.textTertiary} size={20} />}
-                title='Wake Word'
-                subtitle='"Hey Vexora" activation'
+                title='Wake Word Detection'
+                subtitle='"Hey Riuka" always-on activation'
                 value={wakeWord}
                 onValueChange={setWakeWord}
                 color={Colors.primary}
@@ -255,65 +236,54 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingsGap}>
               <SettingRow
-                icon={<Smartphone color={floatingAssistant ? Colors.success : Colors.textTertiary} size={20} />}
-                title="Floating Assistant"
-                subtitle="AI bubble over other apps"
+                icon={<Smartphone color={floatingAssistant ? Colors.secondary : Colors.textTertiary} size={20} />}
+                title="Floating Overlay"
+                subtitle="Persistent AI bubble over all apps"
                 value={floatingAssistant}
                 onValueChange={setFloatingAssistant}
-                color={Colors.success}
-              />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Globe color={Colors.textTertiary} size={20} />}
-                title="Language"
-                subtitle="English"
-                rightElement={<Text style={styles.chevronLabel}>English</Text>}
                 color={Colors.secondary}
               />
             </View>
           </Animated.View>
 
-          {/* Gaming */}
+          {/* Automation Engine */}
           <Animated.View entering={FadeInUp.duration(600).delay(240)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Gaming</Text>
+            <Text style={styles.sectionTitle}>Automation Engine</Text>
             <View style={styles.settingsGap}>
               <SettingRow
-                icon={<Gamepad2 color={autoGaming ? Colors.accent : Colors.textTertiary} size={20} />}
-                title="Auto Gaming Mode"
-                subtitle="Auto-detect games and optimize"
-                value={autoGaming}
-                onValueChange={setAutoGaming}
+                icon={<Bell color={notifAutoReply ? Colors.primary : Colors.textTertiary} size={20} />}
+                title="Auto-Reply Drafting"
+                subtitle="Draft responses to incoming messages"
+                value={notifAutoReply}
+                onValueChange={setNotifAutoReply}
+                color={Colors.primary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<ClipboardList color={clipAutoAnalyze ? Colors.secondary : Colors.textTertiary} size={20} />}
+                title="Clipboard Auto-Analysis"
+                subtitle="Instant analysis on every copy event"
+                value={clipAutoAnalyze}
+                onValueChange={setClipAutoAnalyze}
+                color={Colors.secondary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
+                icon={<Zap color={accessibilityPilot ? Colors.accent : Colors.textTertiary} size={20} />}
+                title="Interface Pilot"
+                subtitle="Accessibility-layer app control"
+                value={accessibilityPilot}
+                onValueChange={setAccessibilityPilot}
                 color={Colors.accent}
               />
             </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Shield color={perfMonitor ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="Performance Monitor"
-                subtitle="Real-time FPS, CPU, RAM overlay"
-                value={perfMonitor}
-                onValueChange={setPerfMonitor}
-                color={Colors.secondary}
-              />
-            </View>
-            <Text style={styles.subLabel}>Performance Mode</Text>
-            <View style={styles.modeRow}>
-              {PERF_MODES.map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  onPress={() => setPerfMode(mode)}
-                  style={[styles.modeChip, perfMode === mode && styles.modeChipActive]}
-                >
-                  <Text style={[styles.modeChipText, perfMode === mode && styles.modeChipTextActive]}>{mode}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </Animated.View>
 
-          {/* Memory */}
+          {/* Memory Banks */}
           <Animated.View entering={FadeInUp.duration(600).delay(320)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Memory & Context</Text>
+            <Text style={styles.sectionTitle}>Memory Banks</Text>
             <View style={styles.memoryCard}>
               <View style={styles.memoryHeader}>
                 <Database color={Colors.primary} size={20} />
@@ -338,25 +308,25 @@ export default function SettingsScreen() {
               <View style={styles.memoryButtons}>
                 <TouchableOpacity
                   style={styles.memoryBtn}
-                  onPress={() => Alert.alert('Memories', 'Memory management coming soon.')}
+                  onPress={() => Alert.alert('Memory Banks', 'Memory management interface coming soon.')}
                 >
-                  <Text style={styles.memoryBtnText}>View Memories</Text>
+                  <Text style={styles.memoryBtnText}>View Banks</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.memoryBtn, styles.memoryBtnDanger]} onPress={clearMemories}>
-                  <Text style={styles.memoryBtnTextDanger}>Clear All</Text>
+                  <Text style={styles.memoryBtnTextDanger}>Erase All</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </Animated.View>
 
-          {/* Security */}
+          {/* Security & Privacy */}
           <Animated.View entering={FadeInUp.duration(600).delay(400)} style={styles.section}>
             <Text style={styles.sectionTitle}>Security & Privacy</Text>
             <View style={styles.settingsGap}>
               <SettingRow
                 icon={<Fingerprint color={biometricLock ? Colors.primary : Colors.textTertiary} size={20} />}
                 title="Biometric Lock"
-                subtitle="Fingerprint or face unlock"
+                subtitle="Fingerprint or face authentication"
                 value={biometricLock}
                 onValueChange={setBiometricLock}
                 color={Colors.primary}
@@ -364,42 +334,42 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingsGap}>
               <SettingRow
-                icon={<Eye color={privacyMode ? Colors.warning : Colors.textTertiary} size={20} />}
+                icon={<Eye color={privacyMode ? Colors.accent : Colors.textTertiary} size={20} />}
                 title="Privacy Mode"
-                subtitle="Limited access for non-owners"
+                subtitle="Restrict access to owner only"
                 value={privacyMode}
                 onValueChange={setPrivacyMode}
-                color={Colors.warning}
+                color={Colors.accent}
               />
             </View>
             <View style={styles.settingsGap}>
               <SettingRow
-                icon={<Lock color={Colors.success} size={20} />}
-                title="Encrypted Storage"
-                subtitle="End-to-end encryption"
-                rightElement={<StatusBadge label="Active" color={Colors.success} />}
-                color={Colors.success}
+                icon={<Lock color={Colors.secondary} size={20} />}
+                title="On-Device Encryption"
+                subtitle="AES-256 local data encryption"
+                rightElement={<StatusBadge label="Active" color={Colors.secondary} />}
+                color={Colors.secondary}
               />
             </View>
             <View style={styles.settingsGap}>
               <SettingRow
-                icon={<Shield color={Colors.success} size={20} />}
-                title="Root Detection"
-                subtitle="Device integrity verified"
-                rightElement={<StatusBadge label="Safe" color={Colors.success} />}
-                color={Colors.success}
+                icon={<Shield color={Colors.secondary} size={20} />}
+                title="Zero Cloud Architecture"
+                subtitle="No data leaves your device"
+                rightElement={<StatusBadge label="Verified" color={Colors.secondary} />}
+                color={Colors.secondary}
               />
             </View>
           </Animated.View>
 
           {/* Offline AI */}
           <Animated.View entering={FadeInUp.duration(600).delay(480)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Offline AI</Text>
+            <Text style={styles.sectionTitle}>Offline Mode</Text>
             <View style={styles.settingsGap}>
               <SettingRow
                 icon={<WifiOff color={offlinePriority ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="Offline Mode Priority"
-                subtitle="Use local AI first"
+                title="On-Device Priority"
+                subtitle="Always use local brain first"
                 value={offlinePriority}
                 onValueChange={setOfflinePriority}
                 color={Colors.secondary}
@@ -408,31 +378,32 @@ export default function SettingsScreen() {
             <View style={styles.offlineInfoCard}>
               <Wifi color={Colors.textTertiary} size={16} />
               <Text style={styles.offlineInfoText}>
-                Offline AI uses pattern matching. For advanced capabilities, configure a cloud provider above.
+                The on-device model uses pattern-matching and local inference. Configure a cloud fallback above for extended capabilities — your data is only sent when you explicitly choose a cloud provider.
               </Text>
             </View>
           </Animated.View>
 
-          {/* About / Premium */}
+          {/* Premium */}
           <Animated.View entering={FadeInUp.duration(600).delay(560)} style={styles.section}>
             <TouchableOpacity activeOpacity={0.8}>
-              <LinearGradient colors={['rgba(255, 109, 0, 0.18)', 'rgba(255, 109, 0, 0.06)']} style={styles.premiumCard}>
-                <Crown color={Colors.accent} size={24} />
+              <LinearGradient colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.06)']} style={styles.premiumCard}>
+                <Crown color={Colors.primary} size={24} />
                 <View style={styles.premiumText}>
-                  <Text style={styles.premiumTitle}>Upgrade to Vexora Pro</Text>
-                  <Text style={styles.premiumDesc}>Unlock all AI models, unlimited generation, and priority response</Text>
+                  <Text style={styles.premiumTitle}>Upgrade to Riuka Pro</Text>
+                  <Text style={styles.premiumDesc}>Unlock extended automation pipelines, unlimited memory banks, and priority on-device model updates</Text>
                 </View>
-                <ChevronRight color={Colors.accent} size={18} />
+                <ChevronRight color={Colors.primary} size={18} />
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <CheckCircle color={Colors.textTertiary} size={14} />
-            <Text style={styles.footerText}>Vexora AI v1.0.0</Text>
-            <Text style={styles.footerSubtext}>Vexora AI — Intelligent Future Assistant</Text>
+            <CheckCircle color={Colors.secondary} size={14} />
+            <Text style={styles.footerText}>Riuka AI v1.0.0</Text>
+            <Text style={styles.footerSubtext}>On-Device · Zero Cloud · Absolute Privacy</Text>
           </View>
+
         </ScrollView>
       </LinearGradient>
     </View>
@@ -440,16 +411,9 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  gradient: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.xxxl,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  gradient: { flex: 1 },
+  scrollContent: { paddingBottom: Spacing.xxxl },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,15 +422,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  headerTitle: {
-    fontSize: FontSizes.xxl,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  section: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.xl,
-  },
+  headerTitle: { fontSize: FontSizes.xxl, fontWeight: '700', color: Colors.text },
+  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
   sectionTitle: {
     fontSize: FontSizes.md,
     fontWeight: '700',
@@ -475,20 +432,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  subLabel: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  providerScroll: {
-    marginBottom: Spacing.md,
-  },
-  providerScrollContent: {
-    gap: Spacing.md,
-    paddingRight: Spacing.md,
-  },
+  providerScroll: { marginBottom: Spacing.md },
+  providerScrollContent: { gap: Spacing.md, paddingRight: Spacing.md },
   providerCard: {
     flexDirection: 'column',
     alignItems: 'center',
@@ -505,21 +450,9 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 0,
   },
-  providerName: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-  },
-  providerDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  apiKeyRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
+  providerName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.textTertiary },
+  providerDot: { width: 6, height: 6, borderRadius: 3 },
+  apiKeyRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.sm },
   apiKeyInputWrap: {
     flex: 1,
     flexDirection: 'row',
@@ -530,15 +463,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
   },
-  apiKeyInput: {
-    flex: 1,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    paddingVertical: Spacing.md,
-  },
-  eyeButton: {
-    padding: Spacing.xs,
-  },
+  apiKeyInput: { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: Spacing.md },
+  eyeButton: { padding: Spacing.xs },
   saveButton: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
@@ -551,53 +477,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  saveButtonText: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.background,
-  },
-  docsLink: {
-    marginTop: Spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  docsLinkText: {
-    fontSize: FontSizes.sm,
-    color: Colors.primary,
-    fontWeight: '500',
-  },
-  settingsGap: {
-    marginBottom: Spacing.md,
-  },
-  chevronLabel: {
-    fontSize: FontSizes.sm,
-    color: Colors.textTertiary,
-    fontWeight: '500',
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  modeChip: {
-    flex: 1,
-    paddingVertical: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  modeChipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
-  },
-  modeChipText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-  },
-  modeChipTextActive: {
-    color: Colors.primary,
-  },
+  saveButtonText: { fontSize: FontSizes.md, fontWeight: '700', color: '#ffffff' },
+  settingsGap: { marginBottom: Spacing.md },
   memoryCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
@@ -605,46 +486,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     padding: Spacing.lg,
   },
-  memoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.lg,
-  },
-  memoryCount: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  memoryStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginBottom: Spacing.lg,
-  },
-  memoryStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  memoryStatNum: {
-    fontSize: FontSizes.xl,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  memoryStatLabel: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
-  memoryStatDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: Colors.border,
-  },
-  memoryButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
+  memoryHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
+  memoryCount: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text },
+  memoryStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: Spacing.lg },
+  memoryStat: { alignItems: 'center', flex: 1 },
+  memoryStatNum: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.primary },
+  memoryStatLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
+  memoryStatDivider: { width: 1, height: 32, backgroundColor: Colors.border },
+  memoryButtons: { flexDirection: 'row', gap: Spacing.md },
   memoryBtn: {
     flex: 1,
     paddingVertical: Spacing.sm + 2,
@@ -654,20 +503,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     alignItems: 'center',
   },
-  memoryBtnText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  memoryBtnDanger: {
-    borderColor: Colors.error + '50',
-    backgroundColor: 'rgba(255, 23, 68, 0.06)',
-  },
-  memoryBtnTextDanger: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.error,
-  },
+  memoryBtnText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
+  memoryBtnDanger: { borderColor: Colors.error + '50', backgroundColor: 'rgba(239,68,68,0.06)' },
+  memoryBtnTextDanger: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.error },
   offlineInfoCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -678,48 +516,25 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: Spacing.sm,
   },
-  offlineInfoText: {
-    flex: 1,
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-    lineHeight: 18,
-  },
+  offlineInfoText: { flex: 1, fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 18 },
   premiumCard: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.accent + '40',
+    borderColor: Colors.primary + '40',
     gap: Spacing.md,
   },
-  premiumText: {
-    flex: 1,
-  },
-  premiumTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.accent,
-    marginBottom: 2,
-  },
-  premiumDesc: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-    lineHeight: 16,
-  },
+  premiumText: { flex: 1 },
+  premiumTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: 2 },
+  premiumDesc: { fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 },
   footer: {
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
     marginTop: Spacing.lg,
     gap: Spacing.xs,
   },
-  footerText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textTertiary,
-    fontWeight: '600',
-  },
-  footerSubtext: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-  },
+  footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
+  footerSubtext: { fontSize: FontSizes.xs, color: Colors.textTertiary },
 });

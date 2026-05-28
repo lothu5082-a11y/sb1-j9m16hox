@@ -21,8 +21,8 @@ export interface ConversationSummary {
   messageCount: number;
 }
 
-const MEMORIES_KEY = 'vexora_memories';
-const SUMMARIES_KEY = 'vexora_summaries';
+const MEMORIES_KEY = 'riuka_memories';
+const SUMMARIES_KEY = 'riuka_summaries';
 
 class MemoryService {
   private memories: MemoryItem[] = [];

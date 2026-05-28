@@ -9,19 +9,25 @@ import {
   Animated as RNAnimated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   Mic,
   MessageSquare,
-  ImagePlus,
-  Gamepad2,
+  Bell,
+  Cpu,
   Settings,
-  Youtube,
-  Flashlight,
-  AlarmClock,
-  Camera,
-  FileText,
+  ClipboardList,
   Zap,
+  Shield,
+  Activity,
+  Bot,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -29,44 +35,44 @@ import VoiceOrb from '../../components/VoiceOrb';
 
 const { width } = Dimensions.get('window');
 
-const DYNAMIC_TEXTS = ['Ready to assist', 'At your service', "What's next?"];
+const DYNAMIC_TEXTS = ['Monitoring device', 'Brain is offline', 'Standing by'];
 
 const quickCommands = [
-  { label: 'Open YouTube', icon: Youtube },
-  { label: 'Turn on flashlight', icon: Flashlight },
-  { label: 'Start gaming', icon: Gamepad2 },
-  { label: 'Set alarm', icon: AlarmClock },
-  { label: 'Summarize page', icon: FileText },
-  { label: 'Take photo', icon: Camera },
+  { label: 'Parse notifications', icon: Bell },
+  { label: 'Analyze clipboard', icon: ClipboardList },
+  { label: 'Draft quick reply', icon: MessageSquare },
+  { label: 'Run automation', icon: Zap },
+  { label: 'System status', icon: Activity },
+  { label: 'Privacy audit', icon: Shield },
 ];
 
 const capabilityCards = [
   {
-    title: 'AI Chat',
-    description: 'Ask anything, get instant smart answers',
+    title: 'Command',
+    description: 'Query the on-device brain directly',
     Icon: MessageSquare,
     color: Colors.primary,
     route: '/chat',
   },
   {
-    title: 'Image Create',
-    description: 'Generate art with AI in seconds',
-    Icon: ImagePlus,
+    title: 'Sensors',
+    description: 'Live notification & clipboard feed',
+    Icon: Bell,
     color: Colors.secondary,
-    route: '/generate',
+    route: '/sensors',
   },
   {
-    title: 'Gaming Mode',
-    description: 'FPS, ping tracking & voice commands',
-    Icon: Gamepad2,
+    title: 'Automation',
+    description: 'Cross-app workflow execution',
+    Icon: Zap,
     color: Colors.accent,
-    route: '/gaming',
+    route: '/automation',
   },
   {
     title: 'Voice AI',
-    description: 'Hands-free control with your voice',
+    description: 'Hands-free cybernetic control',
     Icon: Mic,
-    color: '#A855F7',
+    color: Colors.primary,
     route: null,
   },
 ];
@@ -79,6 +85,64 @@ function getTimeOfDay(): string {
   return 'Night';
 }
 
+function PulseNode({ active }: { active: boolean }) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    if (active) {
+      scale.value = withRepeat(
+        withSequence(withTiming(1.4, { duration: 700 }), withTiming(1, { duration: 700 })),
+        -1,
+        false
+      );
+      opacity.value = withRepeat(
+        withSequence(withTiming(1, { duration: 700 }), withTiming(0.4, { duration: 700 })),
+        -1,
+        false
+      );
+    } else {
+      scale.value = withTiming(1);
+      opacity.value = withTiming(0.6);
+    }
+  }, [active]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <View style={pulseStyles.wrapper}>
+      <Animated.View
+        style={[
+          pulseStyles.ring,
+          { borderColor: active ? Colors.primary : Colors.border },
+          animStyle,
+        ]}
+      />
+      <View
+        style={[
+          pulseStyles.core,
+          { backgroundColor: active ? Colors.primary : Colors.textTertiary },
+        ]}
+      />
+    </View>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  wrapper: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  ring: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+  },
+  core: { width: 10, height: 10, borderRadius: 5 },
+});
+
 export default function HomeScreen() {
   const [isListening, setIsListening] = useState(false);
   const [dynamicTextIndex, setDynamicTextIndex] = useState(0);
@@ -86,7 +150,6 @@ export default function HomeScreen() {
 
   const toggleListening = () => setIsListening((prev) => !prev);
 
-  // Crossfade cycle for dynamic hero text
   useEffect(() => {
     const interval = setInterval(() => {
       RNAnimated.timing(fadeAnim, {
@@ -114,15 +177,16 @@ export default function HomeScreen() {
         {/* Fixed Top Bar */}
         <View style={styles.topBar}>
           <View style={styles.topBarLeft}>
-            <Text style={styles.brandName}>VEXORA</Text>
+            <Bot color={Colors.primary} size={22} />
+            <Text style={styles.brandName}>RIUKA</Text>
             <View style={styles.aiChip}>
               <Text style={styles.aiChipText}>AI</Text>
             </View>
           </View>
           <View style={styles.topBarRight}>
             <View style={styles.statusBadge}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+              <PulseNode active />
+              <Text style={styles.onlineText}>On-Device</Text>
             </View>
             <TouchableOpacity
               onPress={() => router.push('/settings' as any)}
@@ -144,7 +208,7 @@ export default function HomeScreen() {
             <RNAnimated.Text style={[styles.dynamicText, { opacity: fadeAnim }]}>
               {DYNAMIC_TEXTS[dynamicTextIndex]}
             </RNAnimated.Text>
-            <Text style={styles.wakeWordHint}>Say "Hey Vexora" to start</Text>
+            <Text style={styles.wakeWordHint}>Say "Hey Riuka" to activate</Text>
           </Animated.View>
 
           {/* Orb Section */}
@@ -167,13 +231,13 @@ export default function HomeScreen() {
                 style={styles.micGradient}
               >
                 <Mic
-                  color={isListening ? Colors.background : Colors.primary}
+                  color={isListening ? '#ffffff' : Colors.primary}
                   size={28}
                 />
               </LinearGradient>
             </TouchableOpacity>
             <Text style={styles.listeningText}>
-              {isListening ? 'Listening...' : 'Tap to speak'}
+              {isListening ? 'Brain processing...' : 'Tap to speak'}
             </Text>
           </Animated.View>
 
@@ -209,7 +273,7 @@ export default function HomeScreen() {
             entering={FadeInUp.duration(800).delay(600)}
             style={styles.capabilitiesSection}
           >
-            <Text style={styles.sectionTitle}>Capabilities</Text>
+            <Text style={styles.sectionTitle}>Core Systems</Text>
             <View style={styles.capGrid}>
               {capabilityCards.map((card, index) => {
                 const IconComp = card.Icon;
@@ -217,7 +281,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={index}
                     activeOpacity={0.8}
-                    style={styles.capCard}
+                    style={[styles.capCard, { borderColor: card.color + '22' }]}
                     onPress={() => {
                       if (card.route) {
                         router.push(card.route as any);
@@ -229,7 +293,7 @@ export default function HomeScreen() {
                     <View
                       style={[
                         styles.capIconContainer,
-                        { borderColor: card.color + '33' },
+                        { borderColor: card.color + '40', backgroundColor: card.color + '12' },
                       ]}
                     >
                       <IconComp color={card.color} size={22} />
@@ -250,24 +314,52 @@ export default function HomeScreen() {
             <View style={styles.aiStatusCard}>
               <View style={styles.aiStatusLeft}>
                 <View style={styles.aiStatusIconWrap}>
-                  <Zap color={Colors.warning} size={18} />
+                  <Cpu color={Colors.primary} size={18} />
                 </View>
                 <View>
-                  <Text style={styles.aiStatusLabel}>AI Provider</Text>
-                  <Text style={styles.aiStatusValue}>Local Mode</Text>
+                  <Text style={styles.aiStatusLabel}>Brain Engine</Text>
+                  <Text style={styles.aiStatusValue}>On-Device · Offline</Text>
                 </View>
               </View>
               <View style={styles.aiStatusDivider} />
               <View style={styles.aiStatusStat}>
-                <Text style={styles.aiStatNumber}>3</Text>
-                <Text style={styles.aiStatLabel}>Connected</Text>
+                <Text style={[styles.aiStatNumber, { color: Colors.secondary }]}>0ms</Text>
+                <Text style={styles.aiStatLabel}>Latency</Text>
               </View>
               <View style={styles.aiStatusDivider} />
               <View style={styles.aiStatusStat}>
-                <Text style={styles.aiStatNumber}>24</Text>
-                <Text style={styles.aiStatLabel}>Today</Text>
+                <Text style={[styles.aiStatNumber, { color: Colors.primary }]}>100%</Text>
+                <Text style={styles.aiStatLabel}>Private</Text>
               </View>
             </View>
+          </Animated.View>
+
+          {/* Three Layer Status */}
+          <Animated.View
+            entering={FadeInUp.duration(800).delay(800)}
+            style={styles.layerStatusSection}
+          >
+            <Text style={styles.sectionTitle}>System Layers</Text>
+            {[
+              { label: 'Sensors', desc: 'Notification · Clipboard · Context', active: true, color: Colors.secondary },
+              { label: 'Brain', desc: 'Local LLM · Zero cloud dependency', active: true, color: Colors.primary },
+              { label: 'Hands', desc: 'Accessibility · Interface Pilot', active: false, color: Colors.accent },
+            ].map((layer, i) => (
+              <View key={i} style={styles.layerRow}>
+                <View style={[styles.layerDot, { backgroundColor: layer.active ? layer.color : Colors.border }]} />
+                <View style={styles.layerText}>
+                  <Text style={[styles.layerLabel, { color: layer.active ? layer.color : Colors.textTertiary }]}>
+                    {layer.label}
+                  </Text>
+                  <Text style={styles.layerDesc}>{layer.desc}</Text>
+                </View>
+                <View style={[styles.layerBadge, { borderColor: layer.active ? layer.color + '40' : Colors.border }]}>
+                  <Text style={[styles.layerBadgeText, { color: layer.active ? layer.color : Colors.textTertiary }]}>
+                    {layer.active ? 'ONLINE' : 'STANDBY'}
+                  </Text>
+                </View>
+              </View>
+            ))}
           </Animated.View>
         </ScrollView>
       </LinearGradient>
@@ -285,7 +377,6 @@ const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
-  /* Top Bar */
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,7 +398,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xl,
     fontWeight: '800',
     color: Colors.text,
-    letterSpacing: 3,
+    letterSpacing: 4,
   },
   aiChip: {
     backgroundColor: Colors.primary,
@@ -318,7 +409,7 @@ const styles = StyleSheet.create({
   aiChipText: {
     fontSize: FontSizes.xs,
     fontWeight: '800',
-    color: Colors.background,
+    color: '#ffffff',
     letterSpacing: 1,
   },
   topBarRight: {
@@ -329,7 +420,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm,
@@ -337,30 +428,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  onlineDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: Colors.success,
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   onlineText: {
     fontSize: FontSizes.xs,
-    color: Colors.success,
+    color: Colors.primary,
     fontWeight: '600',
   },
   settingsBtn: {
     padding: 4,
   },
-  /* Scroll content */
   scrollContent: {
     paddingBottom: Spacing.xxxl + Spacing.lg,
   },
-  /* Hero Section */
   heroSection: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xl,
@@ -384,8 +462,8 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textTertiary,
     marginTop: Spacing.sm,
+    letterSpacing: 0.3,
   },
-  /* Orb Section */
   orbSection: {
     alignItems: 'center',
     paddingVertical: Spacing.lg,
@@ -411,7 +489,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginTop: Spacing.md,
   },
-  /* Quick Commands */
   quickCommandsSection: {
     paddingLeft: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -444,7 +521,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '500',
   },
-  /* Capabilities */
   capabilitiesSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
@@ -466,7 +542,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundTertiary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
@@ -483,10 +558,9 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     lineHeight: 16,
   },
-  /* AI Status */
   aiStatusSection: {
     paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   aiStatusCard: {
     flexDirection: 'row',
@@ -495,8 +569,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.primary + '30',
     gap: Spacing.md,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   aiStatusLeft: {
     flexDirection: 'row',
@@ -508,9 +587,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.backgroundTertiary,
+    backgroundColor: Colors.primary + '18',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
   },
   aiStatusLabel: {
     fontSize: FontSizes.xs,
@@ -528,7 +609,7 @@ const styles = StyleSheet.create({
   },
   aiStatusStat: {
     alignItems: 'center',
-    minWidth: 40,
+    minWidth: 44,
   },
   aiStatNumber: {
     fontSize: FontSizes.lg,
@@ -538,5 +619,47 @@ const styles = StyleSheet.create({
   aiStatLabel: {
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
+  },
+  layerStatusSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  layerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  layerDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  layerText: { flex: 1 },
+  layerLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  layerDesc: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    marginTop: 1,
+  },
+  layerBadge: {
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+  },
+  layerBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

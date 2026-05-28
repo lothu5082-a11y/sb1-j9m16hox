@@ -104,7 +104,7 @@ export default function PremiumScreen() {
               <ChevronLeft color={Colors.textSecondary} size={24} />
             </TouchableOpacity>
             <Crown color={Colors.accent} size={36} />
-            <Text style={styles.headerTitle}>Vexora Pro</Text>
+            <Text style={styles.headerTitle}>Riuka Pro</Text>
             <Text style={styles.headerSubtitle}>Unlock your AI potential</Text>
           </Animated.View>
 
@@ -195,11 +195,11 @@ export default function PremiumScreen() {
               onPress={() => {}}
               variant="primary"
               size="lg"
-              icon={<Sparkles color={Colors.background} size={18} />}
+              icon={<Sparkles color="#ffffff" size={18} />}
               style={styles.ctaButton}
             />
             <Text style={styles.ctaSubtext}>Cancel anytime. No commitments.</Text>
-            <Text style={styles.footerBrand}>Vexora AI v1.0.0</Text>
+            <Text style={styles.footerBrand}>Riuka AI v1.0.0</Text>
           </Animated.View>
         </ScrollView>
       </LinearGradient>
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   popularText: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
-    color: Colors.background,
+    color: '#ffffff',
     letterSpacing: 1,
   },
   planHeader: {

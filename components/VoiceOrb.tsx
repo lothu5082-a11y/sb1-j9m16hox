@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   rotatingRing: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.4)',
+    borderColor: 'rgba(168, 85, 247, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   innerOrb: {
-    backgroundColor: 'rgba(0, 229, 255, 0.15)',
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,

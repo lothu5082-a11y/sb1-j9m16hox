@@ -11,12 +11,18 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
-import { Send, Mic, ImagePlus, Sparkles, Trash2 } from 'lucide-react-native';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
 
-// Module-level AI config store (shared with settings screen)
 export let _aiConfig: { provider: 'openai' | 'gemini' | 'claude' | 'groq' | 'local'; apiKey: string } = {
   provider: 'local',
   apiKey: '',
@@ -41,50 +47,56 @@ const getProviderLabel = (provider: string): string => {
     case 'gemini': return 'Gemini Flash';
     case 'claude': return 'Claude';
     case 'groq': return 'Groq';
-    default: return 'Local';
+    default: return 'On-Device';
   }
 };
 
 const getLocalResponse = (text: string): string => {
   const lower = text.toLowerCase();
   if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-    return "Hello! I'm Vexora AI, ready to help. What can I do for you?";
+    return "Online. I'm Riuka — your on-device autonomous executive assistant. All processing stays on this device. What can I execute for you?";
   }
   if (lower.includes('time')) {
-    return `The current time is ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+    return `Current device time: ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
   }
   if (lower.includes('date')) {
-    return `Today is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+    return `Today: ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   }
   if (lower.includes('who are you') || lower.includes('what are you')) {
-    return "I'm Vexora AI — your intelligent future assistant. I can chat, answer questions, help with gaming, manage your preferences, and much more. Connect a cloud AI provider in Settings to unlock my full capabilities!";
+    return "I'm Riuka AI — a system-level autonomous assistant that operates entirely within your device. I monitor your notification stream, intercept clipboard data, and physically execute cross-app workflows through the accessibility layer. Zero cloud. Zero latency. Zero data leakage.";
+  }
+  if (lower.includes('how') && lower.includes('work')) {
+    return "Three layers:\n\n1. SENSORS — I continuously monitor your notification stream (WhatsApp, Telegram, Slack, SMS), clipboard buffer, and device telemetry in the background.\n\n2. BRAIN — All intercepted data is routed to the on-device language model. Your data never leaves the phone.\n\n3. HANDS — Once I determine an action, I pilot the device interface through the Accessibility Service — tapping, typing, scrolling, sending — invisibly.";
+  }
+  if (lower.includes('privacy') || lower.includes('data')) {
+    return "Absolute privacy. The on-device architecture means your messages, documents, calendar events, and location data are structurally unable to reach any external server. No API calls. No cloud sync. No exposure.";
+  }
+  if (lower.includes('notif') || lower.includes('message')) {
+    return "Enable the Notification Listener in Sensors to have me intercept and parse incoming messages. I can auto-draft replies, categorize urgency, and execute responses — all without you opening any app.";
+  }
+  if (lower.includes('clipboard')) {
+    return "The Clipboard Engine activates the moment you copy anything — code snippets, URLs, tracking numbers, contract text. I'll analyze it instantly and surface an action panel at the top of your display.";
+  }
+  if (lower.includes('automat') || lower.includes('workflow')) {
+    return "Build an automation in the Automate tab. I can chain actions across apps: read a message → check your calendar → locate a file → draft a response → attach and send. One tap confirmation.";
   }
   if (lower.includes('help')) {
-    return "Here's what I can do:\n• Answer questions & have conversations\n• Tell you the time & date\n• Assist with gaming optimization\n• Remember your preferences\n• Connect to OpenAI, Gemini, Claude, or Groq for advanced AI\n\nTry asking me anything!";
+    return "Core capabilities:\n\n• Autonomous notification parsing & reply drafting\n• Clipboard interception & instant analysis\n• Cross-app workflow execution via Accessibility API\n• Calendar & schedule awareness\n• Voice command interface\n• Fully offline — no cloud dependencies\n\nWhat would you like to automate?";
   }
-  if (lower.includes('weather')) {
-    return "I need internet access for live weather. Connect online and set your API key in Settings!";
-  }
-  if (lower.includes('game') || lower.includes('gaming')) {
-    return "Enable Gaming Mode in the Gaming tab for performance optimization and real-time FPS tracking!";
-  }
-  if (lower.includes('memory') || lower.includes('remember')) {
-    return "I can remember things for you! Just tell me what you'd like me to remember.";
-  }
-  return "I'm running in local mode. Add your API key in Settings to unlock full AI capabilities from OpenAI, Gemini, Claude, or Groq!";
+  return "On-device brain active. For full LLM capabilities, configure a cloud provider in Settings — or keep it local for maximum privacy.";
 };
 
 const sendToAI = async (userMessage: string, history: Message[]): Promise<string> => {
   const config = _aiConfig;
 
   if (config.provider === 'local' || !config.apiKey) {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     return getLocalResponse(userMessage);
   }
 
   try {
     const messages = [
-      { role: 'system', content: 'You are Vexora AI, a futuristic intelligent assistant. Be helpful, concise, and friendly.' },
+      { role: 'system', content: 'You are Riuka AI, an autonomous on-device executive assistant for Android. You monitor notifications, parse clipboard data, and execute cross-app workflows through the accessibility layer. You are privacy-first, zero-cloud, and extremely capable. Be concise, direct, and action-oriented.' },
       ...history.slice(-10).map((m) => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
       { role: 'user', content: userMessage },
     ];
@@ -177,7 +189,7 @@ function TypingIndicator() {
   return (
     <View style={typingStyles.container}>
       <View style={typingStyles.avatar}>
-        <Text style={typingStyles.avatarText}>V</Text>
+        <Text style={typingStyles.avatarText}>R</Text>
       </View>
       <View style={typingStyles.bubble}>
         <View style={typingStyles.dots}>
@@ -201,7 +213,7 @@ const typingStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 229, 255, 0.15)',
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
     borderWidth: 1.5,
     borderColor: Colors.primary,
     alignItems: 'center',
@@ -239,17 +251,15 @@ const typingStyles = StyleSheet.create({
   },
 });
 
-const SUGGESTIONS = ['What can you do?', 'Tell me about AI', 'Start a game'];
+const SUGGESTIONS = ['How do you work?', 'Privacy policy?', 'Set up automation'];
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [conversationId] = useState(Date.now().toString());
   const [provider, setProvider] = useState(_aiConfig.provider);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Sync provider label when screen focuses
   useEffect(() => {
     const timer = setInterval(() => {
       if (_aiConfig.provider !== provider) {
@@ -292,8 +302,8 @@ export default function ChatScreen() {
 
   const clearChat = () => {
     Alert.alert(
-      'Clear Chat',
-      'Are you sure you want to clear all messages?',
+      'Clear Command Log',
+      'Erase all messages from this session?',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Clear', style: 'destructive', onPress: () => setMessages([]) },
@@ -309,17 +319,17 @@ export default function ChatScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.vexoraAvatar}>
-              <Text style={styles.vexoraLetter}>V</Text>
+            <View style={styles.riukaAvatar}>
+              <Text style={styles.riukaLetter}>R</Text>
               <View style={styles.sparkleWrap}>
                 <Sparkles color={Colors.primary} size={9} />
               </View>
             </View>
             <View>
-              <Text style={styles.headerTitle}>Vexora AI</Text>
+              <Text style={styles.headerTitle}>Riuka AI</Text>
               <View style={styles.headerMeta}>
                 <View style={styles.onlineDot} />
-                <Text style={styles.headerStatus}>Online</Text>
+                <Text style={styles.headerStatus}>On-Device</Text>
                 <View style={styles.modelBadge}>
                   <Text style={styles.modelBadgeText}>{modelLabel}</Text>
                 </View>
@@ -343,17 +353,25 @@ export default function ChatScreen() {
           {messages.length === 0 && (
             <Animated.View entering={FadeInUp.duration(600)} style={styles.emptyState}>
               <View style={styles.emptyAvatar}>
-                <Text style={styles.emptyAvatarLetter}>V</Text>
+                <Text style={styles.emptyAvatarLetter}>R</Text>
               </View>
-              <Text style={styles.emptyTitle}>Vexora AI</Text>
-              <Text style={styles.emptySubtitle}>Your intelligent future assistant. Ask me anything.</Text>
+              <Text style={styles.emptyTitle}>Riuka AI</Text>
+              <Text style={styles.emptySubtitle}>Autonomous on-device executive assistant. All intelligence stays on your hardware.</Text>
+              <View style={styles.emptyFeatures}>
+                {['100% Offline', 'Zero Latency', 'Ironclad Privacy'].map((f) => (
+                  <View key={f} style={styles.emptyFeatureChip}>
+                    <Cpu color={Colors.secondary} size={10} />
+                    <Text style={styles.emptyFeatureText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
             </Animated.View>
           )}
 
           {messages.length > 0 && (
             <View style={styles.dateSeparator}>
               <View style={styles.dateLine} />
-              <Text style={styles.dateText}>Today</Text>
+              <Text style={styles.dateText}>Session Active</Text>
               <View style={styles.dateLine} />
             </View>
           )}
@@ -365,7 +383,7 @@ export default function ChatScreen() {
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
-        {/* Suggestions row (shown when no messages) */}
+        {/* Suggestions row */}
         {messages.length === 0 && !isTyping && (
           <View style={styles.suggestionsRow}>
             {SUGGESTIONS.map((s) => (
@@ -379,13 +397,10 @@ export default function ChatScreen() {
         {/* Input area */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inputContainer}>
           <View style={styles.inputRow}>
-            <TouchableOpacity style={styles.attachButton}>
-              <ImagePlus color={Colors.textTertiary} size={20} />
-            </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Ask Vexora anything..."
+                placeholder="Command Riuka..."
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}
@@ -403,7 +418,7 @@ export default function ChatScreen() {
               style={[styles.sendButton, (!inputText.trim() || isTyping) && styles.sendButtonDisabled]}
               disabled={!inputText.trim() || isTyping}
             >
-              <Send color={inputText.trim() && !isTyping ? Colors.background : Colors.textTertiary} size={18} />
+              <Send color={inputText.trim() && !isTyping ? '#ffffff' : Colors.textTertiary} size={18} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -435,11 +450,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  vexoraAvatar: {
+  riukaAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    backgroundColor: 'rgba(168, 85, 247, 0.12)',
     borderWidth: 1.5,
     borderColor: Colors.primary,
     alignItems: 'center',
@@ -450,7 +465,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  vexoraLetter: {
+  riukaLetter: {
     fontSize: FontSizes.lg,
     fontWeight: '800',
     color: Colors.primary,
@@ -470,20 +485,20 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.success,
+    backgroundColor: Colors.secondary,
   },
   headerStatus: {
     fontSize: FontSizes.xs,
-    color: Colors.success,
+    color: Colors.secondary,
     fontWeight: '500',
   },
   modelBadge: {
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    backgroundColor: 'rgba(168, 85, 247, 0.12)',
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 1,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderColor: 'rgba(168, 85, 247, 0.3)',
     marginLeft: Spacing.xs,
   },
   modelBadgeText: {
@@ -518,7 +533,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
     borderWidth: 2,
     borderColor: Colors.primary,
     alignItems: 'center',
@@ -540,12 +555,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     marginBottom: Spacing.sm,
+    letterSpacing: 1,
   },
   emptySubtitle: {
     fontSize: FontSizes.md,
     color: Colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: Spacing.lg,
+  },
+  emptyFeatures: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  emptyFeatureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.secondary + '40',
+  },
+  emptyFeatureText: {
+    fontSize: FontSizes.xs,
+    color: Colors.secondary,
+    fontWeight: '600',
   },
   dateSeparator: {
     flexDirection: 'row',
@@ -575,14 +612,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.primary + '30',
     paddingVertical: Spacing.sm + 2,
     paddingHorizontal: Spacing.sm,
     alignItems: 'center',
   },
   suggestionText: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
+    color: Colors.primary,
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -597,9 +634,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: Spacing.sm,
-  },
-  attachButton: {
-    padding: Spacing.sm + 2,
   },
   inputWrapper: {
     flex: 1,

@@ -1,31 +1,35 @@
 {
   "expo": {
-    "name": "Vexora AI",
-    "slug": "vexora-ai",
+    "name": "Riuka AI",
+    "slug": "riuka-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vexora",
+    "scheme": "riuka",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "backgroundColor": "#0A0E1A",
+    "backgroundColor": "#0A0A0C",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.vexora.ai"
+      "bundleIdentifier": "com.riuka.ai"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#0A0E1A"
+        "backgroundColor": "#0A0A0C"
       },
-      "package": "com.vexora.ai",
+      "package": "com.riuka.ai",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.FLASHLIGHT",
         "android.permission.VIBRATE",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.BIND_ACCESSIBILITY_SERVICE"
       ]
     },
     "web": {

@@ -11,21 +11,21 @@ import { Colors, FontSizes, Spacing } from '../constants/theme';
 
 type LogoSize = 'sm' | 'md' | 'lg';
 
-interface VexoraLogoProps {
+interface RiukaLogoProps {
   size?: LogoSize;
   showTagline?: boolean;
 }
 
 const sizeConfig: Record<
   LogoSize,
-  { vexoraFontSize: number; aiFontSize: number; taglineFontSize: number; glowSize: number }
+  { riukaFontSize: number; aiFontSize: number; taglineFontSize: number; glowSize: number }
 > = {
-  sm: { vexoraFontSize: 20, aiFontSize: 11, taglineFontSize: 9, glowSize: 60 },
-  md: { vexoraFontSize: 32, aiFontSize: 15, taglineFontSize: 11, glowSize: 100 },
-  lg: { vexoraFontSize: 48, aiFontSize: 22, taglineFontSize: 13, glowSize: 150 },
+  sm: { riukaFontSize: 20, aiFontSize: 11, taglineFontSize: 9, glowSize: 60 },
+  md: { riukaFontSize: 32, aiFontSize: 15, taglineFontSize: 11, glowSize: 100 },
+  lg: { riukaFontSize: 48, aiFontSize: 22, taglineFontSize: 13, glowSize: 150 },
 };
 
-export default function VexoraLogo({ size = 'md', showTagline = false }: VexoraLogoProps) {
+export default function RiukaLogo({ size = 'md', showTagline = false }: RiukaLogoProps) {
   const glowOpacity = useSharedValue(0.35);
   const cfg = sizeConfig[size];
 
@@ -59,17 +59,17 @@ export default function VexoraLogo({ size = 'md', showTagline = false }: VexoraL
         ]}
       />
 
-      {/* VEXORA */}
+      {/* RIUKA */}
       <Text
         style={[
-          styles.vexoraText,
+          styles.riukaText,
           {
-            fontSize: cfg.vexoraFontSize,
+            fontSize: cfg.riukaFontSize,
             textShadowRadius: cfg.glowSize * 0.2,
           },
         ]}
       >
-        VEXORA
+        RIUKA
       </Text>
 
       {/* AI label row */}
@@ -82,7 +82,7 @@ export default function VexoraLogo({ size = 'md', showTagline = false }: VexoraL
       {/* Optional tagline */}
       {showTagline && (
         <Text style={[styles.tagline, { fontSize: cfg.taglineFontSize }]}>
-          Intelligent Future Assistant
+          On-Device · Zero Cloud · Absolute Privacy
         </Text>
       )}
     </View>
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     elevation: 0,
     top: '10%',
   },
-  vexoraText: {
+  riukaText: {
     fontFamily: 'Orbitron-Bold',
     color: Colors.primary,
     letterSpacing: 6,
