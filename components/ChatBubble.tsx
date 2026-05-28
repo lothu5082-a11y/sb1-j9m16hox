@@ -14,12 +14,15 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
     <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
       {!isUser && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>N</Text>
+          <Text style={styles.avatarText}>V</Text>
         </View>
       )}
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>{message}</Text>
-        {time && <Text style={[styles.time, isUser ? styles.userTime : styles.assistantTime]}>{time}</Text>}
+      <View style={styles.bubbleWrapper}>
+        {!isUser && <Text style={styles.senderLabel}>Vexora AI</Text>}
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+          <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>{message}</Text>
+          {time && <Text style={[styles.time, isUser ? styles.userTime : styles.assistantTime]}>{time}</Text>}
+        </View>
       </View>
     </View>
   );
@@ -36,25 +39,41 @@ const styles = StyleSheet.create({
   },
   assistantContainer: {
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(0, 229, 255, 0.15)',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
+    marginTop: 14, // Align with bubble content, below label
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 4,
   },
   avatarText: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.primary,
   },
-  bubble: {
+  bubbleWrapper: {
     maxWidth: '75%',
+  },
+  senderLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    fontWeight: '500',
+    marginBottom: 3,
+    marginLeft: 2,
+  },
+  bubble: {
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
