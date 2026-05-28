@@ -22,6 +22,7 @@ import Animated, {
 import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
+import { llamaService } from '../../lib/llamaService';
 
 export let _aiConfig: { provider: 'openai' | 'gemini' | 'claude' | 'groq' | 'local'; apiKey: string } = {
   provider: 'local',
@@ -257,6 +258,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [provider, setProvider] = useState(_aiConfig.provider);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -282,22 +284,47 @@ export default function ChatScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
-    setIsTyping(true);
-
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
 
-    const reply = await sendToAI(msgText, messages);
+    if (llamaService.isLoaded()) {
+      const aiMsgId = (Date.now() + 1).toString();
+      const timeStr = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      setIsStreaming(true);
+      setMessages((prev) => [...prev, { id: aiMsgId, text: '', isUser: false, time: timeStr }]);
 
-    const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      text: reply,
-      isUser: false,
-      time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-    };
+      const history = [...messages, userMsg].map((m) => ({
+        role: m.isUser ? 'user' : 'assistant',
+        content: m.text,
+      }));
 
-    setMessages((prev) => [...prev, aiMsg]);
-    setIsTyping(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+      try {
+        await llamaService.completion(history, (token) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === aiMsgId ? { ...m, text: m.text + token } : m))
+          );
+          scrollViewRef.current?.scrollToEnd({ animated: false });
+        });
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId ? { ...m, text: 'Error: inference failed. Check model file.' } : m
+          )
+        );
+      }
+      setIsStreaming(false);
+    } else {
+      setIsTyping(true);
+      const reply = await sendToAI(msgText, messages);
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: reply,
+        isUser: false,
+        time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      setIsTyping(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+    }
   };
 
   const clearChat = () => {
@@ -311,7 +338,9 @@ export default function ChatScreen() {
     );
   };
 
-  const modelLabel = getProviderLabel(_aiConfig.provider);
+  const modelLabel = llamaService.isLoaded()
+    ? 'On-Device LLM'
+    : getProviderLabel(_aiConfig.provider);
 
   return (
     <View style={styles.container}>
@@ -380,7 +409,7 @@ export default function ChatScreen() {
             <ChatBubble key={msg.id} message={msg.text} isUser={msg.isUser} time={msg.time} />
           ))}
 
-          {isTyping && <TypingIndicator />}
+          {(isTyping || isStreaming) && !messages.find((m) => !m.isUser && m.text === '') && <TypingIndicator />}
         </ScrollView>
 
         {/* Suggestions row */}
@@ -415,10 +444,10 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => sendMessage()}
-              style={[styles.sendButton, (!inputText.trim() || isTyping) && styles.sendButtonDisabled]}
-              disabled={!inputText.trim() || isTyping}
+              style={[styles.sendButton, (!inputText.trim() || isTyping || isStreaming) && styles.sendButtonDisabled]}
+              disabled={!inputText.trim() || isTyping || isStreaming}
             >
-              <Send color={inputText.trim() && !isTyping ? '#ffffff' : Colors.textTertiary} size={18} />
+              <Send color={inputText.trim() && !isTyping && !isStreaming ? '#ffffff' : Colors.textTertiary} size={18} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

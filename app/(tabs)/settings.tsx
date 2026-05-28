@@ -29,10 +29,14 @@ import {
   CheckCircle,
   Bell,
   ClipboardList,
+  FolderOpen,
+  CircleX,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
 import { setAIConfig } from './chat';
+import { Platform } from 'react-native';
+import { llamaService } from '../../lib/llamaService';
 
 export let riukaAIConfig = { provider: 'local', apiKey: '' };
 
@@ -115,6 +119,32 @@ export default function SettingsScreen() {
   const [selectedProvider, setSelectedProvider] = useState(riukaAIConfig.provider);
   const [apiKey, setApiKey] = useState(riukaAIConfig.apiKey);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
+
+  const [modelPath, setModelPath] = useState('');
+  const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  const [modelError, setModelError] = useState('');
+
+  const loadModel = async () => {
+    const path = modelPath.trim();
+    if (!path) {
+      Alert.alert('Path required', 'Enter the full path to your .gguf model file.');
+      return;
+    }
+    setModelStatus('loading');
+    setModelError('');
+    try {
+      await llamaService.load(path);
+      setModelStatus('loaded');
+    } catch (e: any) {
+      setModelStatus('error');
+      setModelError(e?.message ?? 'Failed to load model');
+    }
+  };
+
+  const unloadModel = async () => {
+    await llamaService.unload();
+    setModelStatus('idle');
+  };
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [wakeWord, setWakeWord] = useState(false);
@@ -210,6 +240,78 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             )}
           </Animated.View>
+
+          {/* Local Model (native only) */}
+          {Platform.OS !== 'web' && (
+            <Animated.View entering={FadeInUp.duration(600).delay(140)} style={styles.section}>
+              <Text style={styles.sectionTitle}>Local Model (GGUF)</Text>
+              <View style={styles.modelCard}>
+                {/* Status row */}
+                <View style={styles.modelStatusRow}>
+                  <Cpu color={modelStatus === 'loaded' ? Colors.secondary : Colors.textTertiary} size={18} />
+                  <Text style={styles.modelStatusLabel}>
+                    {modelStatus === 'idle' && 'No model loaded'}
+                    {modelStatus === 'loading' && 'Loading model…'}
+                    {modelStatus === 'loaded' && llamaService.getModelPath()?.split('/').pop()}
+                    {modelStatus === 'error' && 'Load failed'}
+                  </Text>
+                  {modelStatus === 'loaded' && (
+                    <View style={styles.modelLoadedBadge}>
+                      <Text style={styles.modelLoadedBadgeText}>ACTIVE</Text>
+                    </View>
+                  )}
+                  {modelStatus === 'error' && (
+                    <CircleX color={Colors.error} size={14} />
+                  )}
+                </View>
+
+                {modelStatus === 'error' && (
+                  <Text style={styles.modelErrorText}>{modelError}</Text>
+                )}
+
+                {/* Path input */}
+                {modelStatus !== 'loaded' && (
+                  <View style={styles.modelPathRow}>
+                    <View style={styles.modelPathInputWrap}>
+                      <FolderOpen color={Colors.textTertiary} size={14} />
+                      <TextInput
+                        style={styles.modelPathInput}
+                        placeholder="/sdcard/Download/model.gguf"
+                        placeholderTextColor={Colors.textTertiary}
+                        value={modelPath}
+                        onChangeText={setModelPath}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        editable={modelStatus !== 'loading'}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* Action button */}
+                <TouchableOpacity
+                  style={[
+                    styles.modelActionBtn,
+                    modelStatus === 'loaded' && { borderColor: Colors.error + '50', backgroundColor: 'rgba(239,68,68,0.06)' },
+                    modelStatus === 'loading' && { opacity: 0.5 },
+                  ]}
+                  onPress={modelStatus === 'loaded' ? unloadModel : loadModel}
+                  disabled={modelStatus === 'loading'}
+                >
+                  <Text style={[
+                    styles.modelActionBtnText,
+                    modelStatus === 'loaded' && { color: Colors.error },
+                  ]}>
+                    {modelStatus === 'loading' ? 'Loading…' : modelStatus === 'loaded' ? 'Unload Model' : 'Load Model'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.modelHint}>
+                  Recommended: Llama-3.2-1B-Instruct-Q4_K_M.gguf (~700 MB) or Phi-3-mini-4k-instruct-q4.gguf (~2.3 GB). Download a .gguf from HuggingFace and place it in /sdcard/Download/.
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
           {/* Voice & Wake Word */}
           <Animated.View entering={FadeInUp.duration(600).delay(160)} style={styles.section}>
@@ -537,4 +639,80 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
   footerSubtext: { fontSize: FontSizes.xs, color: Colors.textTertiary },
+
+  modelCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  modelStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  modelStatusLabel: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  modelLoadedBadge: {
+    backgroundColor: Colors.secondary + '20',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.secondary + '50',
+  },
+  modelLoadedBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.secondary,
+    letterSpacing: 0.5,
+  },
+  modelErrorText: {
+    fontSize: FontSizes.xs,
+    color: Colors.error,
+    lineHeight: 16,
+  },
+  modelPathRow: {
+    gap: Spacing.sm,
+  },
+  modelPathInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+  },
+  modelPathInput: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    paddingVertical: Spacing.md,
+  },
+  modelActionBtn: {
+    borderWidth: 1,
+    borderColor: Colors.primary + '50',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '12',
+  },
+  modelActionBtnText: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  modelHint: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    lineHeight: 16,
+  },
 });
