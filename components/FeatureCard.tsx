@@ -9,12 +9,33 @@ interface FeatureCardProps {
   onPress?: () => void;
   style?: ViewStyle;
   active?: boolean;
+  badge?: string;
 }
 
-export default function FeatureCard({ icon, title, description, onPress, style, active = false }: FeatureCardProps) {
+export default function FeatureCard({
+  icon,
+  title,
+  description,
+  onPress,
+  style,
+  active = false,
+  badge,
+}: FeatureCardProps) {
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={[styles.card, active && styles.activeCard, style]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.card, active && styles.activeCard, style]}
+    >
+      {/* Badge chip — top right */}
+      {badge ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
+      ) : null}
+
       <View style={[styles.iconContainer, active && styles.activeIcon]}>{icon}</View>
+
       <View style={styles.textContainer}>
         <Text style={[styles.title, active && styles.activeTitle]}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
@@ -33,6 +54,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     gap: Spacing.md,
+    // Badge positioning context
+    position: 'relative',
   },
   activeCard: {
     borderColor: Colors.primary,
@@ -42,6 +65,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 6,
+  },
+  badge: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    zIndex: 1,
+  },
+  badgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.background,
+    letterSpacing: 0.3,
   },
   iconContainer: {
     width: 48,
