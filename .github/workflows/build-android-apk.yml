@@ -11,7 +11,6 @@ on:
       - 'constants/**'
       - 'package.json'
       - 'app.json'
-      - 'eas.json'
 
 jobs:
   build:
@@ -27,36 +26,30 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: temurin
+          java-version: 17
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build APK
-        run: eas build --platform android --profile preview --non-interactive --wait
+      - name: Expo prebuild
+        run: npx expo prebuild --platform android --clean
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_NO_TELEMETRY: 1
 
-      - name: Get APK download URL
+      - name: Build APK
         run: |
-          URL=$(eas build:list --platform android --status finished --limit 1 --json --non-interactive 2>/dev/null \
-            | python3 -c "import json,sys; b=json.load(sys.stdin); print(b[0]['artifacts']['buildUrl'])" 2>/dev/null || echo "")
-          if [ -n "$URL" ]; then
-            echo "✅ APK ready: $URL"
-            echo "APK_URL=$URL" >> $GITHUB_ENV
-            curl -L "$URL" -o riuka-ai.apk
-          else
-            echo "Build URL not found — check EAS dashboard at https://expo.dev"
-          fi
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=512m"
 
-      - name: Upload APK artifact
-        if: env.APK_URL != ''
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: riuka-ai-v${{ github.run_number }}.apk
-          path: riuka-ai.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
