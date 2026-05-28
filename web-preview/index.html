@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Vexora AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background: #0A0E1A; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; overflow-x: hidden; }
+    :root {
+      --primary: #00E5FF; --secondary: #00BFA5; --accent: #FF6D00;
+      --success: #00E676; --warning: #FFD600; --error: #FF1744;
+      --bg: #0A0E1A; --bg2: #111827; --bg3: #1A2035;
+      --surface: #1E2740; --border: #2A3555; --text2: #94A3B8; --text3: #64748B;
+    }
+
+    /* TABS */
+    .tabs { display: flex; background: var(--bg2); border-top: 1px solid var(--border); position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 8px; cursor: pointer; opacity: 0.45; transition: opacity .2s; gap: 4px; }
+    .tab.active { opacity: 1; }
+    .tab svg { width: 22px; height: 22px; }
+    .tab span { font-size: 10px; font-weight: 600; }
+    .tab.active svg { stroke: var(--primary); }
+    .tab.active span { color: var(--primary); }
+
+    /* SCREENS */
+    .screen { display: none; padding: 60px 20px 90px; min-height: 100vh; }
+    .screen.active { display: block; }
+
+    /* HOME */
+    .greeting { font-size: 14px; color: var(--text2); font-weight: 500; }
+    .app-name { font-size: 52px; font-weight: 700; letter-spacing: -2px; margin: 2px 0 4px; }
+    .slogan { font-size: 14px; color: var(--primary); font-weight: 500; }
+    .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+    .badges { display: flex; gap: 8px; margin-top: 6px; }
+    .badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid; text-transform: uppercase; letter-spacing: .5px; }
+    .badge-green { color: var(--success); border-color: var(--success); background: rgba(0,230,118,.08); }
+    .badge-blue { color: var(--secondary); border-color: var(--secondary); background: rgba(0,191,165,.08); }
+
+    /* ORB */
+    .orb-section { display: flex; flex-direction: column; align-items: center; padding: 28px 0 20px; }
+    .orb-wrap { position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
+    .orb-ring { position: absolute; border-radius: 50%; border: 1px solid var(--primary); animation: pulse-out 2.5s ease-out infinite; }
+    .orb-ring:nth-child(1) { width: 200px; height: 200px; opacity: .12; animation-delay: 0s; }
+    .orb-ring:nth-child(2) { width: 160px; height: 160px; opacity: .18; animation-delay: .5s; }
+    .orb-ring:nth-child(3) { width: 130px; height: 130px; opacity: .24; animation-delay: 1s; }
+    @keyframes pulse-out { 0%{transform:scale(.8);opacity:.3} 100%{transform:scale(1.2);opacity:0} }
+    .orb-core { width: 100px; height: 100px; border-radius: 50%; background: var(--bg2); border: 2px solid var(--primary); box-shadow: 0 0 40px rgba(0,229,255,.4); display: flex; align-items: center; justify-content: center; z-index: 1; animation: breathe 3s ease-in-out infinite; }
+    @keyframes breathe { 0%,100%{transform:scale(1);box-shadow:0 0 30px rgba(0,229,255,.3)} 50%{transform:scale(1.06);box-shadow:0 0 60px rgba(0,229,255,.6)} }
+    .orb-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 20px var(--primary); }
+    .mic-btn { margin-top: 16px; width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #1E2740, #253050); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 4px 20px rgba(0,229,255,.15); }
+    .mic-btn:active { transform: scale(.92); }
+    .mic-btn.listening { background: linear-gradient(135deg, var(--primary), #00B8D4); box-shadow: 0 0 30px rgba(0,229,255,.5); }
+    .orb-label { font-size: 16px; font-weight: 600; margin-top: 14px; }
+    .orb-hint { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+    /* CARDS */
+    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; cursor: pointer; transition: transform .15s, border-color .2s; }
+    .card:active { transform: scale(.95); }
+    .card-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--bg3); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .card-desc { font-size: 11px; color: var(--text3); text-align: center; }
+    .card-icon svg { width: 22px; height: 22px; }
+
+    /* FEATURE HUB */
+    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: transform .15s; }
+    .feature-card:active { transform: scale(.96); }
+    .feature-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+    .feature-icon svg { width: 20px; height: 20px; }
+    .feature-label { font-size: 12px; font-weight: 700; }
+    .feature-desc { font-size: 11px; color: var(--text3); line-height: 1.4; }
+
+    /* AI CAPABILITY CARDS */
+    .ai-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: border-color .2s; }
+    .ai-card.active { border-color: var(--primary); background: rgba(0,229,255,.04); }
+    .ai-card-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--bg3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ai-card-icon svg { width: 20px; height: 20px; }
+    .ai-card-text { flex: 1; }
+    .ai-card-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .ai-card-desc { font-size: 12px; color: var(--text3); line-height: 1.4; }
+
+    /* SECTION */
+    .section { margin-bottom: 28px; }
+
+    /* CHAT SCREEN */
+    .chat-messages { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+    .chat-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .avatar { width: 44px; height: 44px; border-radius: 22px; background: linear-gradient(135deg, var(--primary), #00B8D4); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--bg); flex-shrink: 0; }
+    .chat-info { flex: 1; }
+    .chat-name { font-size: 16px; font-weight: 700; }
+    .chat-status { font-size: 12px; color: var(--success); }
+    .msg { max-width: 80%; padding: 12px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5; }
+    .msg-ai { background: var(--surface); border: 1px solid var(--border); border-radius: 4px 18px 18px 18px; }
+    .msg-user { background: linear-gradient(135deg, var(--primary), #00B8D4); color: var(--bg); margin-left: auto; border-radius: 18px 4px 18px 18px; }
+    .chat-input-row { position: fixed; bottom: 80px; left: 0; right: 0; padding: 12px 16px; background: linear-gradient(to top, var(--bg2) 80%, transparent); display: flex; gap: 10px; align-items: center; }
+    .chat-input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 12px 18px; color: #fff; font-size: 14px; outline: none; }
+    .chat-input::placeholder { color: var(--text3); }
+    .send-btn { width: 44px; height: 44px; border-radius: 22px; background: linear-gradient(135deg, var(--primary), #00B8D4); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: transform .15s; }
+    .send-btn:active { transform: scale(.9); }
+    .send-btn svg { width: 20px; height: 20px; stroke: var(--bg); }
+    .mode-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; scrollbar-width: none; }
+    .mode-chips::-webkit-scrollbar { display: none; }
+    .mode-chip { padding: 6px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text3); white-space: nowrap; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+    .mode-chip.active { border-color: var(--primary); background: rgba(0,229,255,.1); color: var(--primary); }
+
+    /* SETTINGS */
+    .setting-row { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; cursor: pointer; }
+    .setting-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--bg3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--border); }
+    .setting-icon svg { width: 20px; height: 20px; }
+    .setting-text { flex: 1; }
+    .setting-title { font-size: 14px; font-weight: 600; margin-bottom: 1px; }
+    .setting-sub { font-size: 12px; color: var(--text3); }
+    .toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--bg3); position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+    .toggle.on { background: rgba(0,229,255,.3); }
+    .toggle::after { content:''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--text3); transition: transform .2s, background .2s; }
+    .toggle.on::after { transform: translateX(18px); background: var(--primary); }
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .model-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all .2s; }
+    .model-card.active { background: rgba(0,229,255,.06); }
+    .model-name { font-size: 13px; font-weight: 700; color: var(--text3); }
+    .model-card.active .model-name { color: var(--primary); }
+    .model-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--primary); display: none; }
+    .model-card.active .model-dot { display: block; }
+    .section-label { font-size: 12px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .speed-row { display: flex; gap: 8px; }
+    .speed-chip { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg3); font-size: 12px; font-weight: 600; color: var(--text3); text-align: center; cursor: pointer; transition: all .2s; }
+    .speed-chip.active { border-color: var(--accent); background: rgba(255,109,0,.1); color: var(--accent); }
+    .premium-card { background: linear-gradient(135deg, rgba(255,109,0,.12), rgba(255,109,0,.04)); border: 1px solid rgba(255,109,0,.3); border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; margin-bottom: 16px; cursor: pointer; }
+    .premium-text { flex: 1; }
+    .premium-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+    .premium-sub { font-size: 12px; color: var(--text3); }
+    .footer-text { text-align: center; font-size: 12px; color: var(--text3); padding: 8px 0 4px; }
+
+    /* STUDIO */
+    .gen-tab { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--text3); cursor: pointer; transition: all .2s; }
+    .gen-tab.active { border-color: var(--primary); background: rgba(0,229,255,.1); color: var(--primary); }
+    .upload-area { border: 2px dashed var(--border); border-radius: 20px; padding: 40px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px; cursor: pointer; }
+    .upload-icon { width: 60px; height: 60px; border-radius: 16px; background: var(--bg3); display: flex; align-items: center; justify-content: center; }
+    .upload-icon svg { width: 28px; height: 28px; }
+    .upload-label { font-size: 16px; font-weight: 600; }
+    .upload-hint { font-size: 13px; color: var(--text3); }
+
+    /* SVG helpers */
+    svg { stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+    .stroke-primary { stroke: var(--primary); }
+    .stroke-secondary { stroke: var(--secondary); }
+    .stroke-accent { stroke: var(--accent); }
+    .stroke-success { stroke: var(--success); }
+    .stroke-text3 { stroke: var(--text3); }
+    .fill-primary { fill: var(--primary); }
+
+    .screen-header { padding-top: 20px; margin-bottom: 24px; }
+    .page-title { font-size: 26px; font-weight: 700; }
+    .page-sub { font-size: 14px; color: var(--text3); margin-top: 2px; }
+
+    @keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .animate-in { animation: fadeInUp .5s ease forwards; }
+    .animate-in:nth-child(2){animation-delay:.1s} .animate-in:nth-child(3){animation-delay:.2s}
+    .animate-in:nth-child(4){animation-delay:.3s} .animate-in:nth-child(5){animation-delay:.4s}
+  </style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="screen-home" class="screen active">
+  <div class="animate-in">
+    <div class="header-row">
+      <div>
+        <div class="greeting" id="greeting">Good Morning</div>
+        <div class="app-name">Vexora</div>
+      </div>
+      <div class="badges" style="margin-top:12px">
+        <span class="badge badge-green">Online</span>
+        <span class="badge badge-blue">AI Ready</span>
+      </div>
+    </div>
+    <div class="slogan">Your AI-Powered Life Assistant</div>
+  </div>
+
+  <div class="orb-section animate-in">
+    <div class="orb-wrap">
+      <div class="orb-ring"></div>
+      <div class="orb-ring"></div>
+      <div class="orb-ring"></div>
+      <div class="orb-core"><div class="orb-dot"></div></div>
+    </div>
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+      <svg viewBox="0 0 24 24" class="stroke-primary" style="width:28px;height:28px">
+        <rect x="9" y="2" width="6" height="12" rx="3"/>
+        <path d="M19 10c0 4-3.13 7-7 7s-7-3-7-7M12 19v4M8 23h8"/>
+      </svg>
+    </button>
+    <div class="orb-label" id="orb-label">Tap to speak</div>
+    <div class="orb-hint">or say "Hey Vexora"</div>
+  </div>
+
+  <div class="section animate-in">
+    <div class="section-title">Quick Actions</div>
+    <div class="card-grid">
+      <div class="card" onclick="showScreen('chat')" style="align-items:center">
+        <div class="card-icon" style="margin:0 auto 10px">
+          <svg viewBox="0 0 24 24" class="stroke-primary"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="card-title">Chat</div>
+        <div class="card-desc">Ask Vexora anything</div>
+      </div>
+      <div class="card" style="align-items:center">
+        <div class="card-icon" style="margin:0 auto 10px">
+          <svg viewBox="0 0 24 24" class="stroke-secondary"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+        </div>
+        <div class="card-title">Voice</div>
+        <div class="card-desc">Wake word & training</div>
+      </div>
+      <div class="card" style="align-items:center">
+        <div class="card-icon" style="margin:0 auto 10px">
+          <svg viewBox="0 0 24 24" class="stroke-accent"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h1v6H9m4-4h1.5a1.5 1.5 0 0 1 0 3H13v1"/><path d="M13 9v6"/></svg>
+        </div>
+        <div class="card-title">AI Agent</div>
+        <div class="card-desc">Automate tasks</div>
+      </div>
+      <div class="card" style="align-items:center">
+        <div class="card-icon" style="margin:0 auto 10px">
+          <svg viewBox="0 0 24 24" class="stroke-success"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <div class="card-title">Productivity</div>
+        <div class="card-desc">Tasks & notes</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section animate-in">
+    <div class="section-title">Feature Hub</div>
+    <div class="card-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,191,165,.1)">
+          <svg viewBox="0 0 24 24" class="stroke-secondary"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="feature-label">Media Analysis</div>
+        <div class="feature-desc">Image, video & screen AI</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,229,255,.1)">
+          <svg viewBox="0 0 24 24" class="stroke-primary"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="feature-label">Messaging AI</div>
+        <div class="feature-desc">Draft, translate & reply</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,230,118,.1)">
+          <svg viewBox="0 0 24 24" class="stroke-success"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4 19.79 19.79 0 0 1 1.61 4.8C1.54 3.25 2.56 1.9 3.99 1.73h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9a16 16 0 0 0 6.29 6.29l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2.02z"/></svg>
+        </div>
+        <div class="feature-label">Call Assistant</div>
+        <div class="feature-desc">Voice call control</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(255,109,0,.1)">
+          <svg viewBox="0 0 24 24" class="stroke-accent"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div class="feature-label">Research</div>
+        <div class="feature-desc">Web & fact search</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section animate-in">
+    <div class="section-title">AI Capabilities</div>
+    <div class="ai-card active" style="margin-bottom:10px">
+      <div class="ai-card-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/></svg></div>
+      <div class="ai-card-text">
+        <div class="ai-card-title">AI Assistant</div>
+        <div class="ai-card-desc">Natural conversations, voice commands, and smart task planning</div>
+      </div>
+    </div>
+    <div class="ai-card" style="margin-bottom:10px">
+      <div class="ai-card-icon"><svg viewBox="0 0 24 24" class="stroke-secondary"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <div class="ai-card-text">
+        <div class="ai-card-title">Agent Mode</div>
+        <div class="ai-card-desc">Break complex tasks into steps and execute them automatically</div>
+      </div>
+    </div>
+    <div class="ai-card" style="margin-bottom:10px">
+      <div class="ai-card-icon"><svg viewBox="0 0 24 24" class="stroke-success"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="ai-card-text">
+        <div class="ai-card-title">Privacy Shield</div>
+        <div class="ai-card-desc">Biometric lock, encrypted storage, and user-controlled memory</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT SCREEN -->
+<div id="screen-chat" class="screen">
+  <div class="screen-header">
+    <div class="chat-header">
+      <div class="avatar">V</div>
+      <div class="chat-info">
+        <div class="chat-name">Vexora AI</div>
+        <div class="chat-status">● Online · AI Ready</div>
+      </div>
+      <svg viewBox="0 0 24 24" class="stroke-text3" style="width:22px;height:22px"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    </div>
+    <div class="mode-chips">
+      <div class="mode-chip active">Assistant</div>
+      <div class="mode-chip">Study</div>
+      <div class="mode-chip">Coding</div>
+      <div class="mode-chip">Creative</div>
+      <div class="mode-chip">Business</div>
+      <div class="mode-chip">Travel</div>
+    </div>
+  </div>
+  <div class="chat-messages">
+    <div class="msg msg-ai">👋 Hi! I'm Vexora, your AI-powered life assistant. How can I help you today?</div>
+    <div class="msg msg-user">What can you do?</div>
+    <div class="msg msg-ai">I can help you with almost anything! 🚀<br><br>• <b>Chat & Q&A</b> — ask me anything<br>• <b>Voice commands</b> — hands-free control<br>• <b>Task automation</b> — AI agent mode<br>• <b>Research</b> — real-time web search<br>• <b>Productivity</b> — tasks, notes, habits</div>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" placeholder="Ask Vexora anything..." id="chat-input" onkeydown="sendMsg(event)" />
+    <div class="send-btn" onclick="sendMsg({key:'Enter'})">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- STUDIO SCREEN -->
+<div id="screen-studio" class="screen">
+  <div class="screen-header">
+    <div class="page-title">AI Studio</div>
+    <div class="page-sub">Create with AI assistance</div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;overflow-x:auto">
+    <div class="gen-tab active">Images</div>
+    <div class="gen-tab">Content</div>
+    <div class="gen-tab">Code</div>
+    <div class="gen-tab">Translate</div>
+  </div>
+  <div class="upload-area">
+    <div class="upload-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+    <div class="upload-label">Generate an image</div>
+    <div class="upload-hint">Describe what you want to create</div>
+  </div>
+  <input style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;color:#fff;font-size:14px;outline:none;margin-bottom:14px" placeholder="A futuristic city at night with neon lights..." />
+  <button style="width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,var(--primary),#00B8D4);border:none;color:var(--bg);font-size:15px;font-weight:700;cursor:pointer">Generate Image</button>
+</div>
+
+<!-- SETTINGS SCREEN -->
+<div id="screen-settings" class="screen">
+  <div class="screen-header">
+    <div class="page-title">Settings</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">AI Model</div>
+    <div class="model-grid">
+      <div class="model-card active" onclick="selectModel(this,'primary')">
+        <svg viewBox="0 0 24 24" class="stroke-primary" style="width:22px;height:22px"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/></svg>
+        <div class="model-name">Gemini</div>
+        <div class="model-dot"></div>
+      </div>
+      <div class="model-card" onclick="selectModel(this,'secondary')">
+        <svg viewBox="0 0 24 24" class="stroke-secondary" style="width:22px;height:22px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h1v6H9m4-4h1.5a1.5 1.5 0 0 1 0 3H13v1M13 9v6"/></svg>
+        <div class="model-name">OpenAI</div>
+        <div class="model-dot" style="background:var(--secondary)"></div>
+      </div>
+      <div class="model-card" onclick="selectModel(this,'accent')">
+        <svg viewBox="0 0 24 24" class="stroke-accent" style="width:22px;height:22px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <div class="model-name">Groq</div>
+        <div class="model-dot" style="background:var(--accent)"></div>
+      </div>
+      <div class="model-card" onclick="selectModel(this,'#FF6B35')">
+        <svg viewBox="0 0 24 24" stroke="#FF6B35" style="width:22px;height:22px;fill:none;stroke-width:2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/></svg>
+        <div class="model-name" style="color:inherit">Claude</div>
+        <div class="model-dot" style="background:#FF6B35"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Voice & Assistant</div>
+    <div class="setting-row">
+      <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10c0 4-3.13 7-7 7s-7-3-7-7M12 19v4M8 23h8"/></svg></div>
+      <div class="setting-text"><div class="setting-title">Voice Assistant</div><div class="setting-sub">Enable voice commands</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/></svg></div>
+      <div class="setting-text"><div class="setting-title">Wake Word</div><div class="setting-sub">Say "Hey Vexora" to activate</div></div>
+      <div class="toggle" onclick="this.classList.toggle('on')"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Appearance & Animations</div>
+    <div class="setting-row">
+      <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="setting-text"><div class="setting-title">Animations</div><div class="setting-sub">Smooth transitions and effects</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-secondary"><path d="M22 12c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2s10 4.48 10 10z"/><path d="M8 12h4v4"/></svg></div>
+      <div class="setting-text"><div class="setting-title">Haptic Feedback</div><div class="setting-sub">Vibration on button press</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;width:100%">
+        <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-accent"><circle cx="13.5" cy="6.5" r=".5" fill="var(--accent)"/><circle cx="17.5" cy="10.5" r=".5" fill="var(--accent)"/><circle cx="8.5" cy="7.5" r=".5" fill="var(--accent)"/><circle cx="6.5" cy="12.5" r=".5" fill="var(--accent)"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></div>
+        <div class="setting-text"><div class="setting-title">Animation Speed</div><div class="setting-sub">Controls transition timing</div></div>
+      </div>
+      <div class="speed-row" style="width:100%">
+        <div class="speed-chip" onclick="setSpeed(this)">Slow</div>
+        <div class="speed-chip active" onclick="setSpeed(this)">Normal</div>
+        <div class="speed-chip" onclick="setSpeed(this)">Fast</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Security & Privacy</div>
+    <div class="setting-row">
+      <div class="setting-icon"><svg viewBox="0 0 24 24" class="stroke-primary"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="setting-text"><div class="setting-title">Biometric Lock</div><div class="setting-sub">Fingerprint or face unlock</div></div>
+      <div class="toggle" onclick="this.classList.toggle('on')"></div>
+    </div>
+  </div>
+
+  <div class="premium-card">
+    <svg viewBox="0 0 24 24" class="stroke-accent" style="width:24px;height:24px;flex-shrink:0"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    <div class="premium-text">
+      <div class="premium-title">Upgrade to Vexora Pro</div>
+      <div class="premium-sub">Unlock all AI models, unlimited generation, and more</div>
+    </div>
+    <svg viewBox="0 0 24 24" class="stroke-accent" style="width:16px;height:16px;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>
+
+  <div class="footer-text">Vexora AI v1.0.0 · Your AI-Powered Life Assistant</div>
+</div>
+
+<!-- TAB BAR -->
+<div class="tabs">
+  <div class="tab active" onclick="showScreen('home')" id="tab-home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </div>
+  <div class="tab" onclick="showScreen('chat')" id="tab-chat">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Chat</span>
+  </div>
+  <div class="tab" onclick="showScreen('studio')" id="tab-studio">
+    <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 8v4l3 3"/></svg>
+    <span>Studio</span>
+  </div>
+  <div class="tab" onclick="showScreen('settings')" id="tab-settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    <span>Settings</span>
+  </div>
+</div>
+
+<script>
+  // Greeting
+  const h = new Date().getHours();
+  document.getElementById('greeting').textContent = h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening';
+
+  // Screen switching
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('screen-'+name).classList.add('active');
+    document.getElementById('tab-'+name).classList.add('active');
+  }
+
+  // Mic toggle
+  let listening = false;
+  function toggleMic() {
+    listening = !listening;
+    const btn = document.getElementById('mic-btn');
+    const lbl = document.getElementById('orb-label');
+    btn.classList.toggle('listening', listening);
+    lbl.textContent = listening ? 'Listening...' : 'Tap to speak';
+  }
+
+  // Chat
+  function sendMsg(e) {
+    if (e.key !== 'Enter') return;
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    const msgs = document.querySelector('.chat-messages');
+    const userMsg = document.createElement('div');
+    userMsg.className = 'msg msg-user';
+    userMsg.textContent = text;
+    msgs.appendChild(userMsg);
+    input.value = '';
+    setTimeout(() => {
+      const aiMsg = document.createElement('div');
+      aiMsg.className = 'msg msg-ai';
+      aiMsg.textContent = "I'm Vexora AI — this is a web preview. The full AI is available in the Android app!";
+      msgs.appendChild(aiMsg);
+      msgs.scrollTop = msgs.scrollHeight;
+    }, 800);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  // Model select
+  function selectModel(el, color) {
+    document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Speed chip
+  function setSpeed(el) {
+    document.querySelectorAll('.speed-chip').forEach(c=>c.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Mode chips
+  document.querySelectorAll('.mode-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.mode-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

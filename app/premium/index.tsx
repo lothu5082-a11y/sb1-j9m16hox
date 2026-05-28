@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Crown, Check, Sparkles, Zap, Shield, Brain, Image, Gamepad2, ChevronLeft } from 'lucide-react-native';
+import { Crown, Check, Sparkles, Zap, Shield, Brain, Image, Gamepad2, ChevronLeft, Phone } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import GlowButton from '../../components/GlowButton';
 
@@ -35,13 +35,12 @@ const plans = [
     color: Colors.primary,
     popular: true,
     features: [
-      'Unlimited voice commands',
+      'All AI models (Gemini, OpenAI, Groq, Claude)',
       'Unlimited AI chats',
-      'All AI models (Gemini, OpenAI, Groq)',
       'Fast response speed',
       'Image generation (50/day)',
       'Gaming assistant',
-      'Floating assistant',
+      'Floating Vexora bubble',
       'Priority support',
     ],
     limited: [],
@@ -55,13 +54,12 @@ const plans = [
     features: [
       'Everything in Pro',
       'Unlimited image generation',
-      'Video generation',
-      'Advanced gaming overlay',
+      'Video intelligence',
+      'Screen understanding',
       'Smart call assistant',
-      'Smart glasses ready',
-      'PC connection',
-      'Smartwatch support',
-      'Home assistant integration',
+      'Device automation',
+      'Cross-app assistant',
+      'Cloud sync',
       'Early access features',
     ],
     limited: [],
@@ -77,7 +75,7 @@ export default function PremiumScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
             <Crown color={Colors.accent} size={32} />
-            <Text style={styles.headerTitle}>Nova Premium</Text>
+            <Text style={styles.headerTitle}>Vexora Pro</Text>
             <Text style={styles.headerSubtitle}>Unlock your full AI potential</Text>
           </Animated.View>
 
@@ -86,35 +84,35 @@ export default function PremiumScreen() {
               <View style={styles.comparisonIcon}>
                 <Brain color={Colors.primary} size={20} />
               </View>
-              <Text style={styles.comparisonText}>Access all AI models</Text>
+              <Text style={styles.comparisonText}>All AI models (Gemini, Claude, OpenAI, Groq)</Text>
               <Check color={Colors.success} size={18} />
             </View>
             <View style={styles.comparisonRow}>
               <View style={styles.comparisonIcon}>
                 <Image color={Colors.secondary} size={20} />
               </View>
-              <Text style={styles.comparisonText}>Unlimited image generation</Text>
+              <Text style={styles.comparisonText}>Unlimited AI image generation</Text>
               <Check color={Colors.success} size={18} />
             </View>
             <View style={styles.comparisonRow}>
               <View style={styles.comparisonIcon}>
                 <Gamepad2 color={Colors.accent} size={20} />
               </View>
-              <Text style={styles.comparisonText}>Advanced gaming tools</Text>
+              <Text style={styles.comparisonText}>Advanced gaming overlay & tools</Text>
               <Check color={Colors.success} size={18} />
             </View>
             <View style={styles.comparisonRow}>
               <View style={styles.comparisonIcon}>
                 <Zap color={Colors.warning} size={20} />
               </View>
-              <Text style={styles.comparisonText}>Priority fast responses</Text>
+              <Text style={styles.comparisonText}>Priority fast AI responses</Text>
               <Check color={Colors.success} size={18} />
             </View>
             <View style={styles.comparisonRow}>
               <View style={styles.comparisonIcon}>
-                <Shield color={Colors.success} size={20} />
+                <Phone color={Colors.success} size={20} />
               </View>
-              <Text style={styles.comparisonText}>Smart call assistant</Text>
+              <Text style={styles.comparisonText}>Smart call & device assistant</Text>
               <Check color={Colors.success} size={18} />
             </View>
           </Animated.View>
@@ -166,7 +164,7 @@ export default function PremiumScreen() {
 
           <Animated.View entering={FadeInUp.duration(600).delay(300)} style={styles.ctaSection}>
             <GlowButton
-              title={`Subscribe to ${plans.find(p => p.id === selectedPlan)?.name}`}
+              title={`Subscribe to Vexora ${plans.find(p => p.id === selectedPlan)?.name}`}
               onPress={() => {}}
               variant="primary"
               size="lg"

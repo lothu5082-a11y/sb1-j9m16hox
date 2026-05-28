@@ -1,0 +1,245 @@
+name: Build Vexora AI APK
+
+on:
+  push:
+    branches:
+      - claude/vexora-ai-overview-cMaQ1
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Show Android SDK environment
+        run: |
+          echo "=== Android SDK environment ==="
+          echo "ANDROID_SDK_ROOT: ${ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME: ${ANDROID_HOME}"
+          echo "--- NDK versions pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none)"
+          echo "--- CMake versions pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/cmake/" 2>/dev/null || echo "  (none)"
+          echo "--- Build-tools pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/build-tools/" 2>/dev/null || echo "  (none)"
+          echo "--- Platforms pre-installed ---"
+          ls "${ANDROID_SDK_ROOT}/platforms/" 2>/dev/null || echo "  (none)"
+          echo "--- Java version ---"
+          java -version
+          echo "--- Node version ---"
+          node --version
+
+      - name: Install Android SDK components and NDK
+        run: |
+          SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+
+          # Accept all licenses first
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+
+          # Install required SDK components (safe to re-install if already present)
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" 2>&1 | tail -5 || true
+          "$SDKMANAGER" "cmake;3.22.1" 2>&1 | tail -5 || true
+          "$SDKMANAGER" "ndk;27.1.12297006" 2>&1 | tail -5 || true
+
+          echo "--- NDK versions after install ---"
+          ls "${ANDROID_SDK_ROOT}/ndk/" 2>/dev/null || echo "  (none)"
+          echo "--- CMake versions after install ---"
+          ls "${ANDROID_SDK_ROOT}/cmake/" 2>/dev/null || echo "  (none)"
+
+          # Pick NDK: exact 27.1.12297006 preferred, fall back to any 27.x
+          NDK_PATH="${ANDROID_SDK_ROOT}/ndk/27.1.12297006"
+          if [ ! -d "$NDK_PATH" ]; then
+            FALLBACK=$(ls -d "${ANDROID_SDK_ROOT}/ndk/27."* 2>/dev/null | sort -V | tail -1)
+            NDK_PATH="${FALLBACK}"
+          fi
+          if [ -d "$NDK_PATH" ]; then
+            NDK_VER=$(basename "$NDK_PATH")
+            echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+            echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+            echo "SELECTED_NDK_VERSION=$NDK_VER" >> $GITHUB_ENV
+            echo "Using NDK: $NDK_PATH"
+          else
+            echo "ERROR: No NDK 27.x found"
+            exit 1
+          fi
+
+          # Pick CMake: prefer 3.22.1, otherwise use highest installed version
+          CMAKE_DIR="${ANDROID_SDK_ROOT}/cmake"
+          if [ -d "${CMAKE_DIR}/3.22.1" ]; then
+            SELECTED_CMAKE="3.22.1"
+          else
+            SELECTED_CMAKE=$(ls "${CMAKE_DIR}/" 2>/dev/null | sort -V | tail -1)
+          fi
+          if [ -n "$SELECTED_CMAKE" ]; then
+            echo "SELECTED_CMAKE_VERSION=$SELECTED_CMAKE" >> $GITHUB_ENV
+            echo "Using CMake: $SELECTED_CMAKE"
+          else
+            echo "WARNING: No CMake found in Android SDK. AGP will auto-download."
+          fi
+
+      - name: Install dependencies
+        run: npm ci 2>&1 | tail -20
+
+      - name: Run Expo prebuild
+        run: |
+          npx expo prebuild --platform android --clean --no-install 2>&1 | tee /tmp/prebuild.log
+          echo "=== Prebuild complete. android/ contents: ==="
+          ls android/ 2>/dev/null || echo "ERROR: android/ not generated"
+          echo "Gradle wrapper:"
+          cat android/gradle/wrapper/gradle-wrapper.properties 2>/dev/null || echo "(not found)"
+        env:
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Patch NDK + CMake + CI optimisations
+        run: |
+          NEEDED="27.1.12297006"
+          SELECTED="${SELECTED_NDK_VERSION}"
+          echo "NDK needed: $NEEDED | available: $SELECTED"
+          echo "CMake available: ${SELECTED_CMAKE_VERSION}"
+
+          # 1. Patch NDK version if runner doesn't have exact 27.1.12297006
+          if [ "$SELECTED" != "$NEEDED" ]; then
+            sed -i "s/ndkVersion rootProject.ext.ndkVersion/ndkVersion \"${SELECTED}\"/" android/app/build.gradle
+            echo "android/app/build.gradle ndkVersion → patched to $SELECTED"
+            grep "ndkVersion" android/app/build.gradle
+
+            TOML="node_modules/react-native/gradle/libs.versions.toml"
+            sed -i "s/ndkVersion = \"${NEEDED}\"/ndkVersion = \"${SELECTED}\"/" "$TOML"
+            echo "libs.versions.toml ndkVersion → patched to $SELECTED"
+            grep "ndkVersion" "$TOML"
+          else
+            echo "NDK exact match — no NDK patch needed"
+          fi
+
+          # 2. Set CMAKE_VERSION in GITHUB_ENV so Gradle step picks it up
+          if [ -n "${SELECTED_CMAKE_VERSION}" ]; then
+            echo "CMAKE_VERSION=${SELECTED_CMAKE_VERSION}" >> $GITHUB_ENV
+            echo "CMAKE_VERSION set to ${SELECTED_CMAKE_VERSION}"
+          fi
+
+          # 3. arm64-v8a only for CI — 4× faster, covers all modern phones
+          sed -i "s/reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/" android/gradle.properties
+          echo "reactNativeArchitectures:"
+          grep "reactNativeArchitectures" android/gradle.properties
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x android/gradlew
+
+      - name: Free disk space
+        run: |
+          echo "=== Disk before cleanup ===" && df -h /
+          # Remove large pre-installed tools not needed for Android builds
+          sudo rm -rf /usr/share/dotnet /usr/local/share/boost /opt/ghc 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/emulator 2>/dev/null || true
+          sudo apt-get clean -qq 2>/dev/null || true
+          docker system prune -af 2>/dev/null || true
+          echo "=== Disk after cleanup ===" && df -h /
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build release APK (bundle embedded, no Metro needed)
+        run: |
+          set -o pipefail
+          echo "=== Disk space before build ===" && df -h /
+          cd android
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace \
+            --warn \
+            2>&1 | tee /tmp/gradle.log || {
+              echo ""
+              echo "========= GRADLE FAILURE SUMMARY ========="
+              grep -A 30 "What went wrong" /tmp/gradle.log | head -120
+              echo "------ Last 100 lines of build log -------"
+              tail -100 /tmp/gradle.log
+              echo "=== Disk space after failed build ===" && df -h /
+              echo "==========================================="
+              exit 1
+            }
+          echo "=== Disk space after build ===" && df -h /
+        env:
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3g -Dorg.gradle.daemon=false'
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-logs
+          path: |
+            /tmp/prebuild.log
+            /tmp/prebundle.log
+            /tmp/gradle.log
+          retention-days: 7
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found APK: $APK_PATH"
+          ls -lh "$APK_PATH"
+
+      - name: Rename APK
+        run: |
+          cp "${{ steps.find_apk.outputs.apk_path }}" vexora-ai-debug.apk
+          echo "APK size: $(ls -lh vexora-ai-debug.apk | awk '{print $5}')"
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexora-ai-apk
+          path: vexora-ai-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: "Vexora AI — Build ${{ github.run_number }}"
+          body: |
+            ## Vexora AI Debug Build
+
+            **Branch:** `${{ github.ref_name }}`
+            **Commit:** `${{ github.sha }}`
+
+            ### Install on Android
+            1. Download `vexora-ai-debug.apk` below
+            2. Open it on your Android phone
+            3. Allow "Install from unknown sources" if prompted
+            4. Install and launch Vexora AI
+
+            > This is a debug build for testing. Production builds will be signed.
+          files: vexora-ai-debug.apk
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
