@@ -12,17 +12,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import {
   Zap,
-  MessageSquare,
-  Calendar,
-  FileText,
-  CheckCircle,
   Play,
   Clock,
   Shield,
   Bell,
   ChevronRight,
   Layers,
-  TriangleAlert as AlertTriangle,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 

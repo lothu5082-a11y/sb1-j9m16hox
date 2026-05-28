@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,7 +21,6 @@ import {
   MapPin,
   Battery,
   Wifi,
-  MessageSquare,
   Calendar,
   Clock,
   Eye,
