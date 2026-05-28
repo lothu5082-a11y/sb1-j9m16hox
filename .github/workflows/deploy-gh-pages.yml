@@ -1,8 +1,8 @@
-name: Deploy Vexora AI to GitHub Pages
+name: Deploy Riuka AI to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "claude/riuka-ai-ondevice-QrLPA"]
   workflow_dispatch:
 
 permissions:
@@ -47,8 +47,8 @@ jobs:
               idat = chunk(b'IDAT', zlib.compress(raw))
               iend = chunk(b'IEND', b'')
               return sig + ihdr + idat + iend
-          open('assets/images/icon.png','wb').write(create_png(1024,1024,10,14,26))
-          open('assets/images/favicon.png','wb').write(create_png(32,32,0,229,255))
+          open('assets/images/icon.png','wb').write(create_png(1024,1024,10,10,12))
+          open('assets/images/favicon.png','wb').write(create_png(32,32,168,85,247))
           print('Icons created')
           "
 
