@@ -19,6 +19,9 @@
         "backgroundColor": "#0A0A0C"
       },
       "package": "com.riuka.ai",
+      "versionCode": 1,
+      "minSdkVersion": 26,
+      "targetSdkVersion": 34,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -28,8 +31,13 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
         "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.BIND_ACCESSIBILITY_SERVICE"
+        "android.permission.BIND_ACCESSIBILITY_SERVICE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
@@ -38,7 +46,25 @@
       "favicon": "./assets/images/favicon.png",
       "baseUrl": "/sb1-j9m16hox"
     },
-    "plugins": ["expo-router", "expo-font", "expo-web-browser"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 26,
+            "buildToolsVersion": "34.0.0",
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
+            }
+          }
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }
