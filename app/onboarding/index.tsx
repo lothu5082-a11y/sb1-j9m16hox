@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mic, Gamepad2, Shield, Sparkles, Brain, Zap, ChevronRight } from 'lucide-react-native';
+import { Mic, Bell, Shield, Sparkles, Cpu, Zap, ChevronRight, ClipboardList } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import GlowButton from '../../components/GlowButton';
@@ -18,52 +18,52 @@ const { width } = Dimensions.get('window');
 
 const slides = [
   {
-    title: 'Vexora AI',
-    subtitle: 'Your Intelligent Future',
+    title: 'Riuka AI',
+    subtitle: 'The On-Device Jarvis',
     description:
-      'A futuristic AI assistant that understands voice, controls your phone, and adapts to your life.',
+      'An autonomous system-level executive assistant that operates entirely within your device. Zero cloud. Zero latency. Absolute privacy.',
     icon: Sparkles,
-    gradient: [Colors.background, '#0D1B2A'] as const,
+    gradient: [Colors.background, '#0D0A1A'] as const,
   },
   {
-    title: 'Voice First',
-    subtitle: 'Just say "Hey Vexora"',
+    title: 'Sensor Layer',
+    subtitle: 'Always-On Background Awareness',
     description:
-      'Control your entire phone with natural voice commands. Open apps, send messages, take photos — hands-free.',
-    icon: Mic,
-    gradient: [Colors.background, '#0A1929'] as const,
+      'Riuka silently monitors your notification stream (WhatsApp, Telegram, Slack, SMS), clipboard buffer, and device context — continuously, in the background.',
+    icon: Bell,
+    gradient: [Colors.background, '#0A0A1A'] as const,
   },
   {
-    title: 'Multi-AI Power',
-    subtitle: 'Best of every AI',
+    title: 'On-Device Brain',
+    subtitle: '100% Offline Intelligence',
     description:
-      'Switch seamlessly between OpenAI, Gemini, Claude, and Groq. Use local AI when offline.',
-    icon: Brain,
-    gradient: [Colors.background, '#1A0A2E'] as const,
+      'All data is processed by a compact language model running directly on your hardware. Your messages, documents, and location data never leave your phone.',
+    icon: Cpu,
+    gradient: [Colors.background, '#120A1A'] as const,
   },
   {
-    title: 'Gaming Mode',
-    subtitle: 'Level up your gameplay',
+    title: 'Clipboard Engine',
+    subtitle: 'Instant Copy Analysis',
     description:
-      'Real-time FPS monitor, ping tracker, voice commands while gaming. Your competitive edge.',
-    icon: Gamepad2,
+      'Copy a code snippet, tracking number, or contract text — Riuka wakes instantly and surfaces analysis in an overlay panel without interrupting your workflow.',
+    icon: ClipboardList,
+    gradient: [Colors.background, '#0A120A'] as const,
+  },
+  {
+    title: 'Interface Pilot',
+    subtitle: 'Autonomous App Control',
+    description:
+      'Once the on-device brain decides on an action, it physically pilots the interface — opening apps, typing, tapping, and sending — completely invisibly.',
+    icon: Zap,
     gradient: [Colors.background, '#1A0A0A'] as const,
   },
   {
-    title: 'Offline Ready',
-    subtitle: 'Works without internet',
+    title: 'Privacy Fortress',
+    subtitle: 'Zero Cloud Architecture',
     description:
-      'Local AI mode keeps you productive without connectivity. Your data stays private.',
+      'Riuka\'s on-device design makes data leakage structurally impossible. Your private communications and financial data stay on your hardware — always.',
     icon: Shield,
-    gradient: [Colors.background, '#0A1A0A'] as const,
-  },
-  {
-    title: 'Ready to Begin',
-    subtitle: 'The future is now',
-    description:
-      'Vexora AI is ready to transform your mobile experience. Let\'s get started.',
-    icon: Zap,
-    gradient: [Colors.background, '#0A1A1A'] as const,
+    gradient: [Colors.background, '#0A1A12'] as const,
   },
 ];
 
@@ -73,28 +73,15 @@ function PulsingIcon({ IconComponent }: { IconComponent: React.ComponentType<any
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowOpacity, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowOpacity, {
-          toValue: 0.4,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(glowOpacity, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(glowOpacity, { toValue: 0.4, duration: 1200, useNativeDriver: true }),
       ])
     ).start();
   }, []);
 
   return (
     <View style={styles.iconCircleWrapper}>
-      <Animated.View
-        style={[
-          styles.iconGlow,
-          { opacity: glowOpacity },
-        ]}
-      />
+      <Animated.View style={[styles.iconGlow, { opacity: glowOpacity }]} />
       <View style={styles.iconCircle}>
         <IconComponent color={Colors.primary} size={48} strokeWidth={1.5} />
       </View>
@@ -112,18 +99,12 @@ export default function OnboardingScreen() {
   };
 
   const handleNext = () => {
-    if (currentSlide < slides.length - 1) {
-      goToSlide(currentSlide + 1);
-    }
+    if (currentSlide < slides.length - 1) goToSlide(currentSlide + 1);
   };
 
-  const handleSkip = () => {
-    goToSlide(slides.length - 1);
-  };
+  const handleSkip = () => goToSlide(slides.length - 1);
 
-  const handleGetStarted = () => {
-    router.replace('/(tabs)');
-  };
+  const handleGetStarted = () => router.replace('/(tabs)');
 
   return (
     <View style={styles.container}>
@@ -177,12 +158,12 @@ export default function OnboardingScreen() {
               <GlowButton
                 title="Next"
                 onPress={handleNext}
-                icon={<ChevronRight color={Colors.background} size={18} />}
+                icon={<ChevronRight color="#ffffff" size={18} />}
               />
             </>
           ) : (
             <GlowButton
-              title="Get Started"
+              title="Activate Riuka"
               onPress={handleGetStarted}
               size="lg"
               style={styles.getStartedButton}
@@ -195,13 +176,8 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  slide: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  slide: { flex: 1 },
   slideGradient: {
     flex: 1,
     alignItems: 'center',
@@ -232,9 +208,9 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    backgroundColor: 'rgba(168, 85, 247, 0.08)',
     borderWidth: 2,
-    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderColor: 'rgba(168, 85, 247, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.primary,
@@ -249,6 +225,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: Spacing.sm,
     textAlign: 'center',
+    letterSpacing: 1,
   },
   subtitle: {
     fontSize: FontSizes.xl,
@@ -280,12 +257,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     gap: Spacing.sm,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border },
   activeDot: {
     width: 24,
     backgroundColor: Colors.primary,
@@ -295,20 +267,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  completedDot: {
-    backgroundColor: Colors.primaryDark,
-  },
+  completedDot: { backgroundColor: Colors.primaryDark },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  skipText: {
-    fontSize: FontSizes.md,
-    color: Colors.textTertiary,
-    fontWeight: '500',
-  },
-  getStartedButton: {
-    flex: 1,
-  },
+  skipText: { fontSize: FontSizes.md, color: Colors.textTertiary, fontWeight: '500' },
+  getStartedButton: { flex: 1 },
 });

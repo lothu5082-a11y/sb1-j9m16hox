@@ -23,9 +23,9 @@ export interface AIConfig {
 }
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are Vexora AI, a futuristic, intelligent, and helpful AI assistant. Be concise, smart, and helpful.';
+  'You are Riuka AI, a futuristic, intelligent, and helpful AI assistant. Be concise, smart, and helpful.';
 
-const CONFIG_KEY = 'vexora_ai_config';
+const CONFIG_KEY = 'riuka_ai_config';
 
 class AIService {
   private config: AIConfig = { provider: 'local', apiKey: '' };
@@ -62,7 +62,7 @@ class AIService {
         return 'LLaMA 3.1 (Groq)';
       case 'local':
       default:
-        return 'Vexora Local';
+        return 'Riuka Local';
     }
   }
 
@@ -197,7 +197,7 @@ class AIService {
 
     // Greetings
     if (/^(hi|hello|hey|greetings|sup|yo|howdy)[\s!?.]*$/.test(text)) {
-      return "Hello! I'm Vexora AI, your futuristic assistant. How can I help you today?";
+      return "Hello! I'm Riuka AI, your futuristic assistant. How can I help you today?";
     }
 
     // How are you
@@ -219,7 +219,7 @@ class AIService {
 
     // Who are you / what are you
     if (/who are you|what are you|tell me about yourself/.test(text)) {
-      return "I'm Vexora AI — a next-generation AI assistant designed to be fast, intelligent, and always at your side. I can answer questions, help with tasks, and adapt to your needs. Connect a real AI provider in settings for the full experience!";
+      return "I'm Riuka AI — a next-generation AI assistant designed to be fast, intelligent, and always at your side. I can answer questions, help with tasks, and adapt to your needs. Connect a real AI provider in settings for the full experience!";
     }
 
     // Help
@@ -234,7 +234,7 @@ class AIService {
 
     // Bye / goodbye
     if (/bye|goodbye|see you|later|cya/.test(text)) {
-      return "Goodbye! Come back anytime — Vexora AI is always here for you.";
+      return "Goodbye! Come back anytime — Riuka AI is always here for you.";
     }
 
     // Weather (no real API)

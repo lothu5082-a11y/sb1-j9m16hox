@@ -14,11 +14,11 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
     <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
       {!isUser && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>V</Text>
+          <Text style={styles.avatarText}>R</Text>
         </View>
       )}
       <View style={styles.bubbleWrapper}>
-        {!isUser && <Text style={styles.senderLabel}>Vexora AI</Text>}
+        {!isUser && <Text style={styles.senderLabel}>Riuka AI</Text>}
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>{message}</Text>
           {time && <Text style={[styles.time, isUser ? styles.userTime : styles.assistantTime]}>{time}</Text>}
@@ -45,13 +45,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 229, 255, 0.15)',
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
     borderWidth: 1.5,
     borderColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
-    marginTop: 14, // Align with bubble content, below label
+    marginTop: 14,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   userMessage: {
-    color: Colors.background,
+    color: '#ffffff',
     fontWeight: '500',
   },
   assistantMessage: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   userTime: {
-    color: 'rgba(10, 14, 26, 0.6)',
+    color: 'rgba(255, 255, 255, 0.5)',
     textAlign: 'right',
   },
   assistantTime: {

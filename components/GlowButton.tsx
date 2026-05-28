@@ -97,7 +97,7 @@ export default function GlowButton({
 
   const textColor =
     variant === 'primary' || variant === 'danger'
-      ? Colors.background
+      ? '#ffffff'
       : variant === 'secondary'
       ? Colors.primary
       : Colors.textSecondary;
@@ -113,7 +113,7 @@ export default function GlowButton({
     <>
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' || variant === 'danger' ? Colors.background : Colors.primary}
+          color={variant === 'primary' || variant === 'danger' ? '#ffffff' : Colors.primary}
           size="small"
         />
       ) : (

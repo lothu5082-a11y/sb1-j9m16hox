@@ -16,7 +16,7 @@ export interface Conversation {
   updatedAt: Date;
 }
 
-const CONVERSATIONS_KEY = 'vexora_conversations';
+const CONVERSATIONS_KEY = 'riuka_conversations';
 const MAX_MESSAGES_PER_CONVERSATION = 100;
 
 class StorageService {

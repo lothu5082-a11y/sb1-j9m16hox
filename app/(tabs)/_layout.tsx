@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { House, MessageSquare, Image, Gamepad2, Settings } from 'lucide-react-native';
+import { House, MessageSquare, Zap, Bell, Settings } from 'lucide-react-native';
 import { Colors, FontSizes } from '../../constants/theme';
 
 export default function TabLayout() {
@@ -43,22 +43,22 @@ export default function TabLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: 'Chat',
+          title: 'Command',
           tabBarIcon: ({ size, color }) => <MessageSquare size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="generate"
+        name="automation"
         options={{
-          title: 'Create',
-          tabBarIcon: ({ size, color }) => <Image size={size} color={color} />,
+          title: 'Automate',
+          tabBarIcon: ({ size, color }) => <Zap size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="gaming"
+        name="sensors"
         options={{
-          title: 'Gaming',
-          tabBarIcon: ({ size, color }) => <Gamepad2 size={size} color={color} />,
+          title: 'Sensors',
+          tabBarIcon: ({ size, color }) => <Bell size={size} color={color} />,
         }}
       />
       <Tabs.Screen

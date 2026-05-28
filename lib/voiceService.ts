@@ -1,7 +1,7 @@
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
 
 const PLACEHOLDER_TRANSCRIPTS = [
-  'Hello, Vexora!',
+  'Hello, Riuka!',
   'What can you help me with?',
   'Tell me something interesting.',
   'How are you doing today?',
