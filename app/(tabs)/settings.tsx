@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -29,14 +30,16 @@ import {
   CheckCircle,
   Bell,
   ClipboardList,
-  FolderOpen,
-  CircleX,
+  Download,
+  Trash2,
+  PlayCircle,
+  StopCircle,
+  BrainCircuit,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
 import { setAIConfig } from './chat';
-import { Platform } from 'react-native';
-import { llamaService } from '../../lib/llamaService';
+import { llamaService, MODELS, type ModelMeta, type DownloadState } from '../../lib/llamaService';
 
 export let riukaAIConfig = { provider: 'local', apiKey: '' };
 
@@ -120,30 +123,79 @@ export default function SettingsScreen() {
   const [apiKey, setApiKey] = useState(riukaAIConfig.apiKey);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
 
-  const [modelPath, setModelPath] = useState('');
-  const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
-  const [modelError, setModelError] = useState('');
+  const [downloadedIds, setDownloadedIds] = useState<string[]>([]);
+  const [downloadState, setDownloadState] = useState<DownloadState | null>(null);
+  const [loadingModelId, setLoadingModelId] = useState<string | null>(null);
+  const [loadedModelId, setLoadedModelId] = useState<string | null>(null);
+  const [modelError, setModelError] = useState<string>('');
 
-  const loadModel = async () => {
-    const path = modelPath.trim();
-    if (!path) {
-      Alert.alert('Path required', 'Enter the full path to your .gguf model file.');
-      return;
-    }
-    setModelStatus('loading');
+  const refreshDownloaded = useCallback(async () => {
+    const ids = await llamaService.getDownloadedModels();
+    setDownloadedIds(ids);
+    setLoadedModelId(llamaService.getLoadedModelId());
+  }, []);
+
+  useEffect(() => { refreshDownloaded(); }, []);
+
+  const startDownload = (model: ModelMeta) => {
+    setModelError('');
+    setDownloadState({ modelId: model.id, progress: 0, downloadedMB: 0, totalMB: model.sizeMB });
+    llamaService.downloadModel(
+      model,
+      (state) => setDownloadState({ ...state }),
+      async () => {
+        setDownloadState(null);
+        await refreshDownloaded();
+        // auto-load after download
+        loadModel(model);
+      },
+      (msg) => {
+        setDownloadState(null);
+        setModelError(msg);
+      }
+    );
+  };
+
+  const cancelDownload = async () => {
+    await llamaService.cancelDownload();
+    setDownloadState(null);
+  };
+
+  const loadModel = async (model: ModelMeta) => {
+    setLoadingModelId(model.id);
     setModelError('');
     try {
-      await llamaService.load(path);
-      setModelStatus('loaded');
+      await llamaService.load(model);
+      setLoadedModelId(model.id);
     } catch (e: any) {
-      setModelStatus('error');
       setModelError(e?.message ?? 'Failed to load model');
+    } finally {
+      setLoadingModelId(null);
     }
   };
 
   const unloadModel = async () => {
     await llamaService.unload();
-    setModelStatus('idle');
+    setLoadedModelId(null);
+  };
+
+  const deleteModel = (model: ModelMeta) => {
+    Alert.alert(
+      'Delete Model',
+      `Remove ${model.filename} from storage? This frees ${model.sizeMB >= 1000 ? (model.sizeMB / 1000).toFixed(1) + ' GB' : model.sizeMB + ' MB'}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await llamaService.deleteModel(model);
+            await refreshDownloaded();
+            if (loadedModelId === model.id) setLoadedModelId(null);
+          },
+        },
+      ]
+    );
   };
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -241,74 +293,133 @@ export default function SettingsScreen() {
             )}
           </Animated.View>
 
-          {/* Local Model (native only) */}
+          {/* On-Device Brain — model catalogue (native only) */}
           {Platform.OS !== 'web' && (
             <Animated.View entering={FadeInUp.duration(600).delay(140)} style={styles.section}>
-              <Text style={styles.sectionTitle}>Local Model (GGUF)</Text>
-              <View style={styles.modelCard}>
-                {/* Status row */}
-                <View style={styles.modelStatusRow}>
-                  <Cpu color={modelStatus === 'loaded' ? Colors.secondary : Colors.textTertiary} size={18} />
-                  <Text style={styles.modelStatusLabel}>
-                    {modelStatus === 'idle' && 'No model loaded'}
-                    {modelStatus === 'loading' && 'Loading model…'}
-                    {modelStatus === 'loaded' && llamaService.getModelPath()?.split('/').pop()}
-                    {modelStatus === 'error' && 'Load failed'}
-                  </Text>
-                  {modelStatus === 'loaded' && (
-                    <View style={styles.modelLoadedBadge}>
-                      <Text style={styles.modelLoadedBadgeText}>ACTIVE</Text>
-                    </View>
-                  )}
-                  {modelStatus === 'error' && (
-                    <CircleX color={Colors.error} size={14} />
-                  )}
+              <View style={styles.modelSectionHeader}>
+                <BrainCircuit color={Colors.primary} size={16} />
+                <Text style={styles.sectionTitle}>On-Device Brain</Text>
+              </View>
+
+              {modelError ? (
+                <View style={styles.modelErrorBanner}>
+                  <Text style={styles.modelErrorBannerText}>{modelError}</Text>
                 </View>
+              ) : null}
 
-                {modelStatus === 'error' && (
-                  <Text style={styles.modelErrorText}>{modelError}</Text>
-                )}
+              <View style={styles.modelList}>
+                {MODELS.map((model) => {
+                  const downloaded = downloadedIds.includes(model.id);
+                  const isLoaded = loadedModelId === model.id;
+                  const isLoading = loadingModelId === model.id;
+                  const isThisDownloading = downloadState?.modelId === model.id;
+                  const anyDownloading = downloadState !== null;
+                  const sizeLabel = model.sizeMB >= 1000
+                    ? (model.sizeMB / 1000).toFixed(1) + ' GB'
+                    : model.sizeMB + ' MB';
 
-                {/* Path input */}
-                {modelStatus !== 'loaded' && (
-                  <View style={styles.modelPathRow}>
-                    <View style={styles.modelPathInputWrap}>
-                      <FolderOpen color={Colors.textTertiary} size={14} />
-                      <TextInput
-                        style={styles.modelPathInput}
-                        placeholder="/sdcard/Download/model.gguf"
-                        placeholderTextColor={Colors.textTertiary}
-                        value={modelPath}
-                        onChangeText={setModelPath}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={modelStatus !== 'loading'}
-                      />
+                  return (
+                    <View
+                      key={model.id}
+                      style={[
+                        styles.modelCard,
+                        isLoaded && { borderColor: model.tierColor + '60' },
+                      ]}
+                    >
+                      {/* Header row */}
+                      <View style={styles.modelCardHeader}>
+                        <View style={[styles.modelIconWrap, { backgroundColor: model.tierColor + '15' }]}>
+                          <Cpu color={model.tierColor} size={18} />
+                        </View>
+                        <View style={styles.modelCardMeta}>
+                          <View style={styles.modelCardNameRow}>
+                            <Text style={styles.modelCardName}>{model.name}</Text>
+                            <View style={[styles.tierBadge, { backgroundColor: model.tierColor + '20', borderColor: model.tierColor + '50' }]}>
+                              <Text style={[styles.tierBadgeText, { color: model.tierColor }]}>{model.tier}</Text>
+                            </View>
+                            {isLoaded && (
+                              <View style={styles.activeBadge}>
+                                <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.modelCardSub}>{model.subtitle} · {sizeLabel}</Text>
+                        </View>
+                      </View>
+
+                      {/* Download progress bar */}
+                      {isThisDownloading && downloadState && (
+                        <View style={styles.progressSection}>
+                          <View style={styles.progressBar}>
+                            <View style={[styles.progressFill, { width: `${Math.round(downloadState.progress * 100)}%` as any, backgroundColor: model.tierColor }]} />
+                          </View>
+                          <View style={styles.progressLabels}>
+                            <Text style={styles.progressText}>{downloadState.downloadedMB} MB / {downloadState.totalMB} MB</Text>
+                            <Text style={[styles.progressText, { color: model.tierColor }]}>{Math.round(downloadState.progress * 100)}%</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Loading bar (model init) */}
+                      {isLoading && (
+                        <View style={styles.progressSection}>
+                          <View style={styles.progressBar}>
+                            <View style={[styles.progressFill, styles.progressPulse, { width: '60%', backgroundColor: model.tierColor }]} />
+                          </View>
+                          <Text style={styles.progressText}>Initialising model…</Text>
+                        </View>
+                      )}
+
+                      {/* Action buttons */}
+                      <View style={styles.modelCardActions}>
+                        {!downloaded && !isThisDownloading && (
+                          <TouchableOpacity
+                            style={[styles.modelBtn, styles.modelBtnPrimary, { backgroundColor: model.tierColor + '18', borderColor: model.tierColor + '50' }, anyDownloading && styles.modelBtnDisabled]}
+                            onPress={() => startDownload(model)}
+                            disabled={anyDownloading}
+                          >
+                            <Download color={model.tierColor} size={13} />
+                            <Text style={[styles.modelBtnText, { color: model.tierColor }]}>Download</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {isThisDownloading && (
+                          <TouchableOpacity style={[styles.modelBtn, styles.modelBtnDanger]} onPress={cancelDownload}>
+                            <StopCircle color={Colors.error} size={13} />
+                            <Text style={[styles.modelBtnText, { color: Colors.error }]}>Cancel</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {downloaded && !isLoaded && !isThisDownloading && (
+                          <TouchableOpacity
+                            style={[styles.modelBtn, { backgroundColor: model.tierColor + '18', borderColor: model.tierColor + '50' }, isLoading && styles.modelBtnDisabled]}
+                            onPress={() => loadModel(model)}
+                            disabled={isLoading}
+                          >
+                            <PlayCircle color={model.tierColor} size={13} />
+                            <Text style={[styles.modelBtnText, { color: model.tierColor }]}>{isLoading ? 'Loading…' : 'Load'}</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {isLoaded && (
+                          <TouchableOpacity style={[styles.modelBtn, styles.modelBtnDanger]} onPress={unloadModel}>
+                            <StopCircle color={Colors.error} size={13} />
+                            <Text style={[styles.modelBtnText, { color: Colors.error }]}>Unload</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {downloaded && (
+                          <TouchableOpacity
+                            style={[styles.modelBtn, styles.modelBtnGhost]}
+                            onPress={() => deleteModel(model)}
+                          >
+                            <Trash2 color={Colors.textTertiary} size={13} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                )}
-
-                {/* Action button */}
-                <TouchableOpacity
-                  style={[
-                    styles.modelActionBtn,
-                    modelStatus === 'loaded' && { borderColor: Colors.error + '50', backgroundColor: 'rgba(239,68,68,0.06)' },
-                    modelStatus === 'loading' && { opacity: 0.5 },
-                  ]}
-                  onPress={modelStatus === 'loaded' ? unloadModel : loadModel}
-                  disabled={modelStatus === 'loading'}
-                >
-                  <Text style={[
-                    styles.modelActionBtnText,
-                    modelStatus === 'loaded' && { color: Colors.error },
-                  ]}>
-                    {modelStatus === 'loading' ? 'Loading…' : modelStatus === 'loaded' ? 'Unload Model' : 'Load Model'}
-                  </Text>
-                </TouchableOpacity>
-
-                <Text style={styles.modelHint}>
-                  Recommended: Llama-3.2-1B-Instruct-Q4_K_M.gguf (~700 MB) or Phi-3-mini-4k-instruct-q4.gguf (~2.3 GB). Download a .gguf from HuggingFace and place it in /sdcard/Download/.
-                </Text>
+                  );
+                })}
               </View>
             </Animated.View>
           )}
@@ -640,79 +751,101 @@ const styles = StyleSheet.create({
   footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
   footerSubtext: { fontSize: FontSizes.xs, color: Colors.textTertiary },
 
+  modelSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  modelErrorBanner: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.error + '40',
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  modelErrorBannerText: { fontSize: FontSizes.xs, color: Colors.error, lineHeight: 16 },
+
+  modelList: { gap: Spacing.md },
   modelCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
+    padding: Spacing.md,
     gap: Spacing.md,
   },
-  modelStatusRow: {
+  modelCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  modelIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modelCardMeta: { flex: 1 },
+  modelCardNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    flexWrap: 'wrap',
   },
-  modelStatusLabel: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-    fontWeight: '500',
+  modelCardName: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  tierBadge: {
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
   },
-  modelLoadedBadge: {
+  tierBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+  activeBadge: {
     backgroundColor: Colors.secondary + '20',
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderWidth: 1,
     borderColor: Colors.secondary + '50',
   },
-  modelLoadedBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: Colors.secondary,
-    letterSpacing: 0.5,
+  activeBadgeText: { fontSize: 9, fontWeight: '800', color: Colors.secondary, letterSpacing: 0.3 },
+  modelCardSub: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
+
+  progressSection: { gap: 5 },
+  progressBar: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.backgroundTertiary,
+    overflow: 'hidden',
   },
-  modelErrorText: {
-    fontSize: FontSizes.xs,
-    color: Colors.error,
-    lineHeight: 16,
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
   },
-  modelPathRow: {
+  progressPulse: { opacity: 0.8 },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressText: { fontSize: FontSizes.xs, color: Colors.textTertiary },
+
+  modelCardActions: {
+    flexDirection: 'row',
     gap: Spacing.sm,
   },
-  modelPathInputWrap: {
+  modelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.backgroundTertiary,
-    borderRadius: BorderRadius.md,
+    gap: 5,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
   },
-  modelPathInput: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-    paddingVertical: Spacing.md,
-  },
-  modelActionBtn: {
-    borderWidth: 1,
-    borderColor: Colors.primary + '50',
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    backgroundColor: Colors.primary + '12',
-  },
-  modelActionBtnText: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  modelHint: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-    lineHeight: 16,
-  },
+  modelBtnPrimary: { flex: 1, justifyContent: 'center' },
+  modelBtnDanger: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(239,68,68,0.06)', borderColor: Colors.error + '40' },
+  modelBtnGhost: { borderColor: Colors.border, paddingHorizontal: Spacing.sm },
+  modelBtnDisabled: { opacity: 0.4 },
+  modelBtnText: { fontSize: FontSizes.sm, fontWeight: '700' },
 });
