@@ -1,71 +1,84 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Crown, Check, Sparkles, Zap, Shield, Brain, Image, Gamepad2, ChevronLeft } from 'lucide-react-native';
+import {
+  Crown,
+  Check,
+  Sparkles,
+  Zap,
+  Shield,
+  Brain,
+  ImagePlus,
+  Gamepad2,
+  ChevronLeft,
+  Mic,
+} from 'lucide-react-native';
+import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import GlowButton from '../../components/GlowButton';
 
-const { width } = Dimensions.get('window');
-
 const plans = [
   {
-    id: 'free',
-    name: 'Free',
+    id: 'starter',
+    name: 'Starter',
     price: '$0',
     period: 'forever',
     color: Colors.textTertiary,
     features: [
+      'Local AI only',
+      '10 cloud messages/day',
       'Basic voice commands',
-      '5 AI chats per day',
-      'Gemini model only',
-      'Standard response speed',
+      '1 device',
     ],
     limited: [
+      'All AI providers',
+      'Gaming mode',
       'Image generation',
-      'Gaming assistant',
-      'Priority support',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: '$4.99',
+    price: '$7.99',
     period: '/month',
     color: Colors.primary,
     popular: true,
     features: [
-      'Unlimited voice commands',
-      'Unlimited AI chats',
-      'All AI models (Gemini, OpenAI, Groq)',
-      'Fast response speed',
-      'Image generation (50/day)',
-      'Gaming assistant',
-      'Floating assistant',
-      'Priority support',
+      'All AI providers (OpenAI, Gemini, Claude, Groq)',
+      'Unlimited messages',
+      'Voice AI',
+      'Gaming mode',
+      '5 devices',
     ],
     limited: [],
   },
   {
-    id: 'ultimate',
-    name: 'Ultimate',
-    price: '$9.99',
+    id: 'elite',
+    name: 'Elite',
+    price: '$14.99',
     period: '/month',
     color: Colors.accent,
     features: [
       'Everything in Pro',
-      'Unlimited image generation',
-      'Video generation',
+      'Priority API access',
+      'Image generation',
       'Advanced gaming overlay',
-      'Smart call assistant',
-      'Smart glasses ready',
-      'PC connection',
-      'Smartwatch support',
-      'Home assistant integration',
+      'Smart home integration',
       'Early access features',
+      'Dedicated support',
     ],
     limited: [],
   },
+];
+
+const highlights = [
+  { Icon: Brain, color: Colors.primary, label: 'Access all AI providers' },
+  { Icon: ImagePlus, color: Colors.secondary, label: 'Image generation' },
+  { Icon: Gamepad2, color: Colors.accent, label: 'Advanced gaming tools' },
+  { Icon: Zap, color: Colors.warning, label: 'Priority fast responses' },
+  { Icon: Mic, color: '#A855F7', label: 'Voice AI hands-free' },
+  { Icon: Shield, color: Colors.success, label: 'Smart home integration' },
 ];
 
 export default function PremiumScreen() {
@@ -73,53 +86,52 @@ export default function PremiumScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={styles.gradient}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <LinearGradient
+        colors={[Colors.background, Colors.backgroundSecondary]}
+        style={styles.gradient}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Header */}
           <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
-            <Crown color={Colors.accent} size={32} />
-            <Text style={styles.headerTitle}>Nova Premium</Text>
-            <Text style={styles.headerSubtitle}>Unlock your full AI potential</Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft color={Colors.textSecondary} size={24} />
+            </TouchableOpacity>
+            <Crown color={Colors.accent} size={36} />
+            <Text style={styles.headerTitle}>Vexora Pro</Text>
+            <Text style={styles.headerSubtitle}>Unlock your AI potential</Text>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.duration(600).delay(100)} style={styles.comparisonSection}>
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonIcon}>
-                <Brain color={Colors.primary} size={20} />
-              </View>
-              <Text style={styles.comparisonText}>Access all AI models</Text>
-              <Check color={Colors.success} size={18} />
-            </View>
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonIcon}>
-                <Image color={Colors.secondary} size={20} />
-              </View>
-              <Text style={styles.comparisonText}>Unlimited image generation</Text>
-              <Check color={Colors.success} size={18} />
-            </View>
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonIcon}>
-                <Gamepad2 color={Colors.accent} size={20} />
-              </View>
-              <Text style={styles.comparisonText}>Advanced gaming tools</Text>
-              <Check color={Colors.success} size={18} />
-            </View>
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonIcon}>
-                <Zap color={Colors.warning} size={20} />
-              </View>
-              <Text style={styles.comparisonText}>Priority fast responses</Text>
-              <Check color={Colors.success} size={18} />
-            </View>
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonIcon}>
-                <Shield color={Colors.success} size={20} />
-              </View>
-              <Text style={styles.comparisonText}>Smart call assistant</Text>
-              <Check color={Colors.success} size={18} />
-            </View>
+          {/* Highlights */}
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(100)}
+            style={styles.highlightsSection}
+          >
+            {highlights.map((item, index) => {
+              const IconComp = item.Icon;
+              return (
+                <View key={index} style={styles.highlightRow}>
+                  <View style={styles.highlightIcon}>
+                    <IconComp color={item.color} size={20} />
+                  </View>
+                  <Text style={styles.highlightText}>{item.label}</Text>
+                  <Check color={Colors.success} size={18} />
+                </View>
+              );
+            })}
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.plansSection}>
+          {/* Plans */}
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(200)}
+            style={styles.plansSection}
+          >
             {plans.map((plan) => (
               <TouchableOpacity
                 key={plan.id}
@@ -137,9 +149,13 @@ export default function PremiumScreen() {
                   </View>
                 )}
                 <View style={styles.planHeader}>
-                  <Text style={[styles.planName, { color: plan.color }]}>{plan.name}</Text>
+                  <Text style={[styles.planName, { color: plan.color }]}>
+                    {plan.name}
+                  </Text>
                   <View style={styles.planPriceRow}>
-                    <Text style={[styles.planPrice, { color: plan.color }]}>{plan.price}</Text>
+                    <Text style={[styles.planPrice, { color: plan.color }]}>
+                      {plan.price}
+                    </Text>
                     <Text style={styles.planPeriod}>{plan.period}</Text>
                   </View>
                 </View>
@@ -158,15 +174,24 @@ export default function PremiumScreen() {
                   ))}
                 </View>
                 {selectedPlan === plan.id && (
-                  <View style={[styles.selectedIndicator, { backgroundColor: plan.color }]} />
+                  <View
+                    style={[
+                      styles.selectedIndicator,
+                      { backgroundColor: plan.color },
+                    ]}
+                  />
                 )}
               </TouchableOpacity>
             ))}
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.duration(600).delay(300)} style={styles.ctaSection}>
+          {/* CTA */}
+          <Animated.View
+            entering={FadeInUp.duration(600).delay(300)}
+            style={styles.ctaSection}
+          >
             <GlowButton
-              title={`Subscribe to ${plans.find(p => p.id === selectedPlan)?.name}`}
+              title={`Subscribe to ${plans.find((p) => p.id === selectedPlan)?.name}`}
               onPress={() => {}}
               variant="primary"
               size="lg"
@@ -174,6 +199,7 @@ export default function PremiumScreen() {
               style={styles.ctaButton}
             />
             <Text style={styles.ctaSubtext}>Cancel anytime. No commitments.</Text>
+            <Text style={styles.footerBrand}>Vexora AI v1.0.0</Text>
           </Animated.View>
         </ScrollView>
       </LinearGradient>
@@ -192,11 +218,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: Spacing.xxxl,
   },
+  /* Header */
   header: {
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xxxl + Spacing.lg,
     marginBottom: Spacing.xl,
+    position: 'relative',
+  },
+  backBtn: {
+    position: 'absolute',
+    left: Spacing.lg,
+    top: Spacing.xxxl + Spacing.lg,
+    padding: Spacing.xs,
   },
   headerTitle: {
     fontSize: FontSizes.huge,
@@ -209,12 +243,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
   },
-  comparisonSection: {
+  /* Highlights */
+  highlightsSection: {
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  comparisonRow: {
+  highlightRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
@@ -224,7 +259,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: Spacing.md,
   },
-  comparisonIcon: {
+  highlightIcon: {
     width: 36,
     height: 36,
     borderRadius: BorderRadius.sm,
@@ -232,12 +267,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  comparisonText: {
+  highlightText: {
     flex: 1,
     fontSize: FontSizes.md,
     color: Colors.text,
     fontWeight: '500',
   },
+  /* Plans */
   plansSection: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.lg,
@@ -330,6 +366,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
   },
+  /* CTA */
   ctaSection: {
     paddingHorizontal: Spacing.lg,
     alignItems: 'center',
@@ -341,5 +378,11 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     marginTop: Spacing.md,
+  },
+  footerBrand: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xl,
+    opacity: 0.5,
   },
 });

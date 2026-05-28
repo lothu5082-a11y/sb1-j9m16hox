@@ -1,7 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mic, Gamepad2, Shield, Sparkles, Brain, Phone, ChevronRight } from 'lucide-react-native';
+import { Mic, Gamepad2, Shield, Sparkles, Brain, Zap, ChevronRight } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import GlowButton from '../../components/GlowButton';
 
@@ -9,48 +18,89 @@ const { width } = Dimensions.get('window');
 
 const slides = [
   {
-    title: 'Meet Nova',
-    subtitle: 'Your Intelligent Future Assistant',
-    description: 'Nova is a powerful AI assistant that understands your voice, controls your phone, and helps you everywhere.',
+    title: 'Vexora AI',
+    subtitle: 'Your Intelligent Future',
+    description:
+      'A futuristic AI assistant that understands voice, controls your phone, and adapts to your life.',
     icon: Sparkles,
     gradient: [Colors.background, '#0D1B2A'] as const,
   },
   {
-    title: 'Voice Control',
-    subtitle: 'Just say "Hey Nova"',
-    description: 'Control your entire phone with voice commands. Open apps, send messages, take photos, and more — hands-free.',
+    title: 'Voice First',
+    subtitle: 'Just say "Hey Vexora"',
+    description:
+      'Control your entire phone with natural voice commands. Open apps, send messages, take photos — hands-free.',
     icon: Mic,
     gradient: [Colors.background, '#0A1929'] as const,
   },
   {
-    title: 'Gaming Assistant',
-    subtitle: 'Level up your gameplay',
-    description: 'Nova optimizes performance, reduces lag, and provides voice commands while you game. Your silent gaming companion.',
-    icon: Gamepad2,
+    title: 'Multi-AI Power',
+    subtitle: 'Best of every AI',
+    description:
+      'Switch seamlessly between OpenAI, Gemini, Claude, and Groq. Use local AI when offline.',
+    icon: Brain,
     gradient: [Colors.background, '#1A0A2E'] as const,
   },
   {
-    title: 'Smart & Secure',
-    subtitle: 'Privacy first, always',
-    description: 'Voice recognition, fingerprint lock, encrypted chats. Nova only works fully for you — the phone owner.',
+    title: 'Gaming Mode',
+    subtitle: 'Level up your gameplay',
+    description:
+      'Real-time FPS monitor, ping tracker, voice commands while gaming. Your competitive edge.',
+    icon: Gamepad2,
+    gradient: [Colors.background, '#1A0A0A'] as const,
+  },
+  {
+    title: 'Offline Ready',
+    subtitle: 'Works without internet',
+    description:
+      'Local AI mode keeps you productive without connectivity. Your data stays private.',
     icon: Shield,
     gradient: [Colors.background, '#0A1A0A'] as const,
   },
   {
-    title: 'AI Superpowers',
-    subtitle: 'Powered by the best AI',
-    description: 'Generate images, summarize videos, write code, search the internet. Switch between Gemini, OpenAI, and Groq.',
-    icon: Brain,
-    gradient: [Colors.background, '#1A0A0A'] as const,
-  },
-  {
-    title: 'Smart Calling',
-    subtitle: 'Never miss important calls',
-    description: 'Nova answers calls when you are busy, delivers custom messages, and lets you reply through voice.',
-    icon: Phone,
+    title: 'Ready to Begin',
+    subtitle: 'The future is now',
+    description:
+      'Vexora AI is ready to transform your mobile experience. Let\'s get started.',
+    icon: Zap,
     gradient: [Colors.background, '#0A1A1A'] as const,
   },
 ];
+
+function PulsingIcon({ IconComponent }: { IconComponent: React.ComponentType<any> }) {
+  const glowOpacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowOpacity, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowOpacity, {
+          toValue: 0.4,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <View style={styles.iconCircleWrapper}>
+      <Animated.View
+        style={[
+          styles.iconGlow,
+          { opacity: glowOpacity },
+        ]}
+      />
+      <View style={styles.iconCircle}>
+        <IconComponent color={Colors.primary} size={48} strokeWidth={1.5} />
+      </View>
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -71,6 +121,10 @@ export default function OnboardingScreen() {
     goToSlide(slides.length - 1);
   };
 
+  const handleGetStarted = () => {
+    router.replace('/(tabs)');
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -89,9 +143,7 @@ export default function OnboardingScreen() {
           return (
             <View key={index} style={[styles.slide, { width }]}>
               <LinearGradient colors={slide.gradient} style={styles.slideGradient}>
-                <View style={styles.iconCircle}>
-                  <IconComponent color={Colors.primary} size={48} strokeWidth={1.5} />
-                </View>
+                <PulsingIcon IconComponent={IconComponent} />
                 <Text style={styles.title}>{slide.title}</Text>
                 <Text style={styles.subtitle}>{slide.subtitle}</Text>
                 <Text style={styles.description}>{slide.description}</Text>
@@ -122,10 +174,19 @@ export default function OnboardingScreen() {
               <TouchableOpacity onPress={handleSkip}>
                 <Text style={styles.skipText}>Skip</Text>
               </TouchableOpacity>
-              <GlowButton title="Next" onPress={handleNext} icon={<ChevronRight color={Colors.background} size={18} />} />
+              <GlowButton
+                title="Next"
+                onPress={handleNext}
+                icon={<ChevronRight color={Colors.background} size={18} />}
+              />
             </>
           ) : (
-            <GlowButton title="Get Started" onPress={() => {}} size="lg" style={styles.getStartedButton} />
+            <GlowButton
+              title="Get Started"
+              onPress={handleGetStarted}
+              size="lg"
+              style={styles.getStartedButton}
+            />
           )}
         </View>
       </View>
@@ -148,6 +209,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingBottom: 200,
   },
+  iconCircleWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xxl,
+  },
+  iconGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'transparent',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 40,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
   iconCircle: {
     width: 120,
     height: 120,
@@ -157,7 +237,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 229, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xxl,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,

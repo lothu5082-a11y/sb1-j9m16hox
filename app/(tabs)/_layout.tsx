@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Hop as Home, MessageSquare, Image, Gamepad2, Settings } from 'lucide-react-native';
+import { House, MessageSquare, Image, Gamepad2, Settings } from 'lucide-react-native';
 import { Colors, FontSizes } from '../../constants/theme';
 
 export default function TabLayout() {
@@ -12,8 +12,8 @@ export default function TabLayout() {
           backgroundColor: Colors.backgroundSecondary,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
+          height: 70,
+          paddingBottom: 12,
           paddingTop: 8,
         },
         tabBarActiveTintColor: Colors.primary,
@@ -22,13 +22,22 @@ export default function TabLayout() {
           fontSize: FontSizes.xs,
           fontWeight: '600',
         },
+        tabBarActiveBackgroundColor: 'transparent',
+        tabBarItemStyle: {
+          borderTopWidth: 2,
+          borderTopColor: 'transparent',
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ size, color }) => <Home size={size} color={color} />,
+          tabBarIcon: ({ size, color }) => <House size={size} color={color} />,
+          tabBarItemStyle: {
+            borderTopWidth: 2,
+            borderTopColor: Colors.primary,
+          } as any,
         }}
       />
       <Tabs.Screen
