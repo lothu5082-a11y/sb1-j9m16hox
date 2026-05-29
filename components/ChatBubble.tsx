@@ -8,6 +8,8 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
+  interpolate,
 } from 'react-native-reanimated';
 import { Copy, Check, Volume2, VolumeX } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
@@ -21,6 +23,22 @@ interface ChatBubbleProps {
   onSpeak?: () => void;
   onStopSpeak?: () => void;
   isSpeaking?: boolean;
+}
+
+function ShimmerLine() {
+  const pos = useSharedValue(-1);
+  useEffect(() => {
+    pos.value = withRepeat(withTiming(2, { duration: 3200, easing: Easing.inOut(Easing.ease) }), -1, false);
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: `${pos.value * 100}%` as any }],
+    opacity: interpolate(pos.value, [-1, 0, 0.5, 1, 2], [0, 0.8, 1, 0.8, 0]),
+  }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+      <Animated.View style={[styles.shimmer, style]} />
+    </Animated.View>
+  );
 }
 
 function BlinkCursor() {
@@ -77,6 +95,7 @@ export default function ChatBubble({
           </LinearGradient>
         ) : (
           <View style={[styles.bubble, styles.assistantBubble, isSpeaking && styles.assistantBubbleSpeaking]}>
+            <ShimmerLine />
             <View style={styles.messageRow}>
               <Text style={[styles.message, styles.assistantMessage]}>{message}</Text>
               {isStreaming && <BlinkCursor />}
@@ -180,11 +199,20 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '40%',
+    backgroundColor: 'rgba(168,85,247,0.06)',
+    borderRadius: 4,
+  },
   assistantBubble: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomLeftRadius: Spacing.xs,
+    overflow: 'hidden',
   },
   assistantBubbleSpeaking: {
     borderColor: Colors.secondary + '60',

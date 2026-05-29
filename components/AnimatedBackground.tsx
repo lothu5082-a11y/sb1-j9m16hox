@@ -7,11 +7,15 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import { Colors } from '../constants/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ORB_SIZE = SCREEN_WIDTH * 0.7;
+const { width: W, height: H } = Dimensions.get('window');
+const GRID_COLS = 8;
+const GRID_ROWS = 14;
+const CELL_W = W / GRID_COLS;
+const CELL_H = H / GRID_ROWS;
 
 interface AnimatedBackgroundProps {
   children?: React.ReactNode;
@@ -19,35 +23,31 @@ interface AnimatedBackgroundProps {
 
 export default function AnimatedBackground({ children }: AnimatedBackgroundProps) {
   const glowOpacity = useSharedValue(0.1);
-  const orbOpacity = useSharedValue(0.06);
+  const orbOpacity  = useSharedValue(0.06);
+  const scanY       = useSharedValue(0);
+  const accentGlow  = useSharedValue(0.04);
 
   useEffect(() => {
     glowOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 3000 }),
-        withTiming(0.1, { duration: 3000 }),
-      ),
-      -1,
-      false,
+      withSequence(withTiming(0.28, { duration: 3200 }), withTiming(0.08, { duration: 3200 })),
+      -1, false,
     );
-
     orbOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.18, { duration: 4000 }),
-        withTiming(0.06, { duration: 4000 }),
-      ),
-      -1,
-      false,
+      withSequence(withTiming(0.16, { duration: 4500 }), withTiming(0.05, { duration: 4500 })),
+      -1, false,
+    );
+    // Slow scan line top → bottom
+    scanY.value = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
+    accentGlow.value = withRepeat(
+      withSequence(withTiming(0.1, { duration: 5000 }), withTiming(0.03, { duration: 5000 })),
+      -1, false,
     );
   }, []);
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
-
-  const orbStyle = useAnimatedStyle(() => ({
-    opacity: orbOpacity.value,
-  }));
+  const glowStyle   = useAnimatedStyle(() => ({ opacity: glowOpacity.value }));
+  const orbStyle    = useAnimatedStyle(() => ({ opacity: orbOpacity.value }));
+  const scanStyle   = useAnimatedStyle(() => ({ top: `${scanY.value * 100}%` as any }));
+  const accentStyle = useAnimatedStyle(() => ({ opacity: accentGlow.value }));
 
   return (
     <View style={styles.container}>
@@ -58,34 +58,60 @@ export default function AnimatedBackground({ children }: AnimatedBackgroundProps
         style={StyleSheet.absoluteFill}
       />
 
+      {/* Grid lines */}
+      <View style={[StyleSheet.absoluteFill, styles.grid]} pointerEvents="none">
+        {/* Vertical lines */}
+        {Array.from({ length: GRID_COLS + 1 }).map((_, i) => (
+          <View
+            key={`v${i}`}
+            style={[styles.gridLineV, { left: i * CELL_W }]}
+          />
+        ))}
+        {/* Horizontal lines */}
+        {Array.from({ length: GRID_ROWS + 1 }).map((_, i) => (
+          <View
+            key={`h${i}`}
+            style={[styles.gridLineH, { top: i * CELL_H }]}
+          />
+        ))}
+      </View>
+
+      {/* Slow horizontal scan across grid */}
+      <Animated.View style={[styles.scanLine, scanStyle]} pointerEvents="none" />
+
       {/* Top-center orb glow */}
       <Animated.View
         style={[
           styles.orb,
-          {
-            width: ORB_SIZE,
-            height: ORB_SIZE,
-            borderRadius: ORB_SIZE / 2,
-            left: (SCREEN_WIDTH - ORB_SIZE) / 2,
-            top: -ORB_SIZE * 0.35,
-          },
+          { width: W * 0.7, height: W * 0.7, borderRadius: W * 0.35, left: W * 0.15, top: -W * 0.25 },
           orbStyle,
         ]}
+        pointerEvents="none"
       />
 
       {/* Center pulse glow */}
       <Animated.View
         style={[
           styles.centerGlow,
-          {
-            width: SCREEN_WIDTH * 0.9,
-            height: SCREEN_WIDTH * 0.9,
-            borderRadius: (SCREEN_WIDTH * 0.9) / 2,
-            left: SCREEN_WIDTH * 0.05,
-          },
+          { width: W * 0.85, height: W * 0.85, borderRadius: W * 0.425, left: W * 0.075 },
           glowStyle,
         ]}
+        pointerEvents="none"
       />
+
+      {/* Bottom-right accent orb */}
+      <Animated.View
+        style={[
+          styles.accentOrb,
+          { width: W * 0.5, height: W * 0.5, borderRadius: W * 0.25, right: -W * 0.15, bottom: H * 0.1 },
+          accentStyle,
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* HUD corner decorations */}
+      <View style={[styles.hudCorner, styles.hudTL]} pointerEvents="none" />
+      <View style={[styles.hudCorner, styles.hudTR]} pointerEvents="none" />
 
       {children}
     </View>
@@ -96,6 +122,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  grid: {
+    overflow: 'hidden',
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: 'rgba(168,85,247,0.04)',
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(168,85,247,0.04)',
+  },
+  scanLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1.5,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
   },
   orb: {
     position: 'absolute',
@@ -108,7 +161,7 @@ const styles = StyleSheet.create({
   },
   centerGlow: {
     position: 'absolute',
-    top: '30%',
+    top: '28%',
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
@@ -116,4 +169,21 @@ const styles = StyleSheet.create({
     shadowRadius: 80,
     elevation: 0,
   },
+  accentOrb: {
+    position: 'absolute',
+    backgroundColor: Colors.secondary,
+    shadowColor: Colors.secondary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 60,
+    elevation: 0,
+  },
+  hudCorner: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: 'rgba(168,85,247,0.2)',
+  },
+  hudTL: { top: 6, left: 6, borderTopWidth: 1.5, borderLeftWidth: 1.5 },
+  hudTR: { top: 6, right: 6, borderTopWidth: 1.5, borderRightWidth: 1.5 },
 });

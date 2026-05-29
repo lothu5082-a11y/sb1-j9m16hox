@@ -319,7 +319,8 @@ const s = StyleSheet.create({
   statsStrip: {
     flexDirection: 'row', marginHorizontal: Spacing.lg, marginBottom: Spacing.xl,
     backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, borderWidth: 1,
-    borderColor: Colors.border, overflow: 'hidden',
+    borderColor: 'rgba(168,85,247,0.3)', overflow: 'hidden',
+    shadowColor: Colors.primary, shadowOpacity: 0.15, shadowRadius: 12, elevation: 4,
   },
   statItem: { flex: 1, alignItems: 'center', paddingVertical: Spacing.md },
   statVal: { fontSize: FontSizes.xl, fontWeight: '800' },

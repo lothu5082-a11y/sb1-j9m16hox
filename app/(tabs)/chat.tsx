@@ -19,11 +19,13 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
+import SiriModal from '../../components/SiriModal';
 
 export let _aiConfig: { provider: 'openai' | 'gemini' | 'claude' | 'groq' | 'local'; apiKey: string } = {
   provider: 'local',
@@ -2490,9 +2492,13 @@ export default function ChatScreen() {
   const recognitionRef = useRef<any>(null);
   const wakeRecognitionRef = useRef<any>(null);
   const micPulse = useSharedValue(1);
+  const headerScan = useSharedValue(0);
+  const dotGlow = useSharedValue(0.5);
   const [wakeActive, setWakeActiveState] = useState(_wakeWordActive);
   const [voiceReplyOn, setVoiceReplyOn] = useState(_voiceReplyEnabled);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [showSiriModal, setShowSiriModal] = useState(false);
 
   // Slash command popup
   const slashToken = inputText.startsWith('/') ? inputText.toLowerCase().split(' ')[0] : '';
@@ -2556,6 +2562,17 @@ export default function ChatScreen() {
   }, [isVoiceListening]);
 
   const micPulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: micPulse.value }] }));
+
+  // Header scan + dot glow
+  useEffect(() => {
+    headerScan.value = withRepeat(withTiming(1, { duration: 2800, easing: Easing.linear }), -1, false);
+    dotGlow.value = withRepeat(
+      withSequence(withTiming(1, { duration: 900 }), withTiming(0.35, { duration: 900 })),
+      -1, false,
+    );
+  }, []);
+  const headerScanStyle = useAnimatedStyle(() => ({ left: `${headerScan.value * 110 - 10}%` as any }));
+  const dotGlowStyle = useAnimatedStyle(() => ({ opacity: dotGlow.value }));
 
   // Load saved chat history on mount
   useEffect(() => {
@@ -2654,16 +2671,35 @@ export default function ChatScreen() {
     try { wakeRecognitionRef.current?.stop(); } catch {}
     wakeRecognitionRef.current = null;
 
+    setVoiceTranscript('');
+    setShowSiriModal(true);
+
     const r = new SR();
     r.lang = 'en-US';
     r.continuous = false;
-    r.interimResults = false;
+    r.interimResults = true;
     r.onstart = () => setIsVoiceListening(true);
-    r.onend = () => { setIsVoiceListening(false); recognitionRef.current = null; };
-    r.onerror = () => { setIsVoiceListening(false); recognitionRef.current = null; };
+    r.onend = () => {
+      setIsVoiceListening(false);
+      recognitionRef.current = null;
+      // auto-close modal after short delay
+      setTimeout(() => { setShowSiriModal(false); setVoiceTranscript(''); }, 800);
+    };
+    r.onerror = () => {
+      setIsVoiceListening(false);
+      recognitionRef.current = null;
+      setTimeout(() => { setShowSiriModal(false); setVoiceTranscript(''); }, 500);
+    };
     r.onresult = (e: any) => {
-      const transcript: string = e.results[0][0].transcript;
-      if (transcript.trim()) sendMessage(transcript.trim());
+      const interim = Array.from(e.results as any[])
+        .map((res: any) => res[0].transcript)
+        .join('');
+      setVoiceTranscript(interim);
+      // send on final result
+      if (e.results[e.results.length - 1].isFinal) {
+        const final: string = e.results[e.results.length - 1][0].transcript;
+        if (final.trim()) sendMessage(final.trim());
+      }
     };
     recognitionRef.current = r;
     r.start();
@@ -2672,6 +2708,8 @@ export default function ChatScreen() {
   const stopVoice = () => {
     recognitionRef.current?.stop();
     setIsVoiceListening(false);
+    setShowSiriModal(false);
+    setVoiceTranscript('');
   };
 
   // Auto-send pending command when the tab comes into focus
@@ -2770,6 +2808,12 @@ export default function ChatScreen() {
       <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={styles.gradient}>
         {/* Header */}
         <View style={styles.header}>
+          {/* HUD scan line */}
+          <Animated.View style={[styles.headerScanLine, headerScanStyle]} pointerEvents="none" />
+          {/* HUD corners */}
+          <View style={[styles.hudCorner, styles.hudTL]} pointerEvents="none" />
+          <View style={[styles.hudCorner, styles.hudTR]} pointerEvents="none" />
+
           <View style={styles.headerLeft}>
             <View style={styles.riukaAvatar}>
               <Text style={styles.riukaLetter}>R</Text>
@@ -2780,7 +2824,7 @@ export default function ChatScreen() {
             <View>
               <Text style={styles.headerTitle}>Riuka AI</Text>
               <View style={styles.headerMeta}>
-                <View style={styles.onlineDot} />
+                <Animated.View style={[styles.onlineDot, dotGlowStyle]} />
                 <Text style={styles.headerStatus}>On-Device</Text>
                 <View style={styles.modelBadge}>
                   <Text style={styles.modelBadgeText}>{modelLabel}</Text>
@@ -2908,6 +2952,14 @@ export default function ChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
+
+      {/* Siri-like voice modal */}
+      <SiriModal
+        visible={showSiriModal}
+        isListening={isVoiceListening}
+        transcript={voiceTranscript}
+        onClose={stopVoice}
+      />
     </View>
   );
 }
@@ -2929,7 +2981,27 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    overflow: 'hidden',
+    position: 'relative',
   },
+  headerScanLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '12%',
+    backgroundColor: 'rgba(168,85,247,0.07)',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+  },
+  hudCorner: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderColor: 'rgba(168,85,247,0.35)',
+  },
+  hudTL: { top: Spacing.xxxl, left: 6, borderTopWidth: 1.5, borderLeftWidth: 1.5 },
+  hudTR: { top: Spacing.xxxl, right: 6, borderTopWidth: 1.5, borderRightWidth: 1.5 },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
