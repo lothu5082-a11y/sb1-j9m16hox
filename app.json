@@ -19,7 +19,7 @@
         "backgroundColor": "#0A0A0C"
       },
       "package": "com.riuka.ai",
-      "versionCode": 3,
+      "versionCode": 4,
       "minSdkVersion": 26,
       "targetSdkVersion": 35,
       "permissions": [
