@@ -2191,10 +2191,10 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
   }
 
   // ── PROS AND CONS ─────────────────────────────────────────────────────────
-  if (/pros and cons|advantages and disadvantages/.test(lower)) {
-    const topicMatch = lower.match(/(?:pros and cons|advantages and disadvantages)\s+(?:of\s+)?(.+)/);
-    const topic = topicMatch ? topicMatch[1].trim() : 'that';
-    return `⚖️ Pros & cons of "${topic}":\n\nFor a full breakdown:\n• "Search pros and cons ${topic}"\n• "Search is ${topic} worth it Reddit"\n\nOr give me more context and I'll break it down myself.`;
+  if (/pros.?and.?cons|advantages.?and.?disadvantages/.test(lower)) {
+    const m = lower.match(/(?:pros.?and.?cons|advantages.?and.?disadvantages)\s+(?:of\s+)?(.+)/);
+    const topic = m ? m[1].trim() : 'that';
+    return `## ⚖️ Pros & Cons: ${topic}\n\n**Pros**\n- Can offer clear benefits in the right context\n- Often easier or more efficient once adopted\n- Widely used / battle-tested\n- Grows with you over time\n\n**Cons**\n- Has a learning curve\n- May not suit every use case\n- Costs (time, money, or effort) upfront\n- Alternatives exist worth comparing\n\n---\nFor a deeper breakdown: "Search pros cons ${topic.slice(0, 40)} reddit"\nOr describe your specific situation and I'll give you a real answer.`;
   }
 
   // ── FOCUS / PRODUCTIVITY ──────────────────────────────────────────────────
@@ -2336,6 +2336,77 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
       "💡 Short version:\n\nShow up. Do the work. Be kind. Sleep. Drink water. Read. Move. Call your people.\n\nThe basics are underrated.",
     ];
     return advice[Math.floor(Math.random() * advice.length)];
+  }
+
+  // ── WRITING ASSISTANT ─────────────────────────────────────────────────────
+  const emailMatch = lower.match(/(?:write|draft|compose)\s+(?:an?\s+)?email\s+(?:to\s+\S+\s+)?(?:about\s+)?(.+)/);
+  if (emailMatch || /^draft.*email|^compose.*email|^email.*about/.test(lower)) {
+    const subject = emailMatch ? emailMatch[1].trim() : lower.replace(/draft|write|compose|email|an?|about/g, '').trim() || 'the topic';
+    return `## ✉️ Email Draft\n\n**Subject:** ${subject.charAt(0).toUpperCase() + subject.slice(0, 50)}\n\n---\n\nHi [Name],\n\nI hope you're doing well.\n\nI'm reaching out regarding **${subject}**. I wanted to touch base and share a few thoughts:\n\n- [Point 1 — key detail]\n- [Point 2 — what you need or offer]\n- [Point 3 — call to action or next step]\n\nPlease let me know if you have any questions or if you'd like to schedule a quick call.\n\nBest regards,\n[Your name]\n\n---\n*Tip: Replace the bracketed parts with your specifics. Tell me more about the recipient and I'll personalise it further.*`;
+  }
+
+  const essayMatch = lower.match(/(?:write|draft)\s+(?:an?\s+)?essay\s+(?:on|about)\s+(.+)/);
+  if (essayMatch) {
+    const topic = essayMatch[1].trim();
+    return `## 📝 Essay: ${topic.charAt(0).toUpperCase() + topic.slice(0, 60)}\n\n### Introduction\n${topic.charAt(0).toUpperCase() + topic.slice(0, 1)}${topic.slice(1)} is a subject that touches many aspects of modern life. Understanding it fully requires examining its history, current implications, and future trajectory.\n\n### Background\nThe roots of ${topic} can be traced back to fundamental shifts in how people approach the problem. Early developments set the stage for what we see today.\n\n### Main Arguments\n**First**, the most significant aspect is its direct impact on everyday outcomes.\n\n**Second**, critics often point to the downsides — yet these are often outweighed by the broader benefits when context is considered.\n\n**Third**, the evidence consistently shows that thoughtful engagement with ${topic} produces better results than avoidance.\n\n### Conclusion\nIn summary, ${topic} is more nuanced than it first appears. A balanced approach — acknowledging both its strengths and limitations — is the wisest path forward.\n\n---\n*This is a starting scaffold. Tell me more about the angle, length, or audience and I'll refine it.*`;
+  }
+
+  const coverLetterMatch = lower.match(/(?:cover letter|covering letter)\s+(?:for\s+)?(.+)/);
+  if (coverLetterMatch || /^write.*cover letter|^draft.*cover letter/.test(lower)) {
+    const role = coverLetterMatch ? coverLetterMatch[1].trim() : 'the position';
+    return `## 📄 Cover Letter — ${role}\n\nDear Hiring Manager,\n\nI am writing to express my strong interest in the **${role}** position. With my background in [your field], I believe I would be a valuable addition to your team.\n\nThroughout my career, I have developed expertise in:\n- [Key skill 1 — most relevant to the role]\n- [Key skill 2 — a strength that sets you apart]\n- [Key skill 3 — proven result or achievement]\n\nIn my previous role at [Company], I [specific achievement with numbers if possible]. This experience taught me [key lesson], which I am eager to apply in this new challenge.\n\nI am particularly excited about [Company Name] because [genuine specific reason]. Your work in [area] aligns closely with my own values and goals.\n\nI would welcome the opportunity to discuss how my skills align with your needs. Thank you for your consideration.\n\nSincerely,\n[Your Name]\n[Email] | [Phone] | [LinkedIn]\n\n---\n*Tell me the actual role, company, and your experience — I'll make this personal.*`;
+  }
+
+  const summariseMatch = lower.match(/^(?:summarize|summarise|tldr|sum up|give me a summary of)[:\s]+(.{20,})/is);
+  if (summariseMatch) {
+    const blob = summariseMatch[1].trim();
+    const wordCount = blob.split(/\s+/).length;
+    const sentences = blob.match(/[^.!?]+[.!?]+/g) ?? [blob];
+    const first = sentences[0]?.trim() ?? blob.slice(0, 80);
+    const last  = sentences[sentences.length - 1]?.trim() ?? '';
+    return `## 📋 Summary\n\n**In one sentence:** ${first}\n\n**Key points:**\n- The main idea concerns ${blob.slice(0, 60).replace(/\n/g, ' ').trim()}…\n- ${sentences[Math.floor(sentences.length / 2)]?.trim() ?? '(middle context)'}\n- ${last !== first ? last : 'The text concludes by reinforcing the central theme.'}\n\n**Word count:** ${wordCount} words → compressed to ~${Math.max(3, Math.round(wordCount * 0.1))} words above.\n\n---\n*Paste a longer text (article, email, document) and I'll give you a proper summary.*`;
+  }
+
+  const compareMatch = lower.match(/compare\s+(.+?)\s+(?:vs?\.?|and|versus)\s+(.+)/);
+  if (compareMatch) {
+    const a = compareMatch[1].trim();
+    const b = compareMatch[2].trim().replace(/[?.]$/, '');
+    return `## ⚡ ${a} vs ${b}\n\n| | **${a}** | **${b}** |\n|---|---|---|\n| **Best for** | Specific use cases | Different use cases |\n| **Strengths** | Speed, ease of use | Flexibility, power |\n| **Weaknesses** | Limited in some areas | Steeper learning curve |\n| **Cost** | Varies | Varies |\n| **Popularity** | Widely used | Growing community |\n\n### Verdict\n- Choose **${a}** if you need [quick setup / simplicity / X]\n- Choose **${b}** if you need [more control / power / Y]\n\n---\n*Give me more context (what you're building, your experience level) for a sharper comparison.*`;
+  }
+
+  const stepByStepMatch = lower.match(/(?:how (?:do i|to)|steps? (?:to|for)|guide (?:to|for)|walk me through)\s+(.{4,80}?)(?:\?|$)/);
+  if (stepByStepMatch) {
+    const task = stepByStepMatch[1].trim();
+    return `## 🪜 How to ${task}\n\n**Step 1 — Prepare**\nGather what you need: [tools / materials / access]. Make sure you have [prerequisite] before starting.\n\n**Step 2 — Start**\nBegin by [first concrete action]. This sets the foundation for everything that follows.\n\n**Step 3 — Core action**\n[Main step — the most important part]. Common mistake here: [pitfall to avoid].\n\n**Step 4 — Verify**\nCheck that [outcome indicator]. If something's wrong, [how to fix it].\n\n**Step 5 — Finish**\n[Final action]. You'll know it's done when [success indicator].\n\n---\n**Time estimate:** [10 min – 2 hours depending on complexity]\n\n*Tell me more specifics about your situation and I'll make these steps precise.*`;
+  }
+
+  const codeWriteMatch = lower.match(/(?:write|create|build|make|generate)\s+(?:a\s+)?(?:([a-z+#]+)\s+)?(?:function|code|script|program|snippet|class)\s+(?:to|that|for)\s+(.+)/);
+  if (codeWriteMatch) {
+    const lang = codeWriteMatch[1] || 'javascript';
+    const task = codeWriteMatch[2].trim();
+    if (lang === 'python' || lang === 'py') {
+      return `## 🐍 Python — ${task}\n\n\`\`\`python\ndef ${task.split(' ').slice(0, 2).join('_').replace(/[^a-z_]/g, '')}():\n    # ${task}\n    result = []\n    \n    # Your logic here\n    for item in data:\n        result.append(item)\n    \n    return result\n\n# Usage\noutput = ${task.split(' ')[0]}()\nprint(output)\n\`\`\`\n\n*Paste your actual requirements and I'll write the real code.*`;
+    }
+    return `## 💻 ${lang.charAt(0).toUpperCase() + lang.slice(1)} — ${task}\n\n\`\`\`${lang}\n// ${task}\nfunction ${task.split(' ').slice(0, 2).join('')}(input) {\n  // Validate input\n  if (!input) throw new Error('Input required');\n  \n  // Core logic\n  const result = input;\n  \n  return result;\n}\n\n// Usage\nconst output = ${task.split(' ')[0]}(yourData);\nconsole.log(output);\n\`\`\`\n\n*Give me the exact logic and data shape and I'll write the full working code.*`;
+  }
+
+  const explainCodeMatch = lower.match(/explain\s+(?:this\s+)?code[:\s]+(.{10,})/is);
+  if (explainCodeMatch) {
+    const code = explainCodeMatch[1].trim().slice(0, 200);
+    return `## 🔍 Code Explanation\n\nHere's what this code does:\n\n**Overview:** The snippet appears to ${code.includes('for') ? 'iterate over data' : code.includes('if') ? 'conditionally process input' : code.includes('function') || code.includes('def') ? 'define a reusable function' : 'perform a computation'}.\n\n**Line by line:**\n- The first part sets up or initialises the context\n- The core logic processes or transforms data\n- The output/return gives you the result\n\n**Potential issues:**\n- Check for edge cases (null/empty input)\n- Error handling may be needed\n- Consider performance for large datasets\n\n---\n*Paste the actual code and I'll give you a precise, line-by-line breakdown.*`;
+  }
+
+  const analyzeMatch = lower.match(/^(?:analyze|analyse|review|evaluate)[:\s]+(.{20,})/is);
+  if (analyzeMatch) {
+    const content = analyzeMatch[1].trim();
+    const wc = content.split(/\s+/).length;
+    return `## 🔬 Analysis\n\n**Content length:** ${wc} words\n\n**Tone:** ${wc < 50 ? 'Brief and direct' : wc < 200 ? 'Concise and structured' : 'Detailed and thorough'}\n\n**Key observations:**\n- The main theme centres on: ${content.slice(0, 50).trim()}…\n- The language is ${/please|kindly|would you/.test(content.toLowerCase()) ? 'polite and formal' : /urgent|asap|immediately/.test(content.toLowerCase()) ? 'urgent' : 'neutral'}\n- Clarity: ${wc < 30 ? 'Could benefit from more detail' : 'Reasonably clear'}\n\n**Strengths:**\n- Direct communication of the core point\n- Readable structure\n\n**Suggestions:**\n- Add specific details or examples\n- Consider the audience's perspective\n- A clear call-to-action would strengthen this\n\n---\n*Paste a document, email, or text and I'll give a full professional analysis.*`;
+  }
+
+  const tweetMatch = lower.match(/(?:write|draft|create)\s+(?:a\s+)?tweet\s+(?:about\s+)?(.+)/);
+  if (tweetMatch) {
+    const topic = tweetMatch[1].trim();
+    return `## 𝕏 Tweet — ${topic}\n\n**Option 1 (Insight):**\n"${topic.charAt(0).toUpperCase() + topic.slice(0, 80)} — and most people don't realise it yet. Here's what's actually happening: 🧵"\n\n**Option 2 (Hot take):**\n"Unpopular opinion: ${topic.slice(0, 70)} is more important than people think. Here's why 👇"\n\n**Option 3 (Story hook):**\n"I spent [X] weeks studying ${topic.slice(0, 50)}. What I found changed everything. A thread:"\n\n---\n*All under 280 chars. Pick one or tell me the angle you want.*`;
   }
 
   // ── ATOMIC EVOLUTION ──────────────────────────────────────────────────────
@@ -2823,6 +2894,41 @@ const SUGGESTIONS = [
   { label: '🔐 Password', cmd: 'Password 16' },
 ];
 
+// ── Follow-up suggestion engine ───────────────────────────────────────────────
+const generateFollowUps = (aiReply: string, userMsg: string): string[] => {
+  const combined = (aiReply + ' ' + userMsg).toLowerCase();
+  if (/weather|forecast|rain|sun|temperature|humid/.test(combined))
+    return ["Tomorrow's forecast?", "What to wear today?", "Hourly breakdown?"];
+  if (/email|draft|compose|cover letter/.test(combined))
+    return ["Make it shorter", "Make it more formal", "Add a subject line"];
+  if (/essay|paragraph|article|writing/.test(combined))
+    return ["Make it shorter", "Add more examples", "Change the tone"];
+  if (/code|function|script|python|javascript|typescript|bug/.test(combined))
+    return ["Explain line by line", "How do I optimise it?", "Show a real example"];
+  if (/step|how to|guide|tutorial/.test(combined))
+    return ["Simplify the steps", "Any shortcuts?", "Common mistakes?"];
+  if (/pros|cons|compare|vs|versus/.test(combined))
+    return ["Which one should I pick?", "More details on pros", "Cost comparison?"];
+  if (/invest|stock|money|finance|saving|crypto/.test(combined))
+    return ["For a beginner?", "What are the risks?", "Monthly plan?"];
+  if (/health|fitness|workout|diet|food|nutrition/.test(combined))
+    return ["Make a weekly plan", "For beginners?", "Track my progress"];
+  if (/learn|study|course|skill|practice/.test(combined))
+    return ["Best free resources?", "How long to learn?", "Daily practice plan"];
+  if (/tweet|caption|post|social/.test(combined))
+    return ["Make it catchier", "Add hashtags", "Shorter version?"];
+  if (/summary|summarize|tldr/.test(combined))
+    return ["Even shorter?", "Key takeaways only", "What's the main point?"];
+  if (/evolve|memory|xp|level/.test(combined))
+    return ["Show my memories", "How do I level up faster?", "Forget something"];
+  const fallbacks = [
+    ["Tell me more", "Give an example", "Simplify that"],
+    ["Any downsides?", "How do I start?", "Real-world example?"],
+    ["Go deeper", "Beginner-friendly version?", "Quick summary?"],
+  ];
+  return fallbacks[Math.floor(Date.now() / 10000) % fallbacks.length];
+};
+
 const STORAGE_KEY = 'riuka_chat_v1';
 
 // ── Atomic Evolution System ────────────────────────────────────────────────────
@@ -2980,6 +3086,7 @@ export default function ChatScreen() {
   const [showSiriModal, setShowSiriModal] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [cameraGestureEnabled, setCameraGestureEnabled] = useState(false);
+  const [followUps, setFollowUps] = useState<string[]>([]);
   const [evolutionToast, setEvolutionToast] = useState<string | null>(null);
   const [evoDisplay, setEvoDisplay] = useState(() => getEvolutionLevel(getEvolution().xp));
   const evoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3265,6 +3372,7 @@ export default function ChatScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
+    setFollowUps([]);
     isTypingRef.current = true;
     setIsTyping(true);
 
@@ -3290,6 +3398,7 @@ export default function ChatScreen() {
 
     await streamIntoMessage(aiMsgId, reply);
     setStreamingMsgId(null);
+    setFollowUps(generateFollowUps(reply, msgText));
     if (_voiceReplyEnabled) {
       setSpeakingMsgId(aiMsgId);
       speakText(reply);
@@ -3423,7 +3532,7 @@ export default function ChatScreen() {
           {isTyping && <TypingIndicator />}
         </ScrollView>
 
-        {/* Suggestions row */}
+        {/* Suggestions row (empty state) */}
         {messages.length === 0 && !isTyping && (
           <View style={styles.suggestionsRow}>
             {SUGGESTIONS.map((s) => (
@@ -3432,6 +3541,22 @@ export default function ChatScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        )}
+
+        {/* Follow-up suggestion chips */}
+        {followUps.length > 0 && !isTyping && (
+          <Animated.View entering={FadeInUp.duration(320)} style={styles.followUpsRow}>
+            {followUps.map((q) => (
+              <TouchableOpacity
+                key={q}
+                style={styles.followUpChip}
+                onPress={() => sendMessage(q)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.followUpText}>{q}</Text>
+              </TouchableOpacity>
+            ))}
+          </Animated.View>
         )}
 
         {/* Input area */}
@@ -3828,6 +3953,26 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     flex: 1,
+  },
+  followUpsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  followUpChip: {
+    backgroundColor: 'rgba(168,85,247,0.08)',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.28)',
+  },
+  followUpText: {
+    fontSize: FontSizes.xs,
+    color: Colors.primary,
+    fontWeight: '500',
   },
   evoBadge: {
     backgroundColor: 'rgba(168,85,247,0.08)',
