@@ -204,13 +204,13 @@ export default function SettingsScreen() {
   const [wakeWord, setWakeWord]         = useState(false);
 
   // Sensors
-  const [notifListener, setNotifListener]   = useState(true);
-  const [clipEngine, setClipEngine]         = useState(true);
+  const [notifListener, setNotifListener]   = useState(false);
+  const [clipEngine, setClipEngine]         = useState(false);
   const [cameraGesture, setCameraGesture]   = useState(false);
-  const [shakeWake, setShakeWake]           = useState(true);
-  const [volumeKeys, setVolumeKeys]         = useState(true);
+  const [shakeWake, setShakeWake]           = useState(false);
+  const [volumeKeys, setVolumeKeys]         = useState(false);
   const [locationCtx, setLocationCtx]       = useState(false);
-  const [calendarCtx, setCalendarCtx]       = useState(true);
+  const [calendarCtx, setCalendarCtx]       = useState(false);
 
   // Automation
   const [autoReply, setAutoReply]         = useState(true);
@@ -219,6 +219,10 @@ export default function SettingsScreen() {
   // Privacy
   const [biometric, setBiometric]   = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
+
+  // Shake listener ref
+  const shakeListenerRef = useRef<((e: any) => void) | null>(null);
+  const lastShakeRef = useRef(0);
   const [offlinePriority, setOfflinePriority] = useState(true);
 
   // Evolution (read from localStorage)
@@ -315,6 +319,123 @@ export default function SettingsScreen() {
         Alert.alert('Fresh start!', 'All data erased. ✨');
       }},
     ]);
+  };
+
+  // ── Web API sensor helpers ────────────────────────────────────────────────
+  const enableNotifications = (want: boolean) => {
+    if (!want) { setNotifListener(false); return; }
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+      (window as any).Notification.requestPermission().then((perm: string) => {
+        if (perm === 'granted') {
+          setNotifListener(true);
+          new (window as any).Notification('Riuka AI', { body: 'Notification listener is now active.', icon: '/favicon.ico' });
+        } else {
+          setNotifListener(false);
+          Alert.alert('Permission Needed', 'Allow notifications in your browser settings, then try again.');
+        }
+      });
+    } else { setNotifListener(want); }
+  };
+
+  const enableLocation = (want: boolean) => {
+    if (!want) { setLocationCtx(false); return; }
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationCtx(true);
+          try { localStorage.setItem('riuka_location_v1', JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude })); } catch {}
+          Alert.alert('Location Active', `Got your position. Riuka now has location context.`);
+        },
+        () => {
+          setLocationCtx(false);
+          Alert.alert('Location Denied', 'Allow location access in your browser settings, then try again.');
+        },
+        { timeout: 8000 }
+      );
+    } else { setLocationCtx(want); }
+  };
+
+  const enableShake = (want: boolean) => {
+    setShakeWake(want);
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (!want) {
+      if (shakeListenerRef.current) window.removeEventListener('devicemotion', shakeListenerRef.current);
+      shakeListenerRef.current = null;
+      return;
+    }
+    const tryStart = () => {
+      let last = { x: 0, y: 0, z: 0 };
+      const handler = (e: any) => {
+        const a = e.acceleration || e.accelerationIncludingGravity;
+        if (!a) return;
+        const delta = Math.abs((a.x||0) - last.x) + Math.abs((a.y||0) - last.y) + Math.abs((a.z||0) - last.z);
+        last = { x: a.x||0, y: a.y||0, z: a.z||0 };
+        if (delta > 18 && Date.now() - lastShakeRef.current > 1200) {
+          lastShakeRef.current = Date.now();
+          // Trigger voice (dispatch a custom event chat.tsx listens to)
+          window.dispatchEvent(new CustomEvent('riuka-shake'));
+        }
+      };
+      shakeListenerRef.current = handler;
+      window.addEventListener('devicemotion', handler);
+    };
+    if (typeof (window as any).DeviceMotionEvent?.requestPermission === 'function') {
+      (window as any).DeviceMotionEvent.requestPermission()
+        .then((perm: string) => { if (perm === 'granted') tryStart(); else { setShakeWake(false); Alert.alert('Motion Denied', 'Allow motion access in browser settings.'); } })
+        .catch(() => { setShakeWake(false); });
+    } else { tryStart(); }
+  };
+
+  const enableCamera = (want: boolean) => {
+    if (!want) {
+      setCameraGesture(false);
+      try { localStorage.setItem('riuka_gesture_v1', 'false'); } catch {}
+      return;
+    }
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(() => {
+          setCameraGesture(true);
+          try { localStorage.setItem('riuka_gesture_v1', 'true'); } catch {}
+          Alert.alert('Camera Active', 'Wave your hand in front of the camera to trigger voice input.');
+        })
+        .catch(() => {
+          setCameraGesture(false);
+          Alert.alert('Camera Denied', 'Allow camera access in your browser settings, then try again.');
+        });
+    } else { setCameraGesture(want); }
+  };
+
+  const enableVolumeKeys = (want: boolean) => {
+    setVolumeKeys(want);
+    if (Platform.OS !== 'web' || !('mediaSession' in navigator)) return;
+    if (want) {
+      try {
+        (navigator as any).mediaSession.setActionHandler('nexttrack', () => window.dispatchEvent(new CustomEvent('riuka-vol-up')));
+        (navigator as any).mediaSession.setActionHandler('previoustrack', () => window.dispatchEvent(new CustomEvent('riuka-vol-down')));
+      } catch {}
+    } else {
+      try {
+        (navigator as any).mediaSession.setActionHandler('nexttrack', null);
+        (navigator as any).mediaSession.setActionHandler('previoustrack', null);
+      } catch {}
+    }
+  };
+
+  const enableClipboard = (want: boolean) => {
+    if (!want) { setClipEngine(false); return; }
+    if (Platform.OS === 'web' && navigator.clipboard) {
+      // Test clipboard access
+      navigator.clipboard.readText()
+        .then(() => {
+          setClipEngine(true);
+          Alert.alert('Clipboard Active', 'Riuka will analyze content you copy. Say "read clipboard" in chat.');
+        })
+        .catch(() => {
+          setClipEngine(true); // Still enable — paste events still work
+          Alert.alert('Clipboard Active', 'Clipboard monitoring via paste events is active. For full access, allow clipboard permission in browser settings.');
+        });
+    } else { setClipEngine(want); }
   };
 
   const curLevel   = getEvoLevel(evo.xp);
@@ -481,52 +602,48 @@ export default function SettingsScreen() {
             <View style={styles.toggleList}>
               <ToggleRow
                 icon={<Bell size={18} color={notifListener ? Colors.primary : Colors.textTertiary} />}
-                label="Notification Listener"
-                desc="WhatsApp · Telegram · Slack · SMS"
+                label="Browser Notifications"
+                desc="Riuka alerts you when tab is in background"
                 value={notifListener}
-                onValueChange={setNotifListener}
+                onValueChange={enableNotifications}
                 color={Colors.primary}
               />
               <ToggleRow
                 icon={<ClipboardList size={18} color={clipEngine ? Colors.secondary : Colors.textTertiary} />}
                 label="Clipboard Engine"
-                desc="Auto-analyze every copy event"
+                desc="Say 'read clipboard' · auto-analyzes copies"
                 value={clipEngine}
-                onValueChange={setClipEngine}
+                onValueChange={enableClipboard}
                 color={Colors.secondary}
               />
               <ToggleRow
                 icon={<Camera size={18} color={cameraGesture ? '#EC4899' : Colors.textTertiary} />}
                 label="Camera Gesture"
-                desc="Wave hand to trigger voice"
+                desc="Wave hand to trigger voice (needs camera)"
                 value={cameraGesture}
-                onValueChange={v => {
-                  setCameraGesture(v);
-                  if (Platform.OS === 'web') { try { localStorage.setItem('riuka_gesture_v1', String(v)); } catch {} }
-                  if (v) Alert.alert('Camera Gesture', 'Wave your hand in front of the camera to trigger voice input.');
-                }}
+                onValueChange={enableCamera}
                 color="#EC4899"
               />
               <ToggleRow
                 icon={<Smartphone size={18} color={shakeWake ? '#F97316' : Colors.textTertiary} />}
                 label="Shake to Wake"
-                desc="Shake device to open voice"
+                desc="Shake phone/device to trigger Riuka"
                 value={shakeWake}
-                onValueChange={setShakeWake}
+                onValueChange={enableShake}
                 color="#F97316"
               />
               <ToggleRow
                 icon={<Radio size={18} color={volumeKeys ? Colors.accent : Colors.textTertiary} />}
-                label="Volume Button Commands"
-                desc="Vol Up = send · Vol Down = clear"
+                label="Media Key Commands"
+                desc="Next track = send · Prev track = clear"
                 value={volumeKeys}
-                onValueChange={setVolumeKeys}
+                onValueChange={enableVolumeKeys}
                 color={Colors.accent}
               />
               <ToggleRow
                 icon={<Calendar size={18} color={calendarCtx ? Colors.primary : Colors.textTertiary} />}
                 label="Calendar Context"
-                desc="Schedule & event awareness"
+                desc="Date/time awareness in responses"
                 value={calendarCtx}
                 onValueChange={setCalendarCtx}
                 color={Colors.primary}
@@ -534,9 +651,9 @@ export default function SettingsScreen() {
               <ToggleRow
                 icon={<MapPin size={18} color={locationCtx ? Colors.secondary : Colors.textTertiary} />}
                 label="Location Context"
-                desc="Physical location awareness"
+                desc="'Where am I?' · location-aware answers"
                 value={locationCtx}
-                onValueChange={setLocationCtx}
+                onValueChange={enableLocation}
                 color={Colors.secondary}
               />
             </View>

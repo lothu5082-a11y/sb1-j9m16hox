@@ -851,14 +851,45 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
       try {
         const text = await (navigator as any).clipboard.readText();
         if (text && text.trim()) {
-          return `Your clipboard:\n\n"${text.slice(0, 500)}"${text.length > 500 ? '\n…(truncated)' : ''}`;
+          const type = /^https?:\/\//i.test(text) ? 'URL' : /function|const |let |def |class /.test(text) ? 'Code' : 'Text';
+          return `📋 **Clipboard (${type}):**\n\n"${text.slice(0, 600)}"${text.length > 600 ? '\n…(truncated)' : ''}\n\n*Say "summarize this", "explain this code", or "open this link"*`;
         }
-        return 'Your clipboard appears to be empty.';
+        return 'Your clipboard appears to be empty. Copy something and try again.';
       } catch {
-        return 'Clipboard access was blocked. Please allow clipboard permission when your browser asks, then try again.';
+        return 'Clipboard read blocked by browser. Allow clipboard permission in browser settings (or press Ctrl+V in the chat input and I\'ll see what you pasted).';
       }
     }
-    return 'Clipboard reading works in the web version. On Android, open the Sensors tab and enable the Clipboard Engine.';
+    return 'Clipboard reading is a web feature. Open the app in a browser.';
+  }
+
+  // ── WHERE AM I / MY LOCATION ──────────────────────────────────────────────
+  if (/where am i|my location|what(?:'?s| is) my (?:location|address|city|country)|which city|detect (?:my )?location/.test(lower)) {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      return new Promise<string>(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+            try {
+              const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+              const d = await r.json();
+              const addr = d.address || {};
+              const city = addr.city || addr.town || addr.village || addr.county || 'Unknown area';
+              const country = addr.country || '';
+              const road = addr.road ? `${addr.road}, ` : '';
+              resolve(`📍 **You're in ${city}${country ? ', ' + country : ''}**\n\n${road}${city}${country ? ', ' + country : ''}\n\nCoordinates: \`${lat.toFixed(5)}, ${lon.toFixed(5)}\`\nAccuracy: ~${Math.round(accuracy)}m\n\n*[View on Maps](https://maps.google.com/?q=${lat},${lon})*`);
+            } catch {
+              resolve(`📍 Your coordinates: **${lat.toFixed(5)}, ${lon.toFixed(5)}**\n\n*[View on Maps](https://maps.google.com/?q=${lat},${lon})*`);
+            }
+          },
+          (err) => {
+            if (err.code === 1) resolve('Location access was denied. Allow location in your browser settings and try again.');
+            else resolve('Could not get your location. Check your connection and try again.');
+          },
+          { timeout: 10000, enableHighAccuracy: false }
+        );
+      });
+    }
+    return 'Geolocation is not available in this environment.';
   }
 
   // ── WORLD CLOCK ───────────────────────────────────────────────────────────
@@ -1666,12 +1697,12 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAPABILITIES (honest) ─────────────────────────────────────────────────
   if (/what can you do|your capabilities|what do you do|list commands|your features|what are you capable/.test(lower)) {
-    return "Here's what I can do:\n\n✅ COMMANDS\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram\n• YouTube sections — \"YT trending\", \"YT shorts\", \"YT history\"\n• Instagram, Reddit, Twitter profiles/subs\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather — \"Weather in Tokyo\"\n• Live Currency — \"100 USD to EUR\"\n• World clock — \"Time in London\"\n• Calculator, Unit converter\n• Timer + browser notification, Pomodoro (25 min)\n• Coin flip, Dice roll, Random number\n• Notes → Google Keep\n• Password generator — \"Password 20\"\n• QR code — \"QR code [text]\"\n• To-do list — \"Todo buy milk\" / \"My todos\" / \"Done 1\"\n\n✅ SMART FEATURES\n• Voice commands — tap mic, speak (Chrome/web)\n• Read clipboard — \"Read clipboard\"\n• Copy any reply — tap Copy under my messages\n• Chat memory — last 60 messages saved between sessions\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• WhatsApp messages, calls, alarms, camera, email sending\n\n❌ CANNOT DO\n• Send messages automatically\n• Read real notifications\n• Access contacts, files, or photos\n• Scroll/control other apps (needs Accessibility Service)\n\nWhat do you need?";
+    return "## What I Can Do (Web Version)\n\n**Chat & AI**\n- Answer anything, write anything, explain anything\n- Markdown responses with code blocks, tables, lists\n- Memory — I learn your name, preferences, habits from conversation\n- Atomic Evolution — I level up the more we talk\n- Connect OpenAI / Gemini / Claude / Groq in Settings for full power\n\n**Live Commands**\n- Weather — `weather in Tokyo`\n- Currency — `100 USD to EUR`\n- World clock — `time in London`\n- Navigate — `navigate to Eiffel Tower`\n- Wikipedia — `wiki quantum computing`\n- News, Translate, Calculator, Unit converter\n\n**Device / Browser**\n- Read clipboard — `read clipboard`\n- My location — `where am I?`\n- Timer with browser notification — `timer 10 minutes`\n- Pomodoro, Breathe, Meditation\n- Voice input — tap the mic (Chrome)\n- Shake to wake, Camera gesture (Settings)\n- Background notifications when you're in another tab\n\n**Writing Assistant**\n- Draft emails, essays, cover letters\n- Summarize, compare, pros & cons\n- Write code in any language\n- Tweet writer, text improver\n\n**To-do & Notes**\n- `todo buy milk` · `my todos` · `done 1`\n- `note [anything]` → Google Keep\n\nWhat do you need?";
   }
 
   // ── LIMITATIONS / WHAT CAN'T YOU DO ──────────────────────────────────────
   if (/what can(not|'t| you not) do|your limits|limitations|what don't you|what do you not/.test(lower)) {
-    return "Honest answer — here's what I can't do:\n\n❌ Can't send messages for you (WhatsApp, SMS, email) — I open the app, you send\n❌ Can't read your real notifications — Sensors tab shows demo data only\n❌ Can't access your contacts, photos, or files\n❌ Can't set a specific alarm time — I open Clock, you set it\n❌ Can't make phone calls automatically — I open the dialer\n❌ Can't scroll/control other apps without Accessibility Service enabled\n❌ Can't make purchases or book anything\n❌ Can't run in the background while another app is open (yet)\n\n✅ Things that DO work now: voice commands (tap mic in Chrome), clipboard reading (\"Read clipboard\"), browser notifications for timers, chat memory between sessions (web).\n\nMost of the ❌ list becomes ✅ once the Accessibility Service is enabled in Android Settings. What do you actually need help with?";
+    return "Honest answer — here's what I can't do on web:\n\n❌ Can't send messages for you (WhatsApp, SMS, email) — I open the app, you send\n❌ Can't read your actual push notifications from other apps\n❌ Can't access your contacts, photos, or local files\n❌ Can't set a specific alarm time — I open Clock, you set it\n❌ Can't make phone calls automatically — I open the dialer\n❌ Can't control other browser tabs\n\n✅ **Works right now on web:**\n- Voice commands (mic button in Chrome)\n- Read clipboard — say \"read clipboard\"\n- Your location — say \"where am I?\"\n- Browser notifications when tab is in background\n- Battery level — say \"battery\"\n- Shake to wake (enable in Settings)\n- Camera gesture (enable in Settings)\n- Media key shortcuts (enable in Settings)\n- Chat memory between sessions\n\nWhat do you actually need?";
   }
 
   // ── CAN YOU SEND A MESSAGE ────────────────────────────────────────────────
@@ -1690,7 +1721,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAN YOU READ MY MESSAGES / NOTIFICATIONS ─────────────────────────────
   if (/can you read|read my (messages|notifications?|texts?|emails?|whatsapp)|access my (messages|notifications?)/.test(lower)) {
-    return "Not yet, honestly. The Notification Feed in the Sensors tab shows example data — not your real notifications. To actually read your real notifications, I need the Accessibility Service enabled in Android Settings (Sensors tab → \"Enable in Android Settings\"). Once that's on, I can see and parse real messages from any app.";
+    return "On web, I can't read notifications from WhatsApp, SMS, or other apps — browsers don't expose those. What I CAN do:\n\n✅ **Read your clipboard** — copy a message, say \"read clipboard\"\n✅ **Browser notifications** — I'll alert you in your browser when I respond and you're in another tab (enable in Settings)\n✅ **Paste events** — anything you paste while on this page is captured in the Sensors tab\n\nTo summarize a WhatsApp message: copy the text → say \"read clipboard\" → ask me anything about it.";
   }
 
   // ── CAN YOU TAKE A PHOTO / SCREENSHOT ────────────────────────────────────
@@ -3399,6 +3430,13 @@ export default function ChatScreen() {
     await streamIntoMessage(aiMsgId, reply);
     setStreamingMsgId(null);
     setFollowUps(generateFollowUps(reply, msgText));
+
+    // Background tab notification — alert user when they're in another tab
+    if (Platform.OS === 'web' && typeof document !== 'undefined' && document.hidden &&
+        'Notification' in window && (window as any).Notification.permission === 'granted') {
+      const preview = reply.replace(/[*_`#>]/g, '').slice(0, 80);
+      try { new (window as any).Notification('Riuka AI', { body: preview, icon: '/favicon.ico', tag: 'riuka-reply' }); } catch {}
+    }
     if (_voiceReplyEnabled) {
       setSpeakingMsgId(aiMsgId);
       speakText(reply);
