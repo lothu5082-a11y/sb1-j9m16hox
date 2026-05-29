@@ -2483,21 +2483,58 @@ HONESTY RULES:
   return getLocalResponse(userMessage, history);
 };
 
+// ── Color-cycling send button ──────────────────────────────────────────────────
+function AnimatedSendButton({ onPress, disabled }: { onPress: () => void; disabled: boolean }) {
+  const phase = useSharedValue(0);
+  useEffect(() => {
+    phase.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
+  }, []);
+  const bgStyle = useAnimatedStyle(() => ({
+    backgroundColor: disabled
+      ? Colors.surface
+      : interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1],
+          ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7']),
+    shadowOpacity: disabled ? 0 : 0.55,
+  }));
+  return (
+    <TouchableOpacity onPress={onPress} disabled={disabled} activeOpacity={0.8}>
+      <Animated.View style={[styles.sendButton, bgStyle]}>
+        <Send color={disabled ? Colors.textTertiary : '#ffffff'} size={18} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Color-cycling text component ──────────────────────────────────────────────
+function ColorCycleText({ text, style, entering }: { text: string; style?: any; entering?: any }) {
+  const phase = useSharedValue(0);
+  useEffect(() => {
+    phase.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.linear }), -1, false);
+  }, []);
+  const animStyle = useAnimatedStyle(() => ({
+    color: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1],
+      ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7']),
+  }));
+  return <Animated.Text entering={entering} style={[style, animStyle]}>{text}</Animated.Text>;
+}
+
 // ── Gemini-style rotating gradient orb ────────────────────────────────────────
 function RiukaOrb() {
   const SIZE = 130;
-  const rot1  = useSharedValue(0);
-  const rot2  = useSharedValue(0);
-  const rot3  = useSharedValue(0);
-  const pulse = useSharedValue(1);
-  const glow  = useSharedValue(0.5);
+  const rot1       = useSharedValue(0);
+  const rot2       = useSharedValue(0);
+  const rot3       = useSharedValue(0);
+  const pulse      = useSharedValue(1);
+  const glow       = useSharedValue(0.5);
+  const colorPhase = useSharedValue(0);
 
   useEffect(() => {
-    rot1.value  = withRepeat(withTiming(360,  { duration: 4500, easing: Easing.linear }), -1, false);
-    rot2.value  = withRepeat(withTiming(-360, { duration: 6200, easing: Easing.linear }), -1, false);
-    rot3.value  = withRepeat(withTiming(360,  { duration: 8500, easing: Easing.linear }), -1, false);
-    pulse.value = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.96, { duration: 2400 })), -1, false);
-    glow.value  = withRepeat(withSequence(withTiming(1, { duration: 1800 }), withTiming(0.4, { duration: 1800 })), -1, false);
+    rot1.value       = withRepeat(withTiming(360,  { duration: 4500, easing: Easing.linear }), -1, false);
+    rot2.value       = withRepeat(withTiming(-360, { duration: 6200, easing: Easing.linear }), -1, false);
+    rot3.value       = withRepeat(withTiming(360,  { duration: 8500, easing: Easing.linear }), -1, false);
+    pulse.value      = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.96, { duration: 2400 })), -1, false);
+    glow.value       = withRepeat(withSequence(withTiming(1, { duration: 1800 }), withTiming(0.4, { duration: 1800 })), -1, false);
+    colorPhase.value = withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1, false);
   }, []);
 
   const containerStyle = useAnimatedStyle(() => ({
@@ -2507,6 +2544,13 @@ function RiukaOrb() {
   const r1Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot1.value}deg` }] }));
   const r2Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot2.value}deg` }] }));
   const r3Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot3.value}deg` }] }));
+  const colorOverlayStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(colorPhase.value,
+      [0, 0.2, 0.4, 0.6, 0.8, 1],
+      ['rgba(168,85,247,0.18)', 'rgba(59,130,246,0.18)', 'rgba(16,185,129,0.14)',
+       'rgba(236,72,153,0.14)', 'rgba(139,92,246,0.18)', 'rgba(168,85,247,0.18)'],
+    ),
+  }));
 
   return (
     <Animated.View style={[{
@@ -2538,6 +2582,8 @@ function RiukaOrb() {
           style={StyleSheet.absoluteFill}
         />
       </Animated.View>
+      {/* Color-morphing aurora overlay */}
+      <Animated.View style={[StyleSheet.absoluteFill, colorOverlayStyle]} />
       {/* Inner dark circle */}
       <View style={[StyleSheet.absoluteFill, {
         margin: SIZE * 0.19, borderRadius: SIZE / 2,
@@ -2572,23 +2618,35 @@ function AnimatedInputBorder({ children, focused }: { children: React.ReactNode;
 }
 
 function TypingIndicator() {
-  const dot1 = useSharedValue(0.3);
-  const dot2 = useSharedValue(0.3);
-  const dot3 = useSharedValue(0.3);
+  const c1 = useSharedValue(0);
+  const c2 = useSharedValue(0);
+  const c3 = useSharedValue(0);
 
   useEffect(() => {
-    dot1.value = withRepeat(withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })), -1, false);
+    c1.value = withRepeat(withTiming(1, { duration: 1200, easing: Easing.linear }), -1, false);
     setTimeout(() => {
-      dot2.value = withRepeat(withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })), -1, false);
+      c2.value = withRepeat(withTiming(1, { duration: 1200, easing: Easing.linear }), -1, false);
     }, 150);
     setTimeout(() => {
-      dot3.value = withRepeat(withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })), -1, false);
+      c3.value = withRepeat(withTiming(1, { duration: 1200, easing: Easing.linear }), -1, false);
     }, 300);
   }, []);
 
-  const d1Style = useAnimatedStyle(() => ({ opacity: dot1.value }));
-  const d2Style = useAnimatedStyle(() => ({ opacity: dot2.value }));
-  const d3Style = useAnimatedStyle(() => ({ opacity: dot3.value }));
+  const d1Style = useAnimatedStyle(() => ({
+    opacity: 0.35 + (c1.value < 0.5 ? c1.value : 1 - c1.value) * 1.3,
+    backgroundColor: interpolateColor(c1.value, [0, 0.33, 0.67, 1],
+      ['#A855F7', '#3B82F6', '#10B981', '#A855F7']),
+  }));
+  const d2Style = useAnimatedStyle(() => ({
+    opacity: 0.35 + (c2.value < 0.5 ? c2.value : 1 - c2.value) * 1.3,
+    backgroundColor: interpolateColor(c2.value, [0, 0.33, 0.67, 1],
+      ['#3B82F6', '#10B981', '#EC4899', '#3B82F6']),
+  }));
+  const d3Style = useAnimatedStyle(() => ({
+    opacity: 0.35 + (c3.value < 0.5 ? c3.value : 1 - c3.value) * 1.3,
+    backgroundColor: interpolateColor(c3.value, [0, 0.33, 0.67, 1],
+      ['#10B981', '#EC4899', '#A855F7', '#10B981']),
+  }));
 
   return (
     <View style={typingStyles.container}>
@@ -2726,9 +2784,10 @@ export default function ChatScreen() {
   const isTypingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
   const wakeRecognitionRef = useRef<any>(null);
-  const micPulse = useSharedValue(1);
-  const headerScan = useSharedValue(0);
-  const dotGlow = useSharedValue(0.5);
+  const micPulse        = useSharedValue(1);
+  const headerScan      = useSharedValue(0);
+  const dotGlow         = useSharedValue(0.5);
+  const avatarColorPhase = useSharedValue(0);
   const [wakeActive, setWakeActiveState] = useState(_wakeWordActive);
   const [voiceReplyOn, setVoiceReplyOn] = useState(_voiceReplyEnabled);
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
@@ -2800,16 +2859,23 @@ export default function ChatScreen() {
 
   const micPulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: micPulse.value }] }));
 
-  // Header scan + dot glow
+  // Header scan + dot glow + avatar color cycle
   useEffect(() => {
     headerScan.value = withRepeat(withTiming(1, { duration: 2800, easing: Easing.linear }), -1, false);
     dotGlow.value = withRepeat(
       withSequence(withTiming(1, { duration: 900 }), withTiming(0.35, { duration: 900 })),
       -1, false,
     );
+    avatarColorPhase.value = withRepeat(withTiming(1, { duration: 4500, easing: Easing.linear }), -1, false);
   }, []);
   const headerScanStyle = useAnimatedStyle(() => ({ left: (headerScan.value * (SCREEN_W + 80)) - 80 }));
   const dotGlowStyle = useAnimatedStyle(() => ({ opacity: dotGlow.value }));
+  const avatarColorStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(avatarColorPhase.value, [0, 0.25, 0.5, 0.75, 1],
+      ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7']),
+    shadowColor: interpolateColor(avatarColorPhase.value, [0, 0.25, 0.5, 0.75, 1],
+      ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7']),
+  }));
 
   // Load saved chat history on mount
   useEffect(() => {
@@ -3057,14 +3123,14 @@ export default function ChatScreen() {
           <View style={[styles.hudCorner, styles.hudTR]} pointerEvents="none" />
 
           <View style={styles.headerLeft}>
-            <View style={styles.riukaAvatar}>
+            <Animated.View style={[styles.riukaAvatar, avatarColorStyle]}>
               <Text style={styles.riukaLetter}>R</Text>
               <View style={styles.sparkleWrap}>
                 <Sparkles color={Colors.primary} size={9} />
               </View>
-            </View>
+            </Animated.View>
             <View>
-              <Text style={styles.headerTitle}>Riuka AI</Text>
+              <ColorCycleText text="Riuka AI" style={styles.headerTitle} />
               <View style={styles.headerMeta}>
                 <Animated.View style={[styles.onlineDot, dotGlowStyle]} />
                 <Text style={styles.headerStatus}>
@@ -3093,9 +3159,11 @@ export default function ChatScreen() {
           {messages.length === 0 && (
             <Animated.View entering={FadeInUp.duration(700)} style={styles.emptyState}>
               <RiukaOrb />
-              <Animated.Text entering={FadeInUp.duration(600).delay(150)} style={styles.emptyTitle}>
-                Riuka AI
-              </Animated.Text>
+              <ColorCycleText
+                text="Riuka AI"
+                style={styles.emptyTitle}
+                entering={FadeInUp.duration(600).delay(150)}
+              />
               <Animated.Text entering={FadeInUp.duration(600).delay(280)} style={styles.emptySubtitle}>
                 Your personal AI — type a command or tap the mic to speak.
               </Animated.Text>
@@ -3194,13 +3262,10 @@ export default function ChatScreen() {
                 <Mic color={isVoiceListening ? '#ffffff' : Colors.primary} size={20} />
               </TouchableOpacity>
             </Animated.View>
-            <TouchableOpacity
+            <AnimatedSendButton
               onPress={() => sendMessage()}
-              style={[styles.sendButton, (!inputText.trim() || isTyping) && styles.sendButtonDisabled]}
               disabled={!inputText.trim() || isTyping}
-            >
-              <Send color={inputText.trim() && !isTyping ? '#ffffff' : Colors.textTertiary} size={18} />
-            </TouchableOpacity>
+            />
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>

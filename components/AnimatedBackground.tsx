@@ -8,6 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
   Easing,
+  interpolateColor,
 } from 'react-native-reanimated';
 import { Colors } from '../constants/theme';
 
@@ -22,10 +23,14 @@ interface AnimatedBackgroundProps {
 }
 
 export default function AnimatedBackground({ children }: AnimatedBackgroundProps) {
-  const glowOpacity = useSharedValue(0.1);
-  const orbOpacity  = useSharedValue(0.06);
-  const scanY       = useSharedValue(0);
-  const accentGlow  = useSharedValue(0.04);
+  const glowOpacity      = useSharedValue(0.1);
+  const orbOpacity       = useSharedValue(0.06);
+  const scanY            = useSharedValue(0);
+  const accentGlow       = useSharedValue(0.04);
+  const orbColorPhase    = useSharedValue(0);
+  const centerColorPhase = useSharedValue(0);
+  const accentColorPhase = useSharedValue(0);
+  const scanColorPhase   = useSharedValue(0);
 
   useEffect(() => {
     glowOpacity.value = withRepeat(
@@ -36,18 +41,48 @@ export default function AnimatedBackground({ children }: AnimatedBackgroundProps
       withSequence(withTiming(0.16, { duration: 4500 }), withTiming(0.05, { duration: 4500 })),
       -1, false,
     );
-    // Slow scan line top → bottom
     scanY.value = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
     accentGlow.value = withRepeat(
       withSequence(withTiming(0.1, { duration: 5000 }), withTiming(0.03, { duration: 5000 })),
       -1, false,
     );
+    orbColorPhase.value    = withRepeat(withTiming(1, { duration: 7000, easing: Easing.linear }), -1, false);
+    centerColorPhase.value = withRepeat(withTiming(1, { duration: 5500, easing: Easing.linear }), -1, false);
+    accentColorPhase.value = withRepeat(withTiming(1, { duration: 9000, easing: Easing.linear }), -1, false);
+    scanColorPhase.value   = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
   }, []);
 
-  const glowStyle   = useAnimatedStyle(() => ({ opacity: glowOpacity.value }));
-  const orbStyle    = useAnimatedStyle(() => ({ opacity: orbOpacity.value }));
-  const scanStyle   = useAnimatedStyle(() => ({ top: `${scanY.value * 100}%` as any }));
-  const accentStyle = useAnimatedStyle(() => ({ opacity: accentGlow.value }));
+  const orbStyle = useAnimatedStyle(() => ({
+    opacity: orbOpacity.value,
+    backgroundColor: interpolateColor(orbColorPhase.value,
+      [0, 0.25, 0.5, 0.75, 1],
+      ['#7C3AED', '#3B82F6', '#0891B2', '#A855F7', '#7C3AED'],
+    ),
+  }));
+
+  const centerGlowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    backgroundColor: interpolateColor(centerColorPhase.value,
+      [0, 0.25, 0.5, 0.75, 1],
+      ['#A855F7', '#EC4899', '#7C3AED', '#3B82F6', '#A855F7'],
+    ),
+  }));
+
+  const accentStyle = useAnimatedStyle(() => ({
+    opacity: accentGlow.value,
+    backgroundColor: interpolateColor(accentColorPhase.value,
+      [0, 0.25, 0.5, 0.75, 1],
+      ['#10B981', '#0891B2', '#A855F7', '#EC4899', '#10B981'],
+    ),
+  }));
+
+  const scanStyle = useAnimatedStyle(() => ({
+    top: `${scanY.value * 100}%` as any,
+    backgroundColor: interpolateColor(scanColorPhase.value,
+      [0, 0.25, 0.5, 0.75, 1],
+      ['rgba(168,85,247,0.18)', 'rgba(59,130,246,0.18)', 'rgba(16,185,129,0.15)', 'rgba(236,72,153,0.15)', 'rgba(168,85,247,0.18)'],
+    ),
+  }));
 
   return (
     <View style={styles.container}>
@@ -60,26 +95,18 @@ export default function AnimatedBackground({ children }: AnimatedBackgroundProps
 
       {/* Grid lines */}
       <View style={[StyleSheet.absoluteFill, styles.grid]} pointerEvents="none">
-        {/* Vertical lines */}
         {Array.from({ length: GRID_COLS + 1 }).map((_, i) => (
-          <View
-            key={`v${i}`}
-            style={[styles.gridLineV, { left: i * CELL_W }]}
-          />
+          <View key={`v${i}`} style={[styles.gridLineV, { left: i * CELL_W }]} />
         ))}
-        {/* Horizontal lines */}
         {Array.from({ length: GRID_ROWS + 1 }).map((_, i) => (
-          <View
-            key={`h${i}`}
-            style={[styles.gridLineH, { top: i * CELL_H }]}
-          />
+          <View key={`h${i}`} style={[styles.gridLineH, { top: i * CELL_H }]} />
         ))}
       </View>
 
-      {/* Slow horizontal scan across grid */}
+      {/* Color-cycling scan line */}
       <Animated.View style={[styles.scanLine, scanStyle]} pointerEvents="none" />
 
-      {/* Top-center orb glow */}
+      {/* Top-center orb — color-morphing purple→blue→cyan→violet */}
       <Animated.View
         style={[
           styles.orb,
@@ -89,17 +116,17 @@ export default function AnimatedBackground({ children }: AnimatedBackgroundProps
         pointerEvents="none"
       />
 
-      {/* Center pulse glow */}
+      {/* Center pulse glow — color-morphing purple→pink→violet→blue */}
       <Animated.View
         style={[
           styles.centerGlow,
           { width: W * 0.85, height: W * 0.85, borderRadius: W * 0.425, left: W * 0.075 },
-          glowStyle,
+          centerGlowStyle,
         ]}
         pointerEvents="none"
       />
 
-      {/* Bottom-right accent orb */}
+      {/* Bottom-right accent orb — color-morphing emerald→cyan→purple→pink */}
       <Animated.View
         style={[
           styles.accentOrb,
@@ -145,14 +172,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1.5,
-    backgroundColor: 'rgba(168,85,247,0.12)',
     shadowColor: Colors.primary,
     shadowOpacity: 0.4,
     shadowRadius: 6,
   },
   orb: {
     position: 'absolute',
-    backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
@@ -162,7 +187,6 @@ const styles = StyleSheet.create({
   centerGlow: {
     position: 'absolute',
     top: '28%',
-    backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
@@ -171,7 +195,6 @@ const styles = StyleSheet.create({
   },
   accentOrb: {
     position: 'absolute',
-    backgroundColor: Colors.secondary,
     shadowColor: Colors.secondary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
