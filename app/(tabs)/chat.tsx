@@ -133,6 +133,7 @@ const speakText = (text: string) => {
   const utter = new ((window as any).SpeechSynthesisUtterance)(clean);
   utter.rate = 1.0;
   utter.pitch = 1.05;
+  utter.volume = _speechVolume;
   const ttsLang = detectTtsLang(text);
   const ttsCode = LANG_TTS_CODE[ttsLang] ?? 'en-US';
   utter.lang = ttsCode;
@@ -164,6 +165,8 @@ export const stopSpeaking = () => {
 
 // Torch stream (kept alive while torch is on)
 let _torchStream: MediaStream | null = null;
+// Voice reply volume (0–1)
+let _speechVolume = 0.9;
 
 // ── LANGUAGE SYSTEM ─────────────────────────────────────────────────────────
 let _userLang = 'en';
@@ -328,9 +331,10 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
   }
 
   // ── TORCH / FLASHLIGHT ───────────────────────────────────────────────────
-  if (/^(torch|flashlight|flash|light)\s*(on|off)$/.test(lower)) {
+  // Accepts any order: "flash on", "on flash", "turn on flash", "flashlight off", etc.
+  if (/(torch|flashlight|flash|light)\s*(on|off)|(on|off)\s*(torch|flashlight|flash|light)|(turn|switch)\s*(on|off)\s*(torch|flashlight|flash|light)|(turn|switch)\s*(the\s*)?(torch|flashlight|flash|light)\s*(on|off)/.test(lower)) {
     if (Platform.OS !== 'web') return '⚠️ Torch only works in the browser.';
-    const wantOn = lower.endsWith('on');
+    const wantOn = /\bon\b/.test(lower) && !/\boff\b/.test(lower);
     try {
       if (wantOn) {
         if (_torchStream) { _torchStream.getTracks().forEach(t => t.stop()); _torchStream = null; }
@@ -356,6 +360,31 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     } catch {
       return '⚠️ Cannot access camera/torch. Make sure you\'ve allowed camera permission.';
     }
+  }
+
+  // ── VOLUME CONTROL ───────────────────────────────────────────────────────
+  // Accepts: "volume up", "up volume", "increase volume", "louder", "volume down", etc.
+  if (/(volume\s*(up|down|max|min|mute|unmute|loud|quiet|high|low)|up\s*volume|down\s*volume|louder|quieter|mute|unmute|increase\s*(the\s*)?volume|decrease\s*(the\s*)?volume|turn\s*(up|down)\s*(the\s*)?volume|max\s*volume|silent\s*mode)/.test(lower)) {
+    const isUp   = /(up|louder|increase|loud|high|max)/.test(lower);
+    const isDown = /(down|quieter|decrease|quiet|low|min)/.test(lower);
+    const isMute = /\bmute\b/.test(lower) && !/unmute/.test(lower);
+    const isUnmute = /unmute/.test(lower);
+    const isMax  = /\bmax\b/.test(lower);
+    const isSilent = /silent/.test(lower);
+
+    let newVol = _speechVolume;
+    if (isMute || isSilent) { newVol = 0; }
+    else if (isUnmute) { newVol = 0.8; }
+    else if (isMax) { newVol = 1.0; }
+    else if (isUp) { newVol = Math.min(1.0, _speechVolume + 0.2); }
+    else if (isDown) { newVol = Math.max(0.1, _speechVolume - 0.2); }
+    _speechVolume = newVol;
+    if (Platform.OS === 'web') { try { localStorage.setItem('riuka_vol_v1', String(newVol)); } catch {} }
+
+    const pct = Math.round(newVol * 100);
+    const bar = '█'.repeat(Math.round(newVol * 10)) + '░'.repeat(10 - Math.round(newVol * 10));
+    if (newVol === 0) return `🔇 Muted — voice replies silenced.\nSay "unmute" or "volume up" to restore.`;
+    return `🔊 Volume: ${pct}%\n${bar}\n\nThis controls Riuka's voice reply volume.`;
   }
 
   // ── GESTURE MODE ─────────────────────────────────────────────────────────
@@ -2675,6 +2704,7 @@ const SLASH_CMDS = [
   { cmd: '/languages',  desc: 'List all 35+ supported languages' },
   { cmd: '/torch',      desc: 'Toggle flashlight (e.g. /torch on)' },
   { cmd: '/gesture',    desc: 'Camera gesture control (e.g. /gesture on)' },
+  { cmd: '/volume',     desc: 'Voice volume (e.g. volume up / volume down / mute)' },
 ];
 
 const SUGGESTIONS = [
@@ -2793,6 +2823,8 @@ export default function ChatScreen() {
         const savedLang = localStorage.getItem('riuka_lang_v1');
         if (savedLang && LANGS[savedLang]) _userLang = savedLang;
         if (localStorage.getItem('riuka_gesture_v1') === '1') setCameraGestureEnabled(true);
+        const savedVol = parseFloat(localStorage.getItem('riuka_vol_v1') || '');
+        if (!isNaN(savedVol)) _speechVolume = savedVol;
       } catch {}
     }
   }, []);
