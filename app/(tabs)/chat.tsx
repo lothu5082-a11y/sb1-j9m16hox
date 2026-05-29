@@ -55,7 +55,7 @@ interface Message {
 const getProviderLabel = (provider: string): string => {
   switch (provider) {
     case 'openai': return 'GPT-4o Mini';
-    case 'gemini': return 'Gemini Flash';
+    case 'gemini': return 'Gemini 2.0 Flash';
     case 'claude': return 'Claude';
     case 'groq': return 'Groq';
     default: return 'On-Device';
@@ -1268,7 +1268,7 @@ HONESTY RULES:
         parts: [{ text: m.content }],
       }));
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
