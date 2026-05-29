@@ -1,8 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
-// ─── Model catalogue ──────────────────────────────────────────────────────────
-
 export interface ModelMeta {
   id: string;
   name: string;
@@ -51,16 +49,6 @@ export const MODELS: ModelMeta[] = [
   },
 ];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type LlamaContext = {
-  completion: (
-    params: object,
-    callback: (data: { token: string }) => void
-  ) => Promise<{ text: string }>;
-  release: () => Promise<void>;
-};
-
 export type DownloadState = {
   modelId: string;
   progress: number;
@@ -68,38 +56,17 @@ export type DownloadState = {
   totalMB: number;
 };
 
-// ─── Dynamic native imports (web-safe) ───────────────────────────────────────
-
-let _initLlama: ((params: object) => Promise<LlamaContext>) | null = null;
-if (Platform.OS !== 'web') {
-  try {
-    _initLlama = require('llama.rn').initLlama;
-  } catch {
-    // Expo Go / web — native module unavailable
-  }
-}
-
-const SYSTEM_PROMPT =
-  'You are Riuka AI, an autonomous on-device executive assistant for Android. ' +
-  'You monitor notifications, analyse clipboard data, and execute cross-app workflows ' +
-  'via the Accessibility layer. Privacy-first, zero-cloud, extremely capable. ' +
-  'Be concise, direct, and action-oriented.';
-
-// ─── Service ──────────────────────────────────────────────────────────────────
-
 class LlamaService {
-  private ctx: LlamaContext | null = null;
-  private _loadedModelId: string | null = null;
-  private _loading = false;
   private _activeDownload: ReturnType<typeof FileSystem.createDownloadResumable> | null = null;
   private _downloadState: DownloadState | null = null;
+  private _loadedModelId: string | null = null;
 
-  isAvailable(): boolean { return _initLlama !== null; }
-  isLoaded(): boolean { return this.ctx !== null; }
-  isLoading(): boolean { return this._loading; }
+  isAvailable(): boolean { return false; }
+  isLoaded(): boolean { return false; }
+  isLoading(): boolean { return false; }
+  isDownloading(): boolean { return this._activeDownload !== null; }
   getLoadedModelId(): string | null { return this._loadedModelId; }
   getDownloadState(): DownloadState | null { return this._downloadState; }
-  isDownloading(): boolean { return this._activeDownload !== null; }
 
   getModelDir(): string {
     return (FileSystem.documentDirectory ?? '') + 'models/';
@@ -173,9 +140,7 @@ class LlamaService {
     } catch (e: any) {
       this._activeDownload = null;
       this._downloadState = null;
-      if (e?.message?.includes('cancel') || e?.message?.includes('aborted')) {
-        // user cancelled
-      } else {
+      if (!e?.message?.includes('cancel') && !e?.message?.includes('aborted')) {
         onError(e?.message ?? 'Download error');
       }
     }
@@ -183,7 +148,7 @@ class LlamaService {
 
   async cancelDownload(): Promise<void> {
     if (this._activeDownload) {
-      try { await this._activeDownload.cancelAsync(); } catch { /* ignore */ }
+      try { await this._activeDownload.cancelAsync(); } catch { }
       this._activeDownload = null;
       this._downloadState = null;
     }
@@ -194,50 +159,21 @@ class LlamaService {
     const path = this.getModelPath(model);
     const info = await FileSystem.getInfoAsync(path);
     if (info.exists) await FileSystem.deleteAsync(path, { idempotent: true });
-    if (this._loadedModelId === model.id) await this.unload();
   }
 
-  async load(model: ModelMeta): Promise<void> {
-    if (!_initLlama) throw new Error('llama.rn not available on this platform');
-    if (this.ctx) await this.unload();
-    this._loading = true;
-    try {
-      this.ctx = await _initLlama({
-        model: this.getModelPath(model),
-        n_ctx: 2048,
-        n_threads: 4,
-        n_gpu_layers: 0,
-      });
-      this._loadedModelId = model.id;
-    } finally {
-      this._loading = false;
-    }
+  async load(_model: ModelMeta): Promise<void> {
+    throw new Error('On-device inference not available in this build');
   }
 
   async unload(): Promise<void> {
-    if (this.ctx) {
-      await this.ctx.release();
-      this.ctx = null;
-      this._loadedModelId = null;
-    }
+    this._loadedModelId = null;
   }
 
   async completion(
-    history: { role: string; content: string }[],
-    onToken: (token: string) => void
+    _history: { role: string; content: string }[],
+    _onToken: (token: string) => void
   ): Promise<string> {
-    if (!this.ctx) throw new Error('No model loaded');
-    const activeModel = MODELS.find((m) => m.id === this._loadedModelId);
-    const stop = activeModel?.stopTokens ?? ['</s>'];
-    const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...history];
-    let full = '';
-    await this.ctx.completion(
-      { messages, n_predict: 512, temperature: 0.7, stop },
-      (data) => {
-        if (data.token) { full += data.token; onToken(data.token); }
-      }
-    );
-    return full;
+    throw new Error('No model loaded');
   }
 }
 
