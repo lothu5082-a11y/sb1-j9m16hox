@@ -40,16 +40,28 @@ jobs:
         env:
           EXPO_NO_TELEMETRY: 1
 
-      - name: Build APK
+      - name: Generate signing keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/release.keystore \
+            -storepass riukaai -alias riukaai -keypass riukaai \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Riuka AI,O=Riuka,C=US"
+
+      - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=512m"
+          ./gradlew assembleRelease --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=512m" \
+            -Pandroid.injected.signing.store.file=$HOME/.android/release.keystore \
+            -Pandroid.injected.signing.store.password=riukaai \
+            -Pandroid.injected.signing.key.alias=riukaai \
+            -Pandroid.injected.signing.key.password=riukaai
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: riuka-ai-v${{ github.run_number }}.apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
