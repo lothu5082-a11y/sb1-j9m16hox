@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -29,6 +30,8 @@ import {
   CheckCircle,
   Bell,
   ClipboardList,
+  User,
+  Palette,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
@@ -101,6 +104,15 @@ const settingStyles = StyleSheet.create({
   subtitle: { fontSize: FontSizes.xs, color: Colors.textTertiary },
 });
 
+const ACCENT_COLORS = [
+  { name: 'Purple', value: '#A855F7' },
+  { name: 'Blue',   value: '#3B82F6' },
+  { name: 'Green',  value: '#10B981' },
+  { name: 'Red',    value: '#EF4444' },
+  { name: 'Teal',   value: '#14B8A6' },
+  { name: 'Amber',  value: '#F59E0B' },
+];
+
 const PROVIDERS = [
   { id: 'local', name: 'On-Device', color: Colors.secondary },
   { id: 'openai', name: 'OpenAI', color: Colors.primary },
@@ -131,6 +143,39 @@ export default function SettingsScreen() {
 
   const [offlinePriority, setOfflinePriority] = useState(true);
 
+  const [profileName, setProfileName] = useState('');
+  const [profileCity, setProfileCity] = useState('');
+  const [accentColor, setAccentColor] = useState('#A855F7');
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      try {
+        const p = JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}');
+        if (p.name) setProfileName(p.name);
+        if (p.city) setProfileCity(p.city);
+        const t = localStorage.getItem('riuka_theme_v1');
+        if (t) setAccentColor(t);
+      } catch {}
+    }
+  }, []);
+
+  const saveProfile = () => {
+    if (Platform.OS === 'web') {
+      try { localStorage.setItem('riuka_profile_v1', JSON.stringify({ name: profileName, city: profileCity })); } catch {}
+    }
+    Alert.alert('Profile Saved', profileName ? `Hey ${profileName}! Your profile is updated.` : 'Profile saved.');
+  };
+
+  const applyTheme = (color: string) => {
+    setAccentColor(color);
+    if (Platform.OS === 'web') {
+      try {
+        localStorage.setItem('riuka_theme_v1', color);
+        (document as any).documentElement.style.setProperty('--primary', color);
+      } catch {}
+    }
+  };
+
   const saveAIConfig = () => {
     const newConfig = { provider: selectedProvider, apiKey };
     riukaAIConfig = newConfig;
@@ -156,6 +201,41 @@ export default function SettingsScreen() {
           <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
             <SettingsIcon color={Colors.primary} size={26} />
             <Text style={styles.headerTitle}>Settings</Text>
+          </Animated.View>
+
+          {/* Profile */}
+          <Animated.View entering={FadeInUp.duration(600).delay(50)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Profile</Text>
+            <View style={styles.profileCard}>
+              <View style={styles.profileRow}>
+                <User color={Colors.primary} size={16} />
+                <Text style={styles.profileLabel}>Your Name</Text>
+                <TextInput
+                  style={styles.profileInput}
+                  placeholder="e.g. Alex"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={profileName}
+                  onChangeText={setProfileName}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+              <View style={[styles.profileRow, { borderBottomWidth: 0 }]}>
+                <Text style={[styles.profileLabel, { marginLeft: 24 }]}>Home City</Text>
+                <TextInput
+                  style={styles.profileInput}
+                  placeholder="e.g. Tokyo"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={profileCity}
+                  onChangeText={setProfileCity}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+            <TouchableOpacity style={[styles.saveButton, { marginTop: Spacing.md, alignSelf: 'flex-end' }]} onPress={saveProfile}>
+              <Text style={styles.saveButtonText}>Save Profile</Text>
+            </TouchableOpacity>
           </Animated.View>
 
           {/* Brain Engine */}
@@ -243,6 +323,29 @@ export default function SettingsScreen() {
                 onValueChange={setFloatingAssistant}
                 color={Colors.secondary}
               />
+            </View>
+          </Animated.View>
+
+          {/* Theme Color */}
+          <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Theme Color</Text>
+            <View style={styles.themeCard}>
+              <View style={styles.themeHeader}>
+                <Palette color={Colors.primary} size={18} />
+                <Text style={styles.themeDesc}>Personalize your Riuka accent color</Text>
+              </View>
+              <View style={styles.themeSwatches}>
+                {ACCENT_COLORS.map((c) => (
+                  <TouchableOpacity
+                    key={c.value}
+                    style={[styles.themeSwatch, { backgroundColor: c.value }, accentColor === c.value && styles.themeSwatchActive]}
+                    onPress={() => applyTheme(c.value)}
+                    activeOpacity={0.8}
+                  >
+                    {accentColor === c.value && <Text style={styles.themeCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </Animated.View>
 
@@ -537,4 +640,75 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
   footerSubtext: { fontSize: FontSizes.xs, color: Colors.textTertiary },
+  profileCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  profileLabel: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    width: 84,
+  },
+  profileInput: {
+    flex: 1,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    paddingVertical: Spacing.sm,
+  },
+  themeCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+  },
+  themeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  themeDesc: {
+    fontSize: FontSizes.sm,
+    color: Colors.textTertiary,
+  },
+  themeSwatches: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    flexWrap: 'wrap',
+  },
+  themeSwatch: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeSwatchActive: {
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  themeCheck: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 18,
+  },
 });

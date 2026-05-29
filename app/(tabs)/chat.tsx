@@ -82,6 +82,12 @@ const APP_URLS: Record<string, string> = {
   linkedin: 'linkedin://',
 };
 
+const getProfile = (): { name: string; city: string } => {
+  if (Platform.OS !== 'web') return { name: '', city: '' };
+  try { return { name: '', city: '', ...JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}') }; }
+  catch { return { name: '', city: '' }; }
+};
+
 // Safe math evaluator (no eval)
 const safeMath = (expr: string): number | null => {
   try {
@@ -107,7 +113,8 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
   const weatherMatch = lower.match(/^(?:weather|forecast|temp(?:erature)?)\s+(?:in\s+|for\s+)?(.+)$/)
     || lower.match(/^(?:what'?s?\s+(?:the\s+)?weather(?:\s+like)?(?:\s+in)?\s*)(.+)$/);
   if (weatherMatch || lower === 'weather') {
-    const city = weatherMatch ? weatherMatch[1].trim() : 'auto';
+    const rawCity = weatherMatch ? weatherMatch[1].trim() : 'auto';
+    const city = rawCity === 'auto' ? (getProfile().city || 'auto') : rawCity;
     try {
       const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
       if (!res.ok) throw new Error('Network error');
@@ -810,10 +817,12 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── GREETINGS ─────────────────────────────────────────────────────────────
   if (/^(hello|hi|hey|sup|yo|hola|salaam|salam|namaste|what'?s up|wassup|howdy)[\s!?.]*$/.test(lower)) {
+    const profileName = getProfile().name;
+    const namePart = profileName ? `, ${profileName}` : '';
     const greets = [
-      `${greeting}! I'm Riuka — your personal AI. Ask me anything, or give me a command. I'm all yours.`,
-      `${greeting}! What do you need? I can search, open apps, answer questions, do math, check weather — just talk to me.`,
-      `${greeting}! Ready when you are. What's on your mind?`,
+      `${greeting}${namePart}! I'm Riuka — your personal AI. Ask me anything, or give me a command. I'm all yours.`,
+      `${greeting}${namePart}! What do you need? I can search, open apps, answer questions, do math, check weather — just talk to me.`,
+      `${greeting}${namePart}! Ready when you are. What's on your mind?`,
     ];
     return greets[Math.floor(Math.random() * greets.length)];
   }
@@ -1401,6 +1410,29 @@ const typingStyles = StyleSheet.create({
   },
 });
 
+const SLASH_CMDS = [
+  { cmd: '/weather',   desc: 'Live weather for your city' },
+  { cmd: '/time',      desc: 'Current time' },
+  { cmd: '/todos',     desc: 'Show your to-do list' },
+  { cmd: '/pomodoro',  desc: '25-min focus timer' },
+  { cmd: '/password',  desc: 'Generate a secure password' },
+  { cmd: '/inspire',   desc: 'Motivational quote' },
+  { cmd: '/riddle',    desc: 'Brain teaser' },
+  { cmd: '/news',      desc: 'Open Google News' },
+  { cmd: '/ip',        desc: 'Your public IP address' },
+  { cmd: '/flip',      desc: 'Flip a coin' },
+  { cmd: '/dice',      desc: 'Roll a d6' },
+  { cmd: '/qr',        desc: 'QR code generator' },
+  { cmd: '/currency',  desc: '100 USD to EUR (live)' },
+  { cmd: '/calc',      desc: 'Calculator (e.g. /calc 5*8)' },
+  { cmd: '/translate', desc: 'Translate text to a language' },
+  { cmd: '/maps',      desc: 'Navigate to a place' },
+  { cmd: '/youtube',   desc: 'Search YouTube' },
+  { cmd: '/help',      desc: 'List all capabilities' },
+  { cmd: '/voice',     desc: 'Start voice input' },
+  { cmd: '/clear',     desc: 'Clear this conversation' },
+];
+
 const SUGGESTIONS = [
   { label: '🕐 Time in Tokyo', cmd: 'Time in Tokyo' },
   { label: '💬 Inspire me', cmd: 'Inspire me' },
@@ -1420,6 +1452,44 @@ export default function ChatScreen() {
   const isTypingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
   const micPulse = useSharedValue(1);
+
+  // Slash command popup
+  const slashToken = inputText.startsWith('/') ? inputText.toLowerCase().split(' ')[0] : '';
+  const slashCmds = slashToken ? SLASH_CMDS.filter((c) => c.cmd.startsWith(slashToken)) : [];
+
+  const selectSlashCmd = (cmd: string) => {
+    if (cmd === '/clear') { setInputText(''); clearChat(); return; }
+    if (cmd === '/voice')  { setInputText(''); startVoice(); return; }
+    const profile = getProfile();
+    const CMD_MAP: Record<string, string> = {
+      '/weather':   profile.city ? `Weather in ${profile.city}` : 'Weather in ',
+      '/time':      'What time is it',
+      '/todos':     'My todos',
+      '/pomodoro':  'Pomodoro',
+      '/password':  'Password 16',
+      '/inspire':   'Inspire me',
+      '/riddle':    'Riddle',
+      '/news':      'News',
+      '/ip':        'My IP',
+      '/flip':      'Flip a coin',
+      '/dice':      'Roll a dice',
+      '/qr':        'QR code ',
+      '/currency':  '100 USD to EUR',
+      '/calc':      'Calculate ',
+      '/translate': 'Translate ',
+      '/maps':      'Navigate to ',
+      '/youtube':   'YouTube ',
+      '/help':      'What can you do',
+    };
+    const mapped = CMD_MAP[cmd];
+    if (!mapped) return;
+    if (mapped.endsWith(' ')) {
+      setInputText(mapped);
+    } else {
+      setInputText('');
+      sendMessage(mapped);
+    }
+  };
 
   useEffect(() => {
     if (isVoiceListening) {
@@ -1678,6 +1748,18 @@ export default function ChatScreen() {
 
         {/* Input area */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inputContainer}>
+          {slashCmds.length > 0 && (
+            <View style={styles.slashPopup}>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ maxHeight: 200 }}>
+                {slashCmds.map((item) => (
+                  <TouchableOpacity key={item.cmd} style={styles.slashItem} onPress={() => selectSlashCmd(item.cmd)}>
+                    <Text style={styles.slashCmd}>{item.cmd}</Text>
+                    <Text style={styles.slashDesc}>{item.desc}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
           <View style={styles.inputRow}>
             <View style={styles.inputWrapper}>
               <TextInput
@@ -1968,5 +2050,38 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     shadowOpacity: 0,
     elevation: 0,
+  },
+  slashPopup: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary + '40',
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  slashItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.md,
+  },
+  slashCmd: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.primary,
+    width: 96,
+  },
+  slashDesc: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    flex: 1,
   },
 });
