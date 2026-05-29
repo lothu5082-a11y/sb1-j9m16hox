@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "riuka",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "backgroundColor": "#0A0A0C",
     "ios": {
       "supportsTablet": false,
