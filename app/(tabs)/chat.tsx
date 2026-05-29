@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { useFocusEffect } from 'expo-router';
 import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
@@ -34,6 +35,15 @@ export const setAIConfig = (config: { provider: string; apiKey: string }) => {
 };
 
 export const getAIConfig = () => _aiConfig;
+
+// ── Pending command bridge (used by Home quick-action chips) ──────────────────
+let _pendingCommand: string | null = null;
+export const setPendingCommand = (cmd: string) => { _pendingCommand = cmd; };
+export const consumePendingCommand = (): string | null => {
+  const cmd = _pendingCommand;
+  _pendingCommand = null;
+  return cmd;
+};
 
 interface Message {
   id: string;
@@ -259,8 +269,49 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
   return null;
 };
 
-const getLocalResponse = (text: string): string => {
+// Extract the last N messages of a given type for context-aware local replies
+const getContextHint = (history: Message[]): string => {
+  const lastAI = history.filter((m) => !m.isUser).slice(-1)[0];
+  const lastUser = history.filter((m) => m.isUser).slice(-2)[0]; // second-to-last user msg
+  if (!lastAI) return '';
+  const lowerAI = lastAI.text.toLowerCase();
+  const lowerUser = lastUser?.text.toLowerCase() || '';
+  if (lowerAI.includes('weather') || lowerUser.includes('weather')) return 'weather';
+  if (lowerAI.includes('timer') || lowerUser.includes('timer')) return 'timer';
+  if (lowerAI.includes('battery') || lowerUser.includes('battery')) return 'battery';
+  if (lowerUser.includes('open') || lowerAI.includes('opening')) return 'open_app';
+  return '';
+};
+
+const getLocalResponse = (text: string, history: Message[] = []): string => {
   const lower = text.toLowerCase();
+
+  // ── Follow-up / context-aware replies ────────────────────────────────────
+  const contextHint = getContextHint(history);
+  const isFollowUp = /^(and|also|what about|how about|can you|could you|what'?s|tell me|show me|why|how)/.test(lower)
+    || lower.split(' ').length <= 3;
+
+  if (isFollowUp && contextHint === 'weather') {
+    if (lower.includes('tomorrow') || lower.includes('forecast')) {
+      return 'For a multi-day forecast, try: "Weather in [your city]" — I pull live data from wttr.in which includes a 3-day outlook.';
+    }
+    if (lower.includes('another') || lower.includes('different') || lower.includes('other')) {
+      return 'Sure! Just say "Weather in [city name]" and I\'ll fetch the live conditions for you.';
+    }
+  }
+  if (isFollowUp && contextHint === 'timer') {
+    if (lower.includes('cancel') || lower.includes('stop')) {
+      return 'I can\'t cancel a timer once it\'s set (it runs in the background), but you can dismiss the alert when it fires. To set a new one: "Timer [N] minutes".';
+    }
+    if (lower.includes('another') || lower.includes('more') || lower.includes('again')) {
+      return 'Just say "Timer [N] minutes" or "Timer [N] seconds" and I\'ll start it right away.';
+    }
+  }
+  if (isFollowUp && contextHint === 'open_app') {
+    if (lower.includes('another') || lower.includes('else') || lower.includes('different')) {
+      return 'Tell me which app — for example: "Open Spotify", "Open Instagram", "Open Gmail". I know most major apps.';
+    }
+  }
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -353,7 +404,7 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
 
   if (config.provider === 'local' || !config.apiKey) {
     await new Promise((resolve) => setTimeout(resolve, 500));
-    return getLocalResponse(userMessage);
+    return getLocalResponse(userMessage, history);
   }
 
   try {
@@ -431,7 +482,7 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
     return `Error: ${err.message || 'Could not reach AI provider. Check your API key in Settings.'}`;
   }
 
-  return getLocalResponse(userMessage);
+  return getLocalResponse(userMessage, history);
 };
 
 function TypingIndicator() {
@@ -526,6 +577,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [provider, setProvider] = useState(_aiConfig.provider);
   const scrollViewRef = useRef<ScrollView>(null);
+  const isTypingRef = useRef(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -536,9 +588,20 @@ export default function ChatScreen() {
     return () => clearInterval(timer);
   }, [provider]);
 
+  // Auto-send pending command when the tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const cmd = consumePendingCommand();
+      if (cmd && !isTypingRef.current) {
+        // Small delay to let the tab render first
+        setTimeout(() => sendMessage(cmd), 200);
+      }
+    }, [])
+  );
+
   const sendMessage = async (text?: string) => {
     const msgText = (text ?? inputText).trim();
-    if (!msgText) return;
+    if (!msgText || isTypingRef.current) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -549,11 +612,14 @@ export default function ChatScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
+    isTypingRef.current = true;
     setIsTyping(true);
 
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
 
-    const reply = await sendToAI(msgText, messages);
+    // Capture current messages for context (before state update)
+    const currentMessages = messages;
+    const reply = await sendToAI(msgText, currentMessages);
 
     const aiMsg: Message = {
       id: (Date.now() + 1).toString(),
@@ -563,6 +629,7 @@ export default function ChatScreen() {
     };
 
     setMessages((prev) => [...prev, aiMsg]);
+    isTypingRef.current = false;
     setIsTyping(false);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
   };

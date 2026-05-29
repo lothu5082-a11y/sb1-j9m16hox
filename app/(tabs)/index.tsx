@@ -36,6 +36,7 @@ import {
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import VoiceOrb from '../../components/VoiceOrb';
+import { setPendingCommand } from './chat';
 
 const { width } = Dimensions.get('window');
 
@@ -283,6 +284,33 @@ export default function HomeScreen() {
             </Text>
           </Animated.View>
 
+          {/* Quick Action Chips — navigate to chat + auto-send command */}
+          <Animated.View
+            entering={FadeInUp.duration(800).delay(350)}
+            style={styles.quickActionsSection}
+          >
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsRow}>
+              {quickActions.map((action, index) => {
+                const IconComp = action.icon;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    activeOpacity={0.75}
+                    style={[styles.quickActionChip, { borderColor: action.color + '40', backgroundColor: action.color + '12' }]}
+                    onPress={() => {
+                      setPendingCommand(action.command);
+                      router.push('/chat' as any);
+                    }}
+                  >
+                    <IconComp color={action.color} size={18} />
+                    <Text style={[styles.quickActionLabel, { color: action.color }]}>{action.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Animated.View>
+
           {/* Quick Commands Section */}
           <Animated.View
             entering={FadeInUp.duration(800).delay(400)}
@@ -301,6 +329,7 @@ export default function HomeScreen() {
                     key={index}
                     activeOpacity={0.7}
                     style={styles.commandChip}
+                    onPress={() => router.push('/chat' as any)}
                   >
                     <IconComp color={Colors.primary} size={14} />
                     <Text style={styles.commandChipText}>{cmd.label}</Text>
@@ -373,6 +402,39 @@ export default function HomeScreen() {
                 <Text style={[styles.aiStatNumber, { color: Colors.primary }]}>100%</Text>
                 <Text style={styles.aiStatLabel}>Private</Text>
               </View>
+            </View>
+          </Animated.View>
+
+          {/* Session Stats Cards */}
+          <Animated.View
+            entering={FadeInUp.duration(800).delay(750)}
+            style={styles.statsSection}
+          >
+            <Text style={styles.sectionTitle}>Session Stats</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.statCard, { borderColor: Colors.primary + '30' }]}>
+                <Text style={[styles.statValue, { color: Colors.primary }]}>{sessionCount}</Text>
+                <Text style={styles.statLabel}>Sessions</Text>
+              </View>
+              <View style={[styles.statCard, { borderColor: Colors.secondary + '30' }]}>
+                <Text style={[styles.statValue, { color: Colors.secondary }]}>{commandCount}</Text>
+                <Text style={styles.statLabel}>Commands Run</Text>
+              </View>
+              <View style={[styles.statCard, { borderColor: Colors.accent + '30' }]}>
+                <Text style={[styles.statValue, { color: Colors.accent }]}>{uptime}</Text>
+                <Text style={styles.statLabel}>Uptime</Text>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* Live Clock */}
+          <Animated.View
+            entering={FadeInUp.duration(800).delay(760)}
+            style={styles.clockSection}
+          >
+            <View style={styles.clockCard}>
+              <Text style={styles.clockTime}>{formatClock(clockTime)}</Text>
+              <Text style={styles.clockDate}>{formatDate(clockTime)}</Text>
             </View>
           </Animated.View>
 
@@ -703,5 +765,94 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+
+  // Quick Action Chips
+  quickActionsSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  quickActionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    borderWidth: 1,
+    minWidth: (width - Spacing.lg * 2 - Spacing.sm * 3) / 4,
+    justifyContent: 'center',
+  },
+  quickActionLabel: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  // Session Stats
+  statsSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statValue: {
+    fontSize: FontSizes.xl,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 9,
+    color: Colors.textTertiary,
+    marginTop: 2,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // Live Clock
+  clockSection: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  clockCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary + '20',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  clockTime: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: Colors.text,
+    letterSpacing: 2,
+    fontVariant: ['tabular-nums'] as any,
+  },
+  clockDate: {
+    fontSize: FontSizes.sm,
+    color: Colors.textTertiary,
+    marginTop: 4,
+    fontWeight: '500',
   },
 });

@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Linking,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -18,6 +20,9 @@ import {
   Bell,
   ChevronRight,
   Layers,
+  Sun,
+  Music,
+  Share2,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 
@@ -75,6 +80,89 @@ const PRESET_WORKFLOWS: Workflow[] = [
   },
 ];
 
+// ── Preset automation tiles with real Linking actions ─────────────────────
+interface PresetAutomation {
+  id: string;
+  name: string;
+  description: string;
+  icon: any;
+  color: string;
+  steps: string[];
+  action: () => Promise<void>;
+}
+
+const PRESET_AUTOMATIONS: PresetAutomation[] = [
+  {
+    id: 'morning',
+    name: 'Morning Briefing',
+    description: 'Opens news + announces the time',
+    icon: Sun,
+    color: '#F59E0B',
+    steps: ['Check current time', 'Open top news feed', 'Brief you on the day'],
+    action: async () => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const dayStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      Alert.alert(
+        'Morning Briefing',
+        `Good morning! It\'s ${timeStr} on ${dayStr}.\n\nOpening Google News for your daily briefing...`,
+        [
+          { text: 'Skip', style: 'cancel' },
+          {
+            text: 'Open News',
+            onPress: () => Linking.openURL('https://news.google.com'),
+          },
+        ]
+      );
+    },
+  },
+  {
+    id: 'focus',
+    name: 'Focus Mode',
+    description: 'Opens Spotify to get in the zone',
+    icon: Music,
+    color: Colors.secondary,
+    steps: ['Launch Spotify', 'Open focus playlist', 'Minimize distractions'],
+    action: async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const canOpen = await Linking.canOpenURL('spotify://');
+          if (canOpen) {
+            await Linking.openURL('spotify://');
+            return;
+          }
+        }
+        await Linking.openURL('https://open.spotify.com');
+      } catch {
+        await Linking.openURL('https://open.spotify.com');
+      }
+    },
+  },
+  {
+    id: 'share',
+    name: 'Quick Share',
+    description: 'Opens WhatsApp to share instantly',
+    icon: Share2,
+    color: Colors.primary,
+    steps: ['Open WhatsApp', 'Go to contacts', 'Ready to share'],
+    action: async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const canOpen = await Linking.canOpenURL('whatsapp://');
+          if (canOpen) {
+            await Linking.openURL('whatsapp://');
+            return;
+          }
+        }
+        // Web fallback — WhatsApp web
+        await Linking.openURL('https://web.whatsapp.com');
+      } catch {
+        await Linking.openURL('https://web.whatsapp.com');
+      }
+    },
+  },
+];
+
 const statusColor = (s: Workflow['status']) => {
   switch (s) {
     case 'running': return Colors.primary;
@@ -96,6 +184,26 @@ const statusLabel = (s: Workflow['status']) => {
 export default function AutomationScreen() {
   const [workflows, setWorkflows] = useState<Workflow[]>(PRESET_WORKFLOWS);
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [presetStatus, setPresetStatus] = useState<Record<string, 'idle' | 'running' | 'done'>>({
+    morning: 'idle', focus: 'idle', share: 'idle',
+  });
+
+  const runPreset = async (preset: PresetAutomation) => {
+    setPresetStatus((prev) => ({ ...prev, [preset.id]: 'running' }));
+    try {
+      await preset.action();
+    } catch {
+      // silently ignore — Linking errors handled inside action
+    }
+    // Mark done after a short delay so the UI shows "Running..." briefly
+    setTimeout(() => {
+      setPresetStatus((prev) => ({ ...prev, [preset.id]: 'done' }));
+      // Reset back to idle after 3s
+      setTimeout(() => {
+        setPresetStatus((prev) => ({ ...prev, [preset.id]: 'idle' }));
+      }, 3000);
+    }, 1200);
+  };
 
   const toggleWorkflow = (id: string) => {
     setWorkflows((prev) =>
@@ -165,6 +273,82 @@ export default function AutomationScreen() {
                 <Text style={styles.statLabel}>{s.label}</Text>
               </View>
             ))}
+          </Animated.View>
+
+          {/* Preset Automations — real actions */}
+          <Animated.View entering={FadeInUp.duration(600).delay(120)} style={styles.section}>
+            <Text style={styles.sectionTitle}>One-Tap Automations</Text>
+            <View style={styles.workflowList}>
+              {PRESET_AUTOMATIONS.map((preset) => {
+                const IconComp = preset.icon;
+                const status = presetStatus[preset.id];
+                const isRunning = status === 'running';
+                const isDone = status === 'done';
+                return (
+                  <View
+                    key={preset.id}
+                    style={[
+                      styles.workflowCard,
+                      { borderColor: preset.color + '40' },
+                      isRunning && {
+                        shadowColor: preset.color,
+                        shadowOpacity: 0.35,
+                        shadowRadius: 14,
+                        elevation: 8,
+                      },
+                    ]}
+                  >
+                    <View style={styles.workflowCardHeader}>
+                      <View style={[styles.workflowIcon, { backgroundColor: preset.color + '20' }]}>
+                        <IconComp color={preset.color} size={18} />
+                      </View>
+                      <View style={styles.workflowMeta}>
+                        <Text style={[styles.workflowName, { color: Colors.text }]}>{preset.name}</Text>
+                        <Text style={styles.workflowTrigger}>{preset.description}</Text>
+                      </View>
+                    </View>
+
+                    {/* Mini step list */}
+                    <View style={styles.stepsContainer}>
+                      {preset.steps.map((step, si) => (
+                        <View key={si} style={styles.stepRow}>
+                          <View style={[styles.stepDot, { backgroundColor: preset.color + '70' }]} />
+                          <Text style={styles.stepText}>{step}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    <View style={styles.workflowCardFooter}>
+                      <View style={styles.statusRow}>
+                        <View style={[
+                          styles.statusDot,
+                          { backgroundColor: isRunning ? Colors.primary : isDone ? Colors.secondary : Colors.textTertiary },
+                        ]} />
+                        <Text style={[
+                          styles.statusText,
+                          { color: isRunning ? Colors.primary : isDone ? Colors.secondary : Colors.textTertiary },
+                        ]}>
+                          {isRunning ? 'RUNNING...' : isDone ? 'DONE' : 'READY'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.runButton,
+                          { borderColor: preset.color + '60', backgroundColor: preset.color + '15' },
+                        ]}
+                        onPress={() => runPreset(preset)}
+                        disabled={isRunning}
+                      >
+                        <Play color={preset.color} size={12} />
+                        <Text style={[styles.runButtonText, { color: preset.color }]}>
+                          {isRunning ? 'Running...' : 'Run Now'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </Animated.View>
 
           {/* Workflows */}
