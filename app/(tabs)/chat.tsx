@@ -10,7 +10,10 @@ import {
   Platform,
   Alert,
   Linking,
+  Dimensions,
 } from 'react-native';
+
+const SCREEN_W = Dimensions.get('window').width;
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
@@ -46,7 +49,7 @@ export const getAIConfig = () => _aiConfig;
 export let _voiceReplyEnabled = false;
 export const setVoiceReplyEnabled = (v: boolean) => { _voiceReplyEnabled = v; };
 
-export let _wakeWordActive = false;
+export let _wakeWordActive = true;   // always-on by default
 export const setWakeWordActive = (v: boolean) => { _wakeWordActive = v; };
 
 // ── Pending command bridge (used by Home quick-action chips) ──────────────────
@@ -104,6 +107,23 @@ const LANG_TTS_CODE: Record<string, string> = {
   af:'af-ZA', am:'am-ET', ta:'ta-IN', ml:'ml-IN', si:'si-LK',
 };
 
+// Detect TTS language directly from text characters/words
+const detectTtsLang = (text: string): string => {
+  if (/[஀-௿]/.test(text)) return 'ta';   // Tamil script
+  if (/[ഀ-ൿ]/.test(text)) return 'ml';   // Malayalam script
+  if (/[඀-෿]/.test(text)) return 'si';   // Sinhala script
+  if (/[一-鿿㐀-䶿]/.test(text)) return 'zh';
+  if (/[぀-ゟ゠-ヿ]/.test(text)) return 'ja';
+  if (/[가-힯]/.test(text)) return 'ko';
+  if (/[ऀ-ॿ]/.test(text)) return 'hi';
+  if (/[ঀ-৿]/.test(text)) return 'bn';
+  if (/[؀-ۿ]/.test(text)) return 'ar';
+  if (/[Ѐ-ӿ]/.test(text)) return 'ru';
+  if (/[Ͱ-Ͽ]/.test(text)) return 'el';
+  if (/[฀-๿]/.test(text)) return 'th';
+  return _userLang; // fall back to user's set language
+};
+
 const speakText = (text: string) => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const synth = (window as any).speechSynthesis;
@@ -113,15 +133,27 @@ const speakText = (text: string) => {
   const utter = new ((window as any).SpeechSynthesisUtterance)(clean);
   utter.rate = 1.0;
   utter.pitch = 1.05;
-  const ttsCode = LANG_TTS_CODE[_userLang] ?? 'en-US';
+  const ttsLang = detectTtsLang(text);
+  const ttsCode = LANG_TTS_CODE[ttsLang] ?? 'en-US';
   utter.lang = ttsCode;
-  const voices: any[] = synth.getVoices?.() ?? [];
-  const preferred = voices.find((v: any) => v.lang === ttsCode)
-    || voices.find((v: any) => v.lang?.startsWith(ttsCode.split('-')[0]))
-    || voices.find((v: any) => /Google.*en|en-US.*Natural/i.test(v.name + v.lang))
-    || voices.find((v: any) => v.lang?.startsWith('en'));
-  if (preferred) utter.voice = preferred;
-  synth.speak(utter);
+
+  const applyVoice = (voices: any[]) => {
+    const v = voices.find((v: any) => v.lang === ttsCode)
+      || voices.find((v: any) => v.lang?.startsWith(ttsCode.split('-')[0]))
+      || voices.find((v: any) => /Google.*en|en-US.*Natural/i.test(v.name + v.lang))
+      || voices.find((v: any) => v.lang?.startsWith('en'));
+    if (v) utter.voice = v;
+    synth.speak(utter);
+  };
+
+  // Voices may not be loaded yet — wait for voiceschanged if empty
+  const voices = synth.getVoices?.() ?? [];
+  if (voices.length > 0) {
+    applyVoice(voices);
+  } else {
+    synth.addEventListener('voiceschanged', () => applyVoice(synth.getVoices?.() ?? []), { once: true });
+    synth.speak(utter); // speak anyway with default voice
+  }
 };
 
 export const stopSpeaking = () => {
@@ -224,6 +256,12 @@ const detectLang = (text: string): string => {
   if (has(['helo','terima','kasih','ya','tidak','ini','itu','dengan','bahasa','melayu','boleh'])) return 'ms';
   if (has(['xin','chào','cảm','ơn','vâng','này','đó','với','để','tiếng','việt','tôi','bạn'])) return 'vi';
   if (has(['hallo','dankie','baie','asseblief','ja','nee','is','die','het','van','en','afrikaans'])) return 'af';
+  // Romanized Tamil
+  if (has(['vanakkam','vanakam','nandri','romba','enna','epdi','seri','ponga','machan','thala','ayya','amma','anna','akka','da','di','tamizh','tamil'])) return 'ta';
+  // Romanized Malayalam
+  if (has(['namaskaram','namaskaaram','swagatham','nandi','stuthi','ente','entha','pinne','njaan','njan','chetta','chechi','malayalam','enthaa','evide'])) return 'ml';
+  // Romanized Sinhala
+  if (has(['ayubowan','bohoma','mama','kohomada','karunakarala','sinhala','sinhalese','ohoma','oyata','hamadama'])) return 'si';
   return 'en';
 };
 
@@ -1994,10 +2032,20 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     const L = LANGS[activeLang] ?? LANGS['en'];
 
     // Greeting detection in many languages
-    const isGreeting = /^(hello|hi|hey|howdy|sup|what'?s\s+up|yo|hola|bonjour|bonsoir|salut|ciao|hallo|hei|hej|привет|здравствуй|مرحبا|أهلاً|سلام|مرحبا|نمستے|namaste|konnichiwa|ohayou|こんにちは|你好|니하오|안녕|annyeong|merhaba|habari|kumusta|xin chào|halo|helo|cześć|ahoj|szia|salut|γεια|שלום|สวัสดี|ሰላም)[\s!.,?]*$/i.test(lower);
-    const isThanks = /^(thanks?|thank you|thx|ty|gracias|merci|danke|grazie|obrigad|спасибо|شكرا|धन्यवाद|ありがとう|谢谢|감사|teşekkür|asante|salamat|cảm ơn|terima kasih|dziękuję|děkuji|köszönöm|ευχαριστ|תודה|ขอบคุณ|asa|አመሰግናለሁ)[\s!.]*$/i.test(lower);
-    const isBye = /^(bye|goodbye|see\s+you|cya|gotta\s+go|adios|au revoir|arrivederci|tschüss|sayonara|さようなら|再见|안녕히|güle güle|kwaheri|paalam|tạm biệt|selamat tinggal|do widzenia|nashledanou|viszlát|αντίο|להתראות|ลาก่อน|ቻው)[\s!.]*$/i.test(lower);
-    const isHowAreYou = /how are you|how r u|how's it going|كيف حالك|¿cómo estás|comment ça va|wie geht|come stai|como estás|как дела|お元気|你好吗|어떠세요|nasılsın|habari yako|kumusta ka|bạn khỏe không/.test(lower);
+    const isGreeting = /^(hello|hi|hey|howdy|sup|what'?s\s+up|yo|hola|bonjour|bonsoir|salut|ciao|hallo|hei|hej|привет|здравствуй|مرحبا|أهلاً|سلام|نمستے|namaste|konnichiwa|ohayou|こんにちは|你好|니하오|안녕|annyeong|merhaba|habari|kumusta|xin chào|halo|helo|cześć|ahoj|szia|γεια|שלום|สวัสดี|ሰላም|vanakkam|vanakam|namaskaram|namaskaaram|ayubowan|swagatham|enna da|machan)[\s!.,?]*$/i.test(lower);
+    const isThanks = /^(thanks?|thank you|thx|ty|gracias|merci|danke|grazie|obrigad|спасибо|شكرا|धन्यवाद|ありがとう|谢谢|감사|teşekkür|asante|salamat|cảm ơn|terima kasih|dziękuję|děkuji|köszönöm|ευχαριστ|תודה|ขอบคุณ|asa|አመሰግናለሁ|nandri|romba nandri|stuthi|bohoma stuthi|nandi)[\s!.]*$/i.test(lower);
+    const isBye = /^(bye|goodbye|see\s+you|cya|gotta\s+go|adios|au revoir|arrivederci|tschüss|sayonara|さようなら|再见|안녕히|güle güle|kwaheri|paalam|tạm biệt|selamat tinggal|do widzenia|nashledanou|viszlát|αντίο|להתראות|ลาก่อน|ቻው|poitu varen|vidaikol|ingane)[\s!.]*$/i.test(lower);
+    const isHowAreYou = /how are you|how r u|how's it going|كيف حالك|¿cómo estás|comment ça va|wie geht|come stai|como estás|как дела|お元気|你好吗|어떠세요|nasılsın|habari yako|kumusta ka|bạn khỏe không|epdi irukinga|epdi irukkeenga|sukhamano|kohomada/.test(lower);
+    // "Can you speak/know Tamil?" type queries
+    const langCapQuery = lower.match(/(?:can you|do you|are you able to|you know)\s+(?:speak|talk|understand|know|write)\s+([a-z]+)|(?:speak|talk|write)\s+([a-z]+)\s+(?:to me|with me|please)?$/);
+    if (langCapQuery) {
+      const reqName = (langCapQuery[1] || langCapQuery[2] || '').toLowerCase().trim();
+      const reqCode = LANG_SWITCH_MAP[reqName];
+      if (reqCode && LANGS[reqCode]) {
+        const L2 = LANGS[reqCode];
+        return `Yes! 🌟 I know ${L2.name} ${L2.flag}\n\nSay "speak ${L2.name}" to switch and I'll respond in ${L2.name}.\nGreet me with: ${L2.greet}\n\nOr ask anything — I'll answer in ${L2.name}!`;
+      }
+    }
 
     if (activeLang !== 'en' || detectedLang !== 'en') {
       if (isGreeting) {
@@ -2034,6 +2082,9 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
           tl: `${L.greet} 🌟 Ako si Riuka — ang iyong AI assistant. Paano kita matutulungan?`,
           bn: `${L.greet} 🌟 আমি Riuka — আপনার AI সহকারী। আমি কীভাবে সাহায্য করতে পারি?`,
           af: `${L.greet} 🌟 Ek is Riuka — jou AI-assistent. Hoe kan ek jou help?`,
+          ta: `${L.greet} 🌟 நான் Riuka — உங்கள் AI உதவியாளர். நான் எப்படி உதவலாம்? (Say "speak tamil" for Tamil responses!)`,
+          ml: `${L.greet} 🌟 ഞാൻ Riuka ആണ് — നിങ്ങളുടെ AI അസിസ്റ്റന്റ്. എങ്ങനെ സഹായിക്കാം? (Say "speak malayalam" for Malayalam!)`,
+          si: `${L.greet} 🌟 මම Riuka — ඔබේ AI සහකාරයා. මට ඔබට කෙසේ උදව් කළ හැකිද? (Say "speak sinhala"!)`,
         };
         const resp = intro[activeLang] ?? `${L.greet} 🌟 I'm Riuka — your AI assistant. How can I help?`;
         if (detectedLang !== 'en' && _userLang === 'en') {
@@ -2727,7 +2778,7 @@ export default function ChatScreen() {
       -1, false,
     );
   }, []);
-  const headerScanStyle = useAnimatedStyle(() => ({ left: `${headerScan.value * 110 - 10}%` as any }));
+  const headerScanStyle = useAnimatedStyle(() => ({ left: (headerScan.value * (SCREEN_W + 80)) - 80 }));
   const dotGlowStyle = useAnimatedStyle(() => ({ opacity: dotGlow.value }));
 
   // Load saved chat history on mount
@@ -2793,7 +2844,9 @@ export default function ChatScreen() {
         r.interimResults = false;
         r.onresult = (e: any) => {
           const t = (e.results[0]?.[0]?.transcript ?? '').toLowerCase().trim();
-          if (t.includes('hey riuka') || t.includes('ok riuka') || t === 'riuka') {
+          const wakeWords = ['hey riuka', 'ok riuka', 'riuka', 'hey ruka', 'ok ruka', 'ruka', 'hi riuka', 'yo riuka'];
+          if (wakeWords.some(w => t.includes(w))) {
+            setShowSiriModal(true);
             startVoice();
           }
         };
@@ -2982,7 +3035,9 @@ export default function ChatScreen() {
               <Text style={styles.headerTitle}>Riuka AI</Text>
               <View style={styles.headerMeta}>
                 <Animated.View style={[styles.onlineDot, dotGlowStyle]} />
-                <Text style={styles.headerStatus}>On-Device</Text>
+                <Text style={styles.headerStatus}>
+                  {wakeActive ? '🎤 Always listening' : 'Active'}
+                </Text>
                 <View style={styles.modelBadge}>
                   <Text style={styles.modelBadgeText}>{modelLabel}</Text>
                 </View>
@@ -3165,11 +3220,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: '12%',
-    backgroundColor: 'rgba(168,85,247,0.07)',
+    width: 60,
+    backgroundColor: 'rgba(168,85,247,0.06)',
     shadowColor: Colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 0,
   },
   hudCorner: {
     position: 'absolute',
@@ -3222,9 +3278,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
   },
   headerStatus: {
-    fontSize: FontSizes.xs,
+    fontSize: 9,
     color: Colors.secondary,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   modelBadge: {
     backgroundColor: 'rgba(168, 85, 247, 0.12)',
@@ -3243,8 +3300,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: FontSizes.lg,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.text,
+    letterSpacing: 0.5,
   },
   clearButton: {
     padding: Spacing.sm,
@@ -3299,18 +3357,20 @@ const styles = StyleSheet.create({
   },
   emptyFeatures: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
+    justifyContent: 'center',
   },
   emptyFeatureChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(168,85,247,0.1)',
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: 'rgba(168,85,247,0.35)',
   },
   emptyFeatureIcon: {
     fontSize: 12,
