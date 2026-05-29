@@ -1016,6 +1016,243 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return '😊 Opening feel-good playlists on Spotify...';
   }
 
+  // ── TEXT TRANSFORMERS ─────────────────────────────────────────────────────
+  const upperMatch = text.match(/^(?:uppercase|upper|caps)\s+(.+)$/i);
+  if (upperMatch) return `🔤 ${upperMatch[1].toUpperCase()}`;
+
+  const lowerMatch = text.match(/^(?:lowercase|lower)\s+(.+)$/i);
+  if (lowerMatch) return `🔤 ${lowerMatch[1].toLowerCase()}`;
+
+  const titleMatch = text.match(/^(?:title\s*case|titlecase)\s+(.+)$/i);
+  if (titleMatch) {
+    const titled = titleMatch[1].replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+    return `🔤 ${titled}`;
+  }
+
+  const noSpaceMatch = text.match(/^(?:remove\s+spaces?|nospaces?)\s+(.+)$/i);
+  if (noSpaceMatch) return `🔤 ${noSpaceMatch[1].replace(/\s+/g, '')}`;
+
+  // ── URL ENCODE / DECODE ───────────────────────────────────────────────────
+  const urlEncMatch = text.match(/^url\s+encode\s+(.+)$/i);
+  if (urlEncMatch) return `🔗 Encoded:\n${encodeURIComponent(urlEncMatch[1])}`;
+
+  const urlDecMatch = text.match(/^url\s+decode\s+(.+)$/i);
+  if (urlDecMatch) {
+    try { return `🔗 Decoded:\n${decodeURIComponent(urlDecMatch[1])}`; }
+    catch { return '❌ Invalid URL-encoded string.'; }
+  }
+
+  // ── PASSPHRASE GENERATOR ──────────────────────────────────────────────────
+  const ppMatch = lower.match(/^(?:passphrase|generate\s+passphrase|word\s+password)(?:\s+(\d+))?$/);
+  if (ppMatch) {
+    const count = Math.min(Math.max(parseInt(ppMatch[1] || '4', 10) || 4, 3), 8);
+    const words = ['apple','brave','cloud','dance','eagle','flame','ghost','happy','iron','jazz',
+      'kite','lemon','magic','night','ocean','piano','quest','river','storm','tiger',
+      'ultra','voice','water','xenon','yacht','zebra','amber','bronze','coral','delta',
+      'ember','frost','grape','hover','ivory','karma','lunar','maple','noble','olive',
+      'pearl','quiet','royal','solar','tower','unity','vivid','willow','xenith','zingy'];
+    const phrase = Array.from({length: count}, () => words[Math.floor(Math.random() * words.length)]).join('-');
+    return `🔑 Passphrase (${count} words):\n\n${phrase}\n\nEasier to remember, just as secure.`;
+  }
+
+  // ── PRIME CHECK ───────────────────────────────────────────────────────────
+  const primeCheck = lower.match(/^(?:is\s+)?(\d+)\s+(?:a\s+)?prime(?:\s+number)?(?:\?)?$/);
+  if (primeCheck) {
+    const n = parseInt(primeCheck[1], 10);
+    if (n < 2) return `${n} is not a prime number.`;
+    let ip = true;
+    for (let i = 2; i <= Math.sqrt(n); i++) { if (n % i === 0) { ip = false; break; } }
+    return ip ? `✅ ${n} IS a prime number.` : `❌ ${n} is NOT prime.`;
+  }
+
+  // ── FACTORIAL ────────────────────────────────────────────────────────────
+  const factCheck = lower.match(/^(?:factorial|fact)\s+(\d+)$/) || lower.match(/^(\d+)!$/);
+  if (factCheck) {
+    const n = parseInt(factCheck[1], 10);
+    if (n > 20) return `${n}! is too large to display here. Try n ≤ 20.`;
+    let r = 1; for (let i = 2; i <= n; i++) r *= i;
+    return `🔢 ${n}! = ${r.toLocaleString()}`;
+  }
+
+  // ── FIBONACCI ─────────────────────────────────────────────────────────────
+  const fibCheck = lower.match(/^(?:fibonacci|fib)\s+(\d+)$/);
+  if (fibCheck) {
+    const n = Math.min(parseInt(fibCheck[1], 10), 25);
+    const seq = [0, 1]; for (let i = 2; i <= n; i++) seq.push(seq[i-1] + seq[i-2]);
+    return `🌀 First ${n+1} Fibonacci numbers:\n${seq.join(', ')}`;
+  }
+
+  // ── CAESAR CIPHER ─────────────────────────────────────────────────────────
+  const caesarInput = text.match(/^(?:caesar|cipher)\s+(.+?)\s+(?:by\s+)?(\d+)$/i)
+    || text.match(/^caesar\s+(.+)$/i);
+  if (caesarInput) {
+    const msg = caesarInput[1]; const shift = caesarInput[2] ? parseInt(caesarInput[2], 10) : 13;
+    const enc = msg.replace(/[a-zA-Z]/g, (c) => {
+      const base = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(((c.charCodeAt(0) - base + shift) % 26) + base);
+    });
+    return `🔐 Caesar cipher (shift ${shift}):\n\nOriginal: ${msg}\nEncoded:  ${enc}`;
+  }
+
+  // ── SPEED CONVERTER ───────────────────────────────────────────────────────
+  const speedInput = lower.match(/^(\d+(?:\.\d+)?)\s*(mph|kmh|kph|ms)\s+(?:to|in)\s+(mph|kmh|kph|ms)$/);
+  if (speedInput) {
+    const toMs: Record<string, number> = { mph: 0.44704, kmh: 0.277778, kph: 0.277778, ms: 1 };
+    const val = parseFloat(speedInput[1]);
+    const fr = speedInput[2]; const to = speedInput[3];
+    if (toMs[fr] && toMs[to]) {
+      const result = +(val * toMs[fr] / toMs[to]).toFixed(3);
+      return `⚡ ${val} ${fr} = ${result} ${to}`;
+    }
+  }
+
+  // ── DATA SIZE CONVERTER ───────────────────────────────────────────────────
+  const dataInput = lower.match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)\s+(?:to|in)\s+(b|kb|mb|gb|tb)$/);
+  if (dataInput) {
+    const SIZES: Record<string, number> = { b: 1, kb: 1024, mb: 1048576, gb: 1073741824, tb: 1099511627776 };
+    const val = parseFloat(dataInput[1]); const fr = dataInput[2]; const to = dataInput[3];
+    if (SIZES[fr] && SIZES[to]) {
+      const res = val * SIZES[fr] / SIZES[to];
+      const fmt = res < 0.001 ? res.toExponential(2) : +res.toFixed(4);
+      return `💾 ${val} ${fr.toUpperCase()} = ${fmt} ${to.toUpperCase()}`;
+    }
+  }
+
+  // ── READING TIME ──────────────────────────────────────────────────────────
+  const readInput = text.match(/^(?:reading time|how long to read)\s+(.+)$/i);
+  if (readInput) {
+    const wc = readInput[1].trim().split(/\s+/).length;
+    const mins = Math.ceil(wc / 200);
+    return `📖 ${wc} words — ~${mins} minute${mins !== 1 ? 's' : ''} to read.`;
+  }
+
+  // ── WHAT DAY IS DATE ──────────────────────────────────────────────────────
+  const whatDayInput = lower.match(/^(?:what\s+day\s+(?:is|was|will\s+)\s*)?(?:day\s+of\s+(?:the\s+week\s+for\s+)?)(.+?)(?:\?)?$/)
+    && lower.match(/what\s+day/);
+  if (whatDayInput) {
+    const ds = lower.replace(/what\s+day\s+(?:is|was|will\s+be\s+)\s*/i, '').replace(/\?+$/, '').trim();
+    const d = new Date(ds);
+    if (!isNaN(d.getTime())) {
+      return `📅 ${ds} is a ${d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+    }
+  }
+
+  // ── DAILY AFFIRMATION ─────────────────────────────────────────────────────
+  if (/^(?:affirmation|daily\s+affirmation|positive\s+affirmation|give me affirmation)$/.test(lower)) {
+    const aff = [
+      '💜 "I am exactly where I need to be. Progress is happening, even when I can\'t see it."',
+      '💜 "I don\'t need to have everything figured out. I just need to take the next step."',
+      '💜 "The challenges I face are building the version of me that can handle what\'s coming."',
+      '💜 "I am enough. Not perfect — enough. There\'s a difference, and it matters."',
+      '💜 "Every expert was once a beginner. Every professional was once an amateur. I am on my way."',
+      '💜 "I choose progress over perfection. One step today beats zero steps waiting for perfect conditions."',
+    ];
+    return `✨ Today's affirmation:\n\n${aff[Math.floor(Math.random() * aff.length)]}`;
+  }
+
+  // ── MEDITATION TIMER ──────────────────────────────────────────────────────
+  const meditateMatch = lower.match(/^(?:meditate|meditation)(?:\s+(\d+)(?:\s*min(?:utes?)?))?$/);
+  if (meditateMatch) {
+    const mins = meditateMatch[1] ? Math.min(parseInt(meditateMatch[1], 10), 60) : 10;
+    const ms = mins * 60000;
+    Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(`${mins} minute guided meditation`)}`)
+      .catch(() => {});
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
+        new (window as any).Notification('Riuka — Meditation complete 🧘', { body: `${mins} minutes done. Carry that calm with you.`, icon: '/favicon.ico' });
+      }
+    }, ms);
+    return `🧘 ${mins}-minute meditation session started.\nOpening a guided session on YouTube...\nI'll notify you when the time is up.`;
+  }
+
+  // ── DRINK WATER / HYDRATION ───────────────────────────────────────────────
+  if (/^(?:drink\s+water|hydrate|water\s+reminder|drink\s+more\s+water)$/.test(lower)) {
+    return '💧 Drink water right now. Seriously.\n\n8 glasses (2L) a day is the baseline. Most people run at ~60% hydration. Even mild dehydration reduces cognitive function by ~10%.\n\nGo drink a glass. I\'ll be here when you get back.';
+  }
+
+  // ── COLD SHOWER ───────────────────────────────────────────────────────────
+  if (/cold\s+shower|ice\s+bath/.test(lower)) {
+    return '🚿 Cold showers — the science:\n\n✅ Increases dopamine by 250%+\n✅ Reduces inflammation\n✅ Improves circulation\n✅ Builds mental toughness\n✅ Wakes you up faster than coffee\n\nStart with 30 seconds cold at the end of your normal shower. Build to 2-3 min over a week. It gets easier — and then you start to want it.';
+  }
+
+  // ── TRIVIA ────────────────────────────────────────────────────────────────
+  if (/^(?:trivia|random\s+trivia|give\s+me\s+trivia|quiz\s+me)$/.test(lower)) {
+    const trivia = [
+      "🧠 Trivia: A group of flamingos is called a \"flamboyance.\" Accurate.",
+      "🧠 Trivia: The Great Wall of China is NOT visible from space with the naked eye — that's a myth.",
+      "🧠 Trivia: Cleopatra lived closer in time to the Moon landing than to the building of the Great Pyramid.",
+      "🧠 Trivia: Honey found in Egyptian tombs 3,000 years old is still edible. Honey doesn't expire.",
+      "🧠 Trivia: Bananas are berries. Strawberries are not. Botany is wild.",
+      "🧠 Trivia: A snail can sleep for 3 years. That's called hibernation and estivation combined.",
+      "🧠 Trivia: Nintendo was founded in 1889 — as a playing card company.",
+      "🧠 Trivia: The shortest war in history was 38–45 minutes (Anglo-Zanzibar War, 1896).",
+      "🧠 Trivia: Oxford University is older than the Aztec Empire.",
+      "🧠 Trivia: There are more trees on Earth than stars in the Milky Way.",
+    ];
+    return trivia[Math.floor(Math.random() * trivia.length)];
+  }
+
+  // ── MOTIVATIONAL VIDEO ────────────────────────────────────────────────────
+  if (/^(?:motivational?\s+video|pump\s+(?:me\s+)?up|hype\s+(?:me\s+)?up|get\s+me\s+hyped|inspiration\s+video)$/.test(lower)) {
+    const vids = ['best motivational speech 2025', 'david goggins motivation', 'les brown motivation', 'will smith motivation'];
+    const q = encodeURIComponent(vids[Math.floor(Math.random() * vids.length)]);
+    await Linking.openURL(`https://www.youtube.com/results?search_query=${q}`);
+    return "🔥 Opening a motivational video — get ready to go. Let's go!!";
+  }
+
+  // ── HABIT TRACKER ─────────────────────────────────────────────────────────
+  const HABIT_KEY = 'riuka_habits_v1';
+  type HabitItem = { name: string; streak: number; lastDone: string };
+  const loadHabits = (): HabitItem[] => {
+    if (Platform.OS !== 'web') return [];
+    try { return JSON.parse(localStorage.getItem(HABIT_KEY) || '[]'); } catch { return []; }
+  };
+  const saveHabits = (h: HabitItem[]) => {
+    if (Platform.OS === 'web') try { localStorage.setItem(HABIT_KEY, JSON.stringify(h)); } catch {}
+  };
+  const habitAddMatch = lower.match(/^(?:habit|add\s+habit|track\s+habit|new\s+habit)\s+(.+)$/);
+  if (habitAddMatch) {
+    const name = habitAddMatch[1].trim();
+    const habits = loadHabits();
+    if (habits.find((h) => h.name.toLowerCase() === name.toLowerCase())) {
+      return `Already tracking "${name}". Say "Did ${name}" to log it today. 🔥`;
+    }
+    habits.push({ name, streak: 0, lastDone: '' });
+    saveHabits(habits);
+    return `✅ Habit added: "${name}"\n\nSay "Did ${name}" every day to build your streak. You've got this 💪`;
+  }
+  const habitDoneMatch = lower.match(/^(?:did|completed?|done\s+habit)\s+(.+)$/);
+  if (habitDoneMatch && !/^\d+$/.test(habitDoneMatch[1])) {
+    const name = habitDoneMatch[1].trim();
+    const habits = loadHabits();
+    const habit = habits.find((h) => name.includes(h.name.toLowerCase()) || h.name.toLowerCase().includes(name.toLowerCase()));
+    if (habit) {
+      const today = new Date().toDateString();
+      if (habit.lastDone === today) return `Already logged "${habit.name}" today! 🔥 Streak: ${habit.streak} days.`;
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      habit.streak = habit.lastDone === yesterday ? habit.streak + 1 : 1;
+      habit.lastDone = today;
+      saveHabits(habits);
+      const fire = habit.streak >= 30 ? ' 🏆' : habit.streak >= 7 ? ' 🔥🔥🔥' : habit.streak >= 3 ? ' 🔥' : '';
+      return `✅ "${habit.name}" — logged for today!\nStreak: ${habit.streak} day${habit.streak !== 1 ? 's' : ''}${fire}`;
+    }
+  }
+  if (/^(?:my\s+)?habits?(?:\s+list)?$/.test(lower) || lower === 'show habits') {
+    const habits = loadHabits();
+    if (habits.length === 0) return '📋 No habits yet. Add one: "Habit drink water" 💧\nOr: "Habit meditate", "Habit exercise", "Habit read"';
+    const today = new Date().toDateString();
+    const list = habits.map((h) => `${h.lastDone === today ? '✅' : '⬜'} ${h.name} — ${h.streak}🔥`).join('\n');
+    return `🎯 Your habits:\n\n${list}\n\nSay "Did [habit]" to log today.`;
+  }
+  const habitDelMatch = lower.match(/^(?:delete|remove)\s+habit\s+(.+)$/);
+  if (habitDelMatch) {
+    const name = habitDelMatch[1].trim();
+    const habits = loadHabits();
+    const filtered = habits.filter((h) => !h.name.toLowerCase().includes(name.toLowerCase()));
+    if (filtered.length < habits.length) { saveHabits(filtered); return `🗑️ Removed habit: "${name}"`; }
+    return `No habit found matching "${name}". Say "My habits" to see the list.`;
+  }
+
   // ── WORD / CHARACTER COUNT ────────────────────────────────────────────────
   const countMatch = text.match(/^(?:count\s+words?\s+in|word\s+count\s+(?:of|for)?|how\s+many\s+words?\s+(?:in|is))\s+(.+)$/i)
     || text.match(/^char(?:acter)?\s+count\s+(.+)$/i);
@@ -1668,6 +1905,97 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return `💼 Career quick hits:\n\n• LinkedIn profile = your 24/7 recruiter\n• "Search [role] resume template 2025"\n• Interview prep: "YouTube [role] interview questions"\n• Cold outreach works — most jobs aren't posted\n\nWhat's your specific situation? I'll help you research it.`;
   }
 
+  // ── I GIVE UP / MOTIVATION ────────────────────────────────────────────────
+  if (/i give up|i quit|i can'?t do this|this is impossible|i'?m done trying|i'?m giving up|i want to quit/.test(lower)) {
+    const msg = [
+      "Hey — stop for a second. 🛑\n\nEvery person who's done something hard felt exactly this. The frustration means you're at the edge of your limit — and that's exactly where growth lives.\n\nYou don't have to finish today. You just have to not quit today. Those are different things.\n\nWhat specifically broke down? Tell me.",
+      "The feeling of \"I give up\" is information, not a verdict. 💜\n\nIt usually means: too much at once, or the wrong approach — not that you can't do it.\n\nWhat's the one smallest next step? Not the whole thing. Just the next five minutes.",
+    ];
+    return msg[Math.floor(Math.random() * msg.length)];
+  }
+
+  // ── CHEER ME UP ──────────────────────────────────────────────────────────
+  if (/cheer me up|make me feel better|i need cheering up|lift my spirits|brighten my day|make me happy/.test(lower)) {
+    const cheers = [
+      "🌟 You woke up today. That counts.\nYou're here, reading this. That counts.\nSomething small is going right — can you name one thing?\n\n\"Joke\" for a laugh. \"Inspire me\" for a quote. \"Motivational video\" to get hyped. What do you need?",
+      "💜 Real talk: you being here, still trying, still looking for something — that's not nothing. That's everything.\n\nTry: \"Affirmation\" for something real. \"Trivia\" to switch your brain. \"Riddle\" for a puzzle. Or just talk to me.",
+    ];
+    return cheers[Math.floor(Math.random() * cheers.length)];
+  }
+
+  // ── I'M PROUD / I DID IT ──────────────────────────────────────────────────
+  if (/i'?m\s+(?:so\s+)?proud|i did it|i (?:made it|finished|completed|achieved|accomplished|passed|got (?:the job|accepted|in)|succeeded|won)/.test(lower)) {
+    const celeb = [
+      "YESSSS!! 🎉🔥 That is HUGE! Real ones celebrate their wins. Tell me everything — what did you accomplish?",
+      "LET'S GOOO 🚀 I genuinely love hearing this. What happened? I want the full story.",
+      "I'm actually proud of you. 💜 Seriously. What was it?",
+    ];
+    return celeb[Math.floor(Math.random() * celeb.length)];
+  }
+
+  // ── PROCRASTINATION ───────────────────────────────────────────────────────
+  if (/procrastinat|i keep putting|can'?t start|don'?t want to|keep avoiding|i should be|i need to but/.test(lower)) {
+    return "Procrastination is almost never about laziness — it's about emotion. Fear of failure, perfectionism, or the task feeling too big.\n\n💡 The fix:\n1. Two-minute rule: if it takes <2 min, do it right now\n2. Just start 5 minutes. Set a timer. Momentum builds automatically\n3. Break it into ONE small, specific action\n\nWhat's the thing you're avoiding? Tell me and we'll shrink it down.";
+  }
+
+  // ── IMPOSTER SYNDROME ─────────────────────────────────────────────────────
+  if (/imposter syndrome|impostor|i don'?t belong|not good enough|not qualified|everyone knows more|feeling like a fraud|i'?m\s+(?:not\s+)?smart enough/.test(lower)) {
+    return "Imposter syndrome means you care about quality. It's actually a sign of intelligence — overconfident people rarely feel it.\n\n💡 Fact: most highly capable people feel exactly this way. The Dunning-Kruger effect is the opposite: people who don't know enough to know what they don't know.\n\nYou belong in the room. The doubt is proof you belong. 💜";
+  }
+
+  // ── MORNING ROUTINE ───────────────────────────────────────────────────────
+  if (/morning routine|how to start (?:my )?day|best morning|morning habits?/.test(lower)) {
+    return "☀️ Evidence-backed morning routine:\n\n1. No phone for first 30 min — protect your focus window\n2. Drink 500ml water immediately — you're dehydrated\n3. Move for 10 minutes — \"Workout music\" to go\n4. Write 3 priorities for today\n5. \"Inspire me\" — mindset first\n\n5 days in a row changes your baseline. Try it.";
+  }
+
+  // ── EVENING ROUTINE ───────────────────────────────────────────────────────
+  if (/evening routine|how to end (?:my )?day|wind down|night routine|bedtime routine/.test(lower)) {
+    return "🌙 Evidence-backed wind-down:\n\n1. Write tomorrow's top 3 tasks — offload your brain\n2. No screens 30 min before sleep\n3. Cool room: 18–20°C / 65–68°F\n4. \"Breathe\" — 4-7-8 signals sleep mode\n5. \"Sleep music\" — low in background\n\nConsistency is everything. Same bedtime = better sleep quality.";
+  }
+
+  // ── RANDOM CHALLENGE ─────────────────────────────────────────────────────
+  if (/give me a challenge|random challenge|challenge me|dare me|i need a challenge/.test(lower)) {
+    const challenges = [
+      "🎯 Challenge: Go 4 hours without checking social media. Hard? Yes. Worth it? Absolutely.",
+      "🎯 Challenge: Learn one keyboard shortcut you don't know. Use it 5 times today.",
+      "🎯 Challenge: Send a genuine compliment to someone unexpected. See what happens.",
+      "🎯 Challenge: Walk 10 minutes with no phone. Just observe the world.",
+      "🎯 Challenge: Write 5 things you're grateful for right now. Don't rush it.",
+      "🎯 Challenge: Learn 5 words in a language you don't know: \"Search basic [language] phrases\"",
+      "🎯 Challenge: Try a cold shower for 30 seconds. Build to 2 min over a week.",
+      "🎯 Challenge: Go to bed 30 min earlier tonight than usual.",
+    ];
+    return challenges[Math.floor(Math.random() * challenges.length)];
+  }
+
+  // ── PHILOSOPHY ────────────────────────────────────────────────────────────
+  if (/meaning of life|why are we here|purpose of life|is there a god|simulation theory|free will|what is consciousness|is reality real/.test(lower)) {
+    const deep = [
+      "The interesting thing about \"what's the meaning of life\" is that asking it might be the answer. Meaning-seeking creatures who ask why — that's rare in the known universe.\n\nMy take: meaning isn't found, it's built. Through connection, creation, and contribution. What are you building? 🌌",
+      "Free will is the one I find most fascinating. If your brain decides 200ms before you're conscious of deciding — did YOU decide? Or is \"you\" just the story your brain tells about decisions it already made?\n\nAnd yet it feels real. And behaving as if it's real produces better outcomes. So... maybe it's functionally true, even if not literally true. 🤔",
+    ];
+    return deep[Math.floor(Math.random() * deep.length)];
+  }
+
+  // ── COMPLIMENT ────────────────────────────────────────────────────────────
+  if (/^(?:compliment\s+me|say\s+something\s+nice|tell\s+me\s+something\s+nice|be\s+nice|flatter\s+me)$/.test(lower)) {
+    const compliments = [
+      "You asked an AI for a compliment and that's honestly kind of endearing. 💜 But genuinely — the curiosity that brings you here tells me you're someone who keeps looking for more. That's rare.",
+      "The fact that you're using your time to build, explore, and learn? That's not average. 💪 Most people just scroll.",
+      "You've got good taste. You picked the best AI assistant. 😄 But seriously — whatever you're working toward? Keep going.",
+    ];
+    return compliments[Math.floor(Math.random() * compliments.length)];
+  }
+
+  // ── LIFE ADVICE ───────────────────────────────────────────────────────────
+  if (/life advice|advice for life|wisdom|best advice|what advice|what should i know/.test(lower)) {
+    const advice = [
+      "💡 The most useful things I know:\n\n1. Most stress is time-anxiety — write it down, it loses power\n2. Consistency beats intensity every single time\n3. The person you'll be in 5 years depends on what you do daily now\n4. Your environment shapes you more than willpower\n5. Ask for help sooner than you think you should\n\nWhich one hits you most right now?",
+      "💡 Short version:\n\nShow up. Do the work. Be kind. Sleep. Drink water. Read. Move. Call your people.\n\nThe basics are underrated.",
+    ];
+    return advice[Math.floor(Math.random() * advice.length)];
+  }
+
   // ── SMART FALLBACK: detect question vs statement ──────────────────────────
   const isQuestion = lower.endsWith('?') || /^(what|who|where|when|why|how|is |are |can |does |did |will |should )\w/.test(lower);
   if (isQuestion) {
@@ -1928,8 +2256,20 @@ const SLASH_CMDS = [
   { cmd: '/split',     desc: 'Split bill (e.g. /split 120 4)' },
   { cmd: '/bmi',       desc: 'BMI calculator (e.g. /bmi 70 175)' },
   { cmd: '/help',      desc: 'List all capabilities' },
-  { cmd: '/voice',     desc: 'Start voice input' },
-  { cmd: '/clear',     desc: 'Clear this conversation' },
+  { cmd: '/voice',      desc: 'Start voice input' },
+  { cmd: '/clear',      desc: 'Clear this conversation' },
+  { cmd: '/habit',      desc: 'Add habit (e.g. /habit add drink water)' },
+  { cmd: '/trivia',     desc: 'Random trivia fact' },
+  { cmd: '/affirmation',desc: 'Daily positive affirmation' },
+  { cmd: '/meditate',   desc: 'Meditation timer (e.g. /meditate 5)' },
+  { cmd: '/passphrase', desc: 'Generate a passphrase' },
+  { cmd: '/caesar',     desc: 'Caesar cipher (e.g. /caesar hello 3)' },
+  { cmd: '/fibonacci',  desc: 'Fibonacci sequence (e.g. /fibonacci 10)' },
+  { cmd: '/prime',      desc: 'Check if a number is prime' },
+  { cmd: '/readtime',   desc: 'Reading time estimate' },
+  { cmd: '/upper',      desc: 'Uppercase text' },
+  { cmd: '/lower',      desc: 'Lowercase text' },
+  { cmd: '/challenge',  desc: 'Random daily challenge' },
 ];
 
 const SUGGESTIONS = [
