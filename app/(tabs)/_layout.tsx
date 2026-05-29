@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { House, MessageSquare, Zap, Bell, Settings } from 'lucide-react-native';
+import { Sparkles, MessageSquare, Zap, Bell, Settings } from 'lucide-react-native';
 import { Colors, FontSizes } from '../../constants/theme';
 import Animated, {
   useSharedValue,
@@ -61,8 +61,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={House} focused={focused} size={size} />,
+          title: 'Ask',
+          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={Sparkles} focused={focused} size={size} />,
         }}
       />
       <Tabs.Screen
