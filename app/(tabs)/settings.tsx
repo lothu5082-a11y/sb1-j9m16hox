@@ -1,177 +1,253 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Switch,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Platform,
+  View, Text, StyleSheet, ScrollView, Switch,
+  TouchableOpacity, TextInput, Alert, Platform, Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+  interpolateColor,
+  interpolate,
+} from 'react-native-reanimated';
 import {
-  Settings as SettingsIcon,
-  Cpu,
-  Mic,
-  Zap,
-  Shield,
-  Smartphone,
-  Lock,
-  Eye,
-  Fingerprint,
-  ChevronRight,
-  Crown,
-  WifiOff,
-  Wifi,
-  Database,
-  CheckCircle,
-  Bell,
-  ClipboardList,
-  User,
-  Palette,
-  Volume2,
+  Settings as SettingsIcon, Cpu, Mic, Zap, Shield, Smartphone,
+  Lock, Eye, Fingerprint, ChevronRight, Crown, WifiOff,
+  Database, CheckCircle, Bell, ClipboardList, User, Palette,
+  Volume2, Camera, Hand, Radio, Battery, Wifi, MapPin,
+  Calendar, BookOpen, Trash2, Download, Sparkles,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
-import StatusBadge from '../../components/StatusBadge';
 import { setAIConfig, setVoiceReplyEnabled, setWakeWordActive } from './chat';
+
+const { width: W } = Dimensions.get('window');
 
 export let riukaAIConfig = { provider: 'local', apiKey: '' };
 
-interface SettingRowProps {
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  value?: boolean;
-  onValueChange?: (val: boolean) => void;
-  rightElement?: React.ReactNode;
-  color?: string;
-  onPress?: () => void;
+// ── Read evolution data from localStorage ─────────────────────────────────────
+const readEvolution = () => {
+  if (Platform.OS !== 'web') return { xp: 0, level: 1, totalLearned: 0 };
+  try { return { xp: 0, level: 1, totalLearned: 0, ...JSON.parse(localStorage.getItem('riuka_evolution_v1') || '{}') }; }
+  catch { return { xp: 0, level: 1, totalLearned: 0 }; }
+};
+const readMemoryCount = () => {
+  if (Platform.OS !== 'web') return 0;
+  try { return (JSON.parse(localStorage.getItem('riuka_memory_v1') || '[]') as any[]).length; }
+  catch { return 0; }
+};
+const EVO_LEVELS = [
+  { level: 1, name: 'Newborn', xp: 0, icon: '🥚' },
+  { level: 2, name: 'Aware', xp: 40, icon: '👁️' },
+  { level: 3, name: 'Adaptive', xp: 120, icon: '🧠' },
+  { level: 4, name: 'Intelligent', xp: 280, icon: '⚡' },
+  { level: 5, name: 'Sentient', xp: 550, icon: '🌐' },
+  { level: 6, name: 'Evolved', xp: 1000, icon: '🔮' },
+  { level: 7, name: 'Atomic', xp: 2000, icon: '⚛️' },
+];
+const getEvoLevel = (xp: number) => {
+  let cur = EVO_LEVELS[0];
+  for (const l of EVO_LEVELS) { if (xp >= l.xp) cur = l; }
+  return cur;
+};
+const getNextEvoLevel = (xp: number) => EVO_LEVELS.find(l => l.xp > xp) ?? null;
+
+// ── Gemini color palette ──────────────────────────────────────────────────────
+const GEMINI_COLORS = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'] as const;
+const GEMINI_SUBTLE = [
+  'rgba(168,85,247,0.45)',
+  'rgba(59,130,246,0.45)',
+  'rgba(16,185,129,0.45)',
+  'rgba(236,72,153,0.45)',
+  'rgba(168,85,247,0.45)',
+] as const;
+
+// ── Color-cycling components ───────────────────────────────────────────────────
+function GeminiTitle({ text }: { text: string }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.linear }), -1, false);
+  }, []);
+  const s = useAnimatedStyle(() => ({
+    color: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
+  }));
+  return <Animated.Text style={[styles.headerTitle, s]}>{text}</Animated.Text>;
 }
 
-function SettingRow({ icon, title, subtitle, value, onValueChange, rightElement, color = Colors.primary, onPress }: SettingRowProps) {
-  const content = (
-    <View style={settingStyles.container}>
-      <View style={[settingStyles.iconWrap, { borderColor: value !== undefined ? (value ? color : Colors.border) : Colors.border }]}>
+function GeminiAccentLine() {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 3500, easing: Easing.linear }), -1, false);
+  }, []);
+  const s = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
+  }));
+  return <Animated.View style={[styles.sectionAccentLine, s]} />;
+}
+
+function GeminiCard({ children, style }: { children: React.ReactNode; style?: any }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1, false);
+  }, []);
+  const border = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_SUBTLE]),
+  }));
+  return <Animated.View style={[styles.geminiCard, style, border]}>{children}</Animated.View>;
+}
+
+function GeminiSaveButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
+  }, []);
+  const bg = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
+  }));
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      <Animated.View style={[styles.saveBtn, bg]}>
+        <Text style={styles.saveBtnText}>{label}</Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Toggle row ─────────────────────────────────────────────────────────────────
+function ToggleRow({
+  icon, label, desc, value, onValueChange, color = Colors.primary,
+}: {
+  icon: React.ReactNode; label: string; desc?: string;
+  value: boolean; onValueChange: (v: boolean) => void; color?: string;
+}) {
+  const glow = useSharedValue(value ? 1 : 0);
+  useEffect(() => { glow.value = withTiming(value ? 1 : 0, { duration: 300 }); }, [value]);
+  const borderStyle = useAnimatedStyle(() => ({
+    borderColor: value ? color + '60' : Colors.border,
+    backgroundColor: value
+      ? interpolateColor(glow.value, [0, 1], [Colors.surface, color + '10'])
+      : Colors.surface,
+  }));
+  return (
+    <Animated.View style={[styles.toggleRow, borderStyle]}>
+      <View style={[styles.toggleIcon, { borderColor: value ? color + '50' : Colors.border }]}>
         {icon}
       </View>
-      <View style={settingStyles.textWrap}>
-        <Text style={settingStyles.title}>{title}</Text>
-        {subtitle && <Text style={settingStyles.subtitle}>{subtitle}</Text>}
+      <View style={styles.toggleText}>
+        <Text style={[styles.toggleLabel, value && { color }]}>{label}</Text>
+        {desc && <Text style={styles.toggleDesc}>{desc}</Text>}
       </View>
-      {value !== undefined && onValueChange ? (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: Colors.surface, true: color + '40' }}
-          thumbColor={value ? color : Colors.textTertiary}
-        />
-      ) : (
-        rightElement || <ChevronRight color={Colors.textTertiary} size={16} />
-      )}
-    </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: Colors.surface, true: color + '50' }}
+        thumbColor={value ? color : Colors.textTertiary}
+      />
+    </Animated.View>
   );
-
-  if (onPress) {
-    return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{content}</TouchableOpacity>;
-  }
-  return content;
 }
 
-const settingStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.md,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundTertiary,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textWrap: { flex: 1 },
-  title: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: 1 },
-  subtitle: { fontSize: FontSizes.xs, color: Colors.textTertiary },
-});
-
-const ACCENT_COLORS = [
-  { name: 'Purple', value: '#A855F7' },
-  { name: 'Blue',   value: '#3B82F6' },
-  { name: 'Green',  value: '#10B981' },
-  { name: 'Red',    value: '#EF4444' },
-  { name: 'Teal',   value: '#14B8A6' },
-  { name: 'Amber',  value: '#F59E0B' },
-];
+// ── Header aurora ──────────────────────────────────────────────────────────────
+function HeaderAurora() {
+  const scanX = useSharedValue(0);
+  const orbC   = useSharedValue(0);
+  useEffect(() => {
+    scanX.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
+    orbC.value  = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
+  }, []);
+  const scanStyle = useAnimatedStyle(() => ({
+    left: (scanX.value * (W + 80)) - 80,
+    backgroundColor: interpolateColor(scanX.value, [0, 0.25, 0.5, 0.75, 1],
+      ['rgba(168,85,247,0.12)', 'rgba(59,130,246,0.12)', 'rgba(16,185,129,0.1)', 'rgba(236,72,153,0.1)', 'rgba(168,85,247,0.12)']),
+  }));
+  const orbStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(orbC.value, [0, 0.25, 0.5, 0.75, 1],
+      ['rgba(168,85,247,0.12)', 'rgba(59,130,246,0.12)', 'rgba(16,185,129,0.1)', 'rgba(236,72,153,0.1)', 'rgba(168,85,247,0.12)']),
+  }));
+  return (
+    <>
+      <Animated.View style={[styles.headerOrb, orbStyle]} pointerEvents="none" />
+      <Animated.View style={[styles.headerScan, scanStyle]} pointerEvents="none" />
+    </>
+  );
+}
 
 const PROVIDERS = [
-  { id: 'local', name: 'On-Device', color: Colors.secondary },
-  { id: 'openai', name: 'OpenAI', color: Colors.primary },
-  { id: 'gemini', name: 'Gemini', color: Colors.accent },
-  { id: 'claude', name: 'Claude', color: '#7C3AED' },
-  { id: 'groq', name: 'Groq', color: '#F97316' },
+  { id: 'local',  name: 'On-Device', color: Colors.secondary, icon: '🔒' },
+  { id: 'openai', name: 'OpenAI',    color: Colors.primary,   icon: '🤖' },
+  { id: 'gemini', name: 'Gemini',    color: Colors.accent,    icon: '✨' },
+  { id: 'claude', name: 'Claude',    color: '#7C3AED',        icon: '🧠' },
+  { id: 'groq',   name: 'Groq',      color: '#F97316',        icon: '⚡' },
 ];
 
-let memoryData = { preferences: 3, facts: 7, context: 12 };
+const ACCENT_COLORS = [
+  '#A855F7', '#3B82F6', '#10B981', '#EF4444', '#14B8A6', '#F59E0B', '#EC4899', '#8B5CF6',
+];
 
+// ── Main screen ────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
+  // AI / Profile
   const [selectedProvider, setSelectedProvider] = useState(riukaAIConfig.provider);
-  const [apiKey, setApiKey] = useState(riukaAIConfig.apiKey);
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
-
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [voiceReply, setVoiceReply] = useState(false);
-  const [wakeWord, setWakeWord] = useState(false);
-  const [floatingAssistant, setFloatingAssistant] = useState(true);
-
-  const [notifAutoReply, setNotifAutoReply] = useState(true);
-  const [clipAutoAnalyze, setClipAutoAnalyze] = useState(true);
-  const [accessibilityPilot, setAccessibilityPilot] = useState(false);
-
-  const [memCounts, setMemCounts] = useState({ ...memoryData });
-
-  const [biometricLock, setBiometricLock] = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false);
-
-  const [offlinePriority, setOfflinePriority] = useState(true);
-
+  const [apiKey, setApiKey]         = useState(riukaAIConfig.apiKey);
+  const [apiVisible, setApiVisible] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [profileCity, setProfileCity] = useState('');
   const [accentColor, setAccentColor] = useState('#A855F7');
 
+  // Voice
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceReply, setVoiceReply]     = useState(false);
+  const [wakeWord, setWakeWord]         = useState(false);
+
+  // Sensors
+  const [notifListener, setNotifListener]   = useState(true);
+  const [clipEngine, setClipEngine]         = useState(true);
+  const [cameraGesture, setCameraGesture]   = useState(false);
+  const [shakeWake, setShakeWake]           = useState(true);
+  const [volumeKeys, setVolumeKeys]         = useState(true);
+  const [locationCtx, setLocationCtx]       = useState(false);
+  const [calendarCtx, setCalendarCtx]       = useState(true);
+
+  // Automation
+  const [autoReply, setAutoReply]         = useState(true);
+  const [clipAnalysis, setClipAnalysis]   = useState(true);
+
+  // Privacy
+  const [biometric, setBiometric]   = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const [offlinePriority, setOfflinePriority] = useState(true);
+
+  // Evolution (read from localStorage)
+  const [evo, setEvo] = useState(() => readEvolution());
+  const [memCount, setMemCount] = useState(() => readMemoryCount());
+
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      try {
-        const p = JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}');
-        if (p.name) setProfileName(p.name);
-        if (p.city) setProfileCity(p.city);
-        const t = localStorage.getItem('riuka_theme_v1');
-        if (t) setAccentColor(t);
-        const vr = localStorage.getItem('riuka_voice_reply') === 'true';
-        setVoiceReply(vr);
-        setVoiceReplyEnabled(vr);
-        const ww = localStorage.getItem('riuka_wake_v1') === 'true';
-        setWakeWord(ww);
-        setWakeWordActive(ww);
-      } catch {}
-    }
+    if (Platform.OS !== 'web') return;
+    try {
+      const p = JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}');
+      if (p.name) setProfileName(p.name);
+      if (p.city) setProfileCity(p.city);
+      const t = localStorage.getItem('riuka_theme_v1');
+      if (t) setAccentColor(t);
+      setVoiceReply(localStorage.getItem('riuka_voice_reply') === 'true');
+      setVoiceReplyEnabled(localStorage.getItem('riuka_voice_reply') === 'true');
+      setWakeWord(localStorage.getItem('riuka_wake_v1') === 'true');
+      setWakeWordActive(localStorage.getItem('riuka_wake_v1') === 'true');
+      setCameraGesture(localStorage.getItem('riuka_gesture_v1') === 'true');
+      setEvo(readEvolution());
+      setMemCount(readMemoryCount());
+    } catch {}
   }, []);
 
   const saveProfile = () => {
     if (Platform.OS === 'web') {
       try { localStorage.setItem('riuka_profile_v1', JSON.stringify({ name: profileName, city: profileCity })); } catch {}
     }
-    Alert.alert('Profile Saved', profileName ? `Hey ${profileName}! Your profile is updated.` : 'Profile saved.');
+    Alert.alert('Profile Saved', profileName ? `Hey ${profileName}! Profile updated.` : 'Profile saved.');
   };
 
   const applyTheme = (color: string) => {
@@ -185,75 +261,98 @@ export default function SettingsScreen() {
   };
 
   const saveAIConfig = () => {
-    const newConfig = { provider: selectedProvider, apiKey };
-    riukaAIConfig = newConfig;
-    setAIConfig(newConfig);
-    Alert.alert('Saved', `Brain engine set to ${PROVIDERS.find((p) => p.id === selectedProvider)?.name ?? selectedProvider}.`);
+    const cfg = { provider: selectedProvider, apiKey };
+    riukaAIConfig = cfg;
+    setAIConfig(cfg);
+    Alert.alert('Saved', `Brain set to ${PROVIDERS.find(p => p.id === selectedProvider)?.name ?? selectedProvider}.`);
   };
 
-  const clearMemories = () => {
-    Alert.alert('Clear Memory Banks', 'Erase all stored context, preferences, and facts?', [
+  const clearMemory = () => {
+    Alert.alert('Clear Memories', 'Erase all memories Riuka has learned about you?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Erase', style: 'destructive', onPress: () => setMemCounts({ preferences: 0, facts: 0, context: 0 }) },
+      { text: 'Erase', style: 'destructive', onPress: () => {
+        if (Platform.OS === 'web') {
+          try {
+            localStorage.removeItem('riuka_memory_v1');
+            localStorage.removeItem('riuka_evolution_v1');
+          } catch {}
+        }
+        setMemCount(0);
+        setEvo({ xp: 0, level: 1, totalLearned: 0 });
+        Alert.alert('Done', 'Memories cleared. Riuka starts fresh. ✨');
+      }},
     ]);
   };
 
   const exportChat = () => {
-    if (Platform.OS !== 'web') { Alert.alert('Export', 'Chat export works in the web version.'); return; }
+    if (Platform.OS !== 'web') { Alert.alert('Web only', 'Export works on the web version.'); return; }
     try {
       const raw = localStorage.getItem('riuka_chat_v1');
-      if (!raw) { Alert.alert('Export', 'No chat history to export.'); return; }
-      const msgs: { text: string; isUser: boolean; time: string }[] = JSON.parse(raw);
-      const lines = msgs.map((m) => `[${m.time}] ${m.isUser ? 'You' : 'Riuka'}: ${m.text}`).join('\n\n');
-      const blob = new Blob([lines], { type: 'text/plain' });
+      if (!raw) { Alert.alert('No history', 'Chat is empty.'); return; }
+      const msgs: any[] = JSON.parse(raw);
+      const txt = msgs.map(m => `[${m.time}] ${m.isUser ? 'You' : 'Riuka'}: ${m.text}`).join('\n\n');
+      const blob = new Blob([txt], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = (document as any).createElement('a');
-      a.href = url; a.download = `riuka-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.href = url; a.download = `riuka-${new Date().toISOString().slice(0,10)}.txt`;
       a.click(); URL.revokeObjectURL(url);
-    } catch { Alert.alert('Export failed', 'Could not export chat.'); }
+    } catch { Alert.alert('Failed', 'Could not export.'); }
   };
 
-  const clearAllData = () => {
-    Alert.alert('Clear ALL Data', 'This will erase your chat, todos, profile, and theme. Cannot be undone.', [
+  const clearAll = () => {
+    Alert.alert('Clear Everything', 'Erase ALL data — chat, todos, memory, profile. Cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Erase Everything', style: 'destructive', onPress: () => {
-          if (Platform.OS === 'web') {
-            try {
-              ['riuka_chat_v1','riuka_todos_v1','riuka_profile_v1','riuka_theme_v1','riuka_voice_reply','riuka_wake_v1'].forEach((k) => localStorage.removeItem(k));
-            } catch {}
-          }
-          setMemCounts({ preferences: 0, facts: 0, context: 0 });
-          setProfileName(''); setProfileCity(''); setAccentColor('#A855F7');
-          Alert.alert('Done', 'All data cleared. Fresh start! ✨');
-        },
-      },
+      { text: 'Erase All', style: 'destructive', onPress: () => {
+        if (Platform.OS === 'web') {
+          ['riuka_chat_v1','riuka_todos_v1','riuka_profile_v1','riuka_theme_v1',
+           'riuka_voice_reply','riuka_wake_v1','riuka_memory_v1','riuka_evolution_v1',
+           'riuka_habits_v1','riuka_gesture_v1'].forEach(k => {
+            try { localStorage.removeItem(k); } catch {}
+          });
+        }
+        setProfileName(''); setProfileCity(''); setAccentColor('#A855F7');
+        setMemCount(0); setEvo({ xp: 0, level: 1, totalLearned: 0 });
+        Alert.alert('Fresh start!', 'All data erased. ✨');
+      }},
     ]);
   };
 
-  const totalMem = memCounts.preferences + memCounts.facts + memCounts.context;
+  const curLevel   = getEvoLevel(evo.xp);
+  const nextLevel  = getNextEvoLevel(evo.xp);
+  const xpProgress = nextLevel ? evo.xp / nextLevel.xp : 1;
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={styles.gradient}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-          {/* Header */}
-          <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
-            <SettingsIcon color={Colors.primary} size={26} />
-            <Text style={styles.headerTitle}>Settings</Text>
-          </Animated.View>
+          {/* ── Header ── */}
+          <View style={styles.headerWrap}>
+            <HeaderAurora />
+            <Animated.View entering={FadeInUp.duration(600)} style={styles.headerInner}>
+              <View style={styles.headerIconRing}>
+                <SettingsIcon color={Colors.primary} size={22} />
+              </View>
+              <View>
+                <GeminiTitle text="Settings" />
+                <Text style={styles.headerSub}>Riuka AI · Personalisation & Control</Text>
+              </View>
+            </Animated.View>
+          </View>
 
-          {/* Profile */}
-          <Animated.View entering={FadeInUp.duration(600).delay(50)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Profile</Text>
-            <View style={styles.profileCard}>
-              <View style={styles.profileRow}>
-                <User color={Colors.primary} size={16} />
-                <Text style={styles.profileLabel}>Your Name</Text>
+          {/* ── Profile ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(60)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>PROFILE</Text>
+            </View>
+            <GeminiCard>
+              <View style={styles.inputRow}>
+                <User color={Colors.primary} size={15} />
+                <Text style={styles.inputLabel}>Name</Text>
                 <TextInput
-                  style={styles.profileInput}
-                  placeholder="e.g. Alex"
+                  style={styles.textInput}
+                  placeholder="Your name"
                   placeholderTextColor={Colors.textTertiary}
                   value={profileName}
                   onChangeText={setProfileName}
@@ -261,11 +360,12 @@ export default function SettingsScreen() {
                   autoCorrect={false}
                 />
               </View>
-              <View style={[styles.profileRow, { borderBottomWidth: 0 }]}>
-                <Text style={[styles.profileLabel, { marginLeft: 24 }]}>Home City</Text>
+              <View style={[styles.inputRow, styles.inputRowLast]}>
+                <MapPin color={Colors.primary} size={15} />
+                <Text style={styles.inputLabel}>City</Text>
                 <TextInput
-                  style={styles.profileInput}
-                  placeholder="e.g. Tokyo"
+                  style={styles.textInput}
+                  placeholder="Home city"
                   placeholderTextColor={Colors.textTertiary}
                   value={profileCity}
                   onChangeText={setProfileCity}
@@ -273,85 +373,80 @@ export default function SettingsScreen() {
                   autoCorrect={false}
                 />
               </View>
+            </GeminiCard>
+            <View style={{ alignSelf: 'flex-end', marginTop: Spacing.sm }}>
+              <GeminiSaveButton label="Save Profile" onPress={saveProfile} />
             </View>
-            <TouchableOpacity style={[styles.saveButton, { marginTop: Spacing.md, alignSelf: 'flex-end' }]} onPress={saveProfile}>
-              <Text style={styles.saveButtonText}>Save Profile</Text>
-            </TouchableOpacity>
           </Animated.View>
 
-          {/* Brain Engine */}
-          <Animated.View entering={FadeInUp.duration(600).delay(80)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Brain Engine</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.providerScroll} contentContainerStyle={styles.providerScrollContent}>
-              {PROVIDERS.map((p) => {
+          {/* ── Brain Engine ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(100)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>BRAIN ENGINE</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.providerRow}>
+              {PROVIDERS.map(p => {
                 const active = selectedProvider === p.id;
                 return (
                   <TouchableOpacity
                     key={p.id}
                     onPress={() => setSelectedProvider(p.id)}
-                    style={[
-                      styles.providerCard,
-                      active && { borderColor: p.color, backgroundColor: p.color + '18', shadowColor: p.color, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
-                    ]}
+                    style={[styles.providerCard, active && { borderColor: p.color, backgroundColor: p.color + '18' }]}
+                    activeOpacity={0.8}
                   >
-                    <Cpu color={active ? p.color : Colors.textTertiary} size={20} />
+                    <Text style={styles.providerIcon}>{p.icon}</Text>
                     <Text style={[styles.providerName, active && { color: p.color }]}>{p.name}</Text>
-                    {active && <View style={[styles.providerDot, { backgroundColor: p.color }]} />}
+                    {active && <View style={[styles.providerActiveDot, { backgroundColor: p.color }]} />}
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
-
             {selectedProvider !== 'local' && (
-              <View style={styles.apiKeyRow}>
-                <View style={styles.apiKeyInputWrap}>
+              <View style={styles.apiRow}>
+                <View style={styles.apiInputWrap}>
                   <TextInput
-                    style={styles.apiKeyInput}
-                    placeholder="Enter API key..."
+                    style={styles.apiInput}
+                    placeholder={`${PROVIDERS.find(p=>p.id===selectedProvider)?.name} API key…`}
                     placeholderTextColor={Colors.textTertiary}
-                    secureTextEntry={!apiKeyVisible}
+                    secureTextEntry={!apiVisible}
                     value={apiKey}
                     onChangeText={setApiKey}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  <TouchableOpacity onPress={() => setApiKeyVisible(!apiKeyVisible)} style={styles.eyeButton}>
-                    <Eye color={Colors.textTertiary} size={16} />
+                  <TouchableOpacity onPress={() => setApiVisible(!apiVisible)} style={styles.eyeBtn}>
+                    <Eye color={Colors.textTertiary} size={15} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.saveButton} onPress={saveAIConfig}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
               </View>
             )}
-
-            {selectedProvider === 'local' && (
-              <TouchableOpacity style={styles.saveButton} onPress={saveAIConfig}>
-                <Text style={styles.saveButtonText}>Apply</Text>
-              </TouchableOpacity>
-            )}
+            <View style={{ alignSelf: 'flex-start', marginTop: Spacing.sm }}>
+              <GeminiSaveButton label="Apply Engine" onPress={saveAIConfig} />
+            </View>
           </Animated.View>
 
-          {/* Voice & Wake Word */}
-          <Animated.View entering={FadeInUp.duration(600).delay(160)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Voice & Wake Word</Text>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Mic color={voiceEnabled ? Colors.primary : Colors.textTertiary} size={20} />}
-                title="Voice Input"
-                subtitle="Tap mic to speak commands"
+          {/* ── Voice & Interaction ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(140)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>VOICE & INTERACTION</Text>
+            </View>
+            <View style={styles.toggleList}>
+              <ToggleRow
+                icon={<Mic size={18} color={voiceEnabled ? Colors.primary : Colors.textTertiary} />}
+                label="Voice Input"
+                desc="Tap mic or say Hey Riuka"
                 value={voiceEnabled}
                 onValueChange={setVoiceEnabled}
                 color={Colors.primary}
               />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Volume2 color={voiceReply ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="Voice Reply"
-                subtitle="Riuka speaks her responses aloud"
+              <ToggleRow
+                icon={<Volume2 size={18} color={voiceReply ? Colors.secondary : Colors.textTertiary} />}
+                label="Voice Reply"
+                desc="Riuka speaks responses aloud"
                 value={voiceReply}
-                onValueChange={(v) => {
+                onValueChange={v => {
                   setVoiceReply(v);
                   setVoiceReplyEnabled(v);
                   if (Platform.OS === 'web') {
@@ -361,230 +456,267 @@ export default function SettingsScreen() {
                 }}
                 color={Colors.secondary}
               />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Zap color={wakeWord ? Colors.primary : Colors.textTertiary} size={20} />}
-                title='Wake Word — "Hey Riuka"'
-                subtitle='Say "Hey Riuka" to activate (Chrome)'
+              <ToggleRow
+                icon={<Zap size={18} color={wakeWord ? Colors.primary : Colors.textTertiary} />}
+                label='Wake Word — "Hey Riuka"'
+                desc="Always-on voice activation (Chrome)"
                 value={wakeWord}
-                onValueChange={(v) => {
+                onValueChange={v => {
                   setWakeWord(v);
                   setWakeWordActive(v);
-                  if (Platform.OS === 'web') {
-                    try { localStorage.setItem('riuka_wake_v1', String(v)); } catch {}
-                  }
-                  if (v) Alert.alert('Wake Word Active', '"Hey Riuka" is now listening. Works in Chrome on web.');
+                  if (Platform.OS === 'web') { try { localStorage.setItem('riuka_wake_v1', String(v)); } catch {} }
+                  if (v) Alert.alert('Wake Word Active', '"Hey Riuka" is now listening.');
                 }}
                 color={Colors.primary}
               />
             </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Smartphone color={floatingAssistant ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="Floating Overlay"
-                subtitle="Persistent AI bubble over all apps"
-                value={floatingAssistant}
-                onValueChange={setFloatingAssistant}
+          </Animated.View>
+
+          {/* ── Sensors & Awareness ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(180)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>SENSORS & AWARENESS</Text>
+            </View>
+            <View style={styles.toggleList}>
+              <ToggleRow
+                icon={<Bell size={18} color={notifListener ? Colors.primary : Colors.textTertiary} />}
+                label="Notification Listener"
+                desc="WhatsApp · Telegram · Slack · SMS"
+                value={notifListener}
+                onValueChange={setNotifListener}
+                color={Colors.primary}
+              />
+              <ToggleRow
+                icon={<ClipboardList size={18} color={clipEngine ? Colors.secondary : Colors.textTertiary} />}
+                label="Clipboard Engine"
+                desc="Auto-analyze every copy event"
+                value={clipEngine}
+                onValueChange={setClipEngine}
+                color={Colors.secondary}
+              />
+              <ToggleRow
+                icon={<Camera size={18} color={cameraGesture ? '#EC4899' : Colors.textTertiary} />}
+                label="Camera Gesture"
+                desc="Wave hand to trigger voice"
+                value={cameraGesture}
+                onValueChange={v => {
+                  setCameraGesture(v);
+                  if (Platform.OS === 'web') { try { localStorage.setItem('riuka_gesture_v1', String(v)); } catch {} }
+                  if (v) Alert.alert('Camera Gesture', 'Wave your hand in front of the camera to trigger voice input.');
+                }}
+                color="#EC4899"
+              />
+              <ToggleRow
+                icon={<Smartphone size={18} color={shakeWake ? '#F97316' : Colors.textTertiary} />}
+                label="Shake to Wake"
+                desc="Shake device to open voice"
+                value={shakeWake}
+                onValueChange={setShakeWake}
+                color="#F97316"
+              />
+              <ToggleRow
+                icon={<Radio size={18} color={volumeKeys ? Colors.accent : Colors.textTertiary} />}
+                label="Volume Button Commands"
+                desc="Vol Up = send · Vol Down = clear"
+                value={volumeKeys}
+                onValueChange={setVolumeKeys}
+                color={Colors.accent}
+              />
+              <ToggleRow
+                icon={<Calendar size={18} color={calendarCtx ? Colors.primary : Colors.textTertiary} />}
+                label="Calendar Context"
+                desc="Schedule & event awareness"
+                value={calendarCtx}
+                onValueChange={setCalendarCtx}
+                color={Colors.primary}
+              />
+              <ToggleRow
+                icon={<MapPin size={18} color={locationCtx ? Colors.secondary : Colors.textTertiary} />}
+                label="Location Context"
+                desc="Physical location awareness"
+                value={locationCtx}
+                onValueChange={setLocationCtx}
                 color={Colors.secondary}
               />
             </View>
           </Animated.View>
 
-          {/* Theme Color */}
-          <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Theme Color</Text>
-            <View style={styles.themeCard}>
-              <View style={styles.themeHeader}>
-                <Palette color={Colors.primary} size={18} />
-                <Text style={styles.themeDesc}>Personalize your Riuka accent color</Text>
+          {/* ── Atomic Evolution ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(220)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>ATOMIC EVOLUTION</Text>
+            </View>
+            <GeminiCard style={styles.evoCard}>
+              <View style={styles.evoHeader}>
+                <Text style={styles.evoIcon}>{curLevel.icon}</Text>
+                <View style={styles.evoInfo}>
+                  <Text style={styles.evoLevel}>Level {curLevel.level} — {curLevel.name}</Text>
+                  <Text style={styles.evoXP}>{evo.xp} XP{nextLevel ? ` / ${nextLevel.xp}` : ' (MAX)'}</Text>
+                </View>
+                <View style={styles.evoMemBadge}>
+                  <Text style={styles.evoMemNum}>{memCount}</Text>
+                  <Text style={styles.evoMemLabel}>memories</Text>
+                </View>
               </View>
-              <View style={styles.themeSwatches}>
-                {ACCENT_COLORS.map((c) => (
+              <View style={styles.xpTrack}>
+                <View style={[styles.xpFill, { width: `${Math.min(xpProgress * 100, 100)}%` as any }]} />
+              </View>
+              {nextLevel && (
+                <Text style={styles.evoNextLabel}>{nextLevel.xp - evo.xp} XP to {nextLevel.icon} {nextLevel.name}</Text>
+              )}
+              <View style={styles.evoActions}>
+                <TouchableOpacity style={styles.evoActionBtn} onPress={clearMemory}>
+                  <Trash2 color={Colors.error} size={13} />
+                  <Text style={[styles.evoActionText, { color: Colors.error }]}>Clear Memory</Text>
+                </TouchableOpacity>
+              </View>
+            </GeminiCard>
+          </Animated.View>
+
+          {/* ── Appearance ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(260)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>APPEARANCE</Text>
+            </View>
+            <GeminiCard>
+              <View style={styles.themeHeader}>
+                <Palette color={Colors.primary} size={16} />
+                <Text style={styles.themeLabel}>Accent Color</Text>
+              </View>
+              <View style={styles.swatchRow}>
+                {ACCENT_COLORS.map(c => (
                   <TouchableOpacity
-                    key={c.value}
-                    style={[styles.themeSwatch, { backgroundColor: c.value }, accentColor === c.value && styles.themeSwatchActive]}
-                    onPress={() => applyTheme(c.value)}
+                    key={c}
+                    style={[styles.swatch, { backgroundColor: c }, accentColor === c && styles.swatchActive]}
+                    onPress={() => applyTheme(c)}
                     activeOpacity={0.8}
                   >
-                    {accentColor === c.value && <Text style={styles.themeCheck}>✓</Text>}
+                    {accentColor === c && <Text style={styles.swatchCheck}>✓</Text>}
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </GeminiCard>
           </Animated.View>
 
-          {/* Automation Engine */}
-          <Animated.View entering={FadeInUp.duration(600).delay(240)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Automation Engine</Text>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Bell color={notifAutoReply ? Colors.primary : Colors.textTertiary} size={20} />}
-                title="Auto-Reply Drafting"
-                subtitle="Draft responses to incoming messages"
-                value={notifAutoReply}
-                onValueChange={setNotifAutoReply}
+          {/* ── Automation ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>AUTOMATION</Text>
+            </View>
+            <View style={styles.toggleList}>
+              <ToggleRow
+                icon={<Bell size={18} color={autoReply ? Colors.primary : Colors.textTertiary} />}
+                label="Auto-Reply Drafting"
+                desc="Draft responses to incoming messages"
+                value={autoReply}
+                onValueChange={setAutoReply}
                 color={Colors.primary}
               />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<ClipboardList color={clipAutoAnalyze ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="Clipboard Auto-Analysis"
-                subtitle="Instant analysis on every copy event"
-                value={clipAutoAnalyze}
-                onValueChange={setClipAutoAnalyze}
+              <ToggleRow
+                icon={<ClipboardList size={18} color={clipAnalysis ? Colors.secondary : Colors.textTertiary} />}
+                label="Clipboard Auto-Analysis"
+                desc="Instant analysis on every copy"
+                value={clipAnalysis}
+                onValueChange={setClipAnalysis}
                 color={Colors.secondary}
               />
             </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Zap color={accessibilityPilot ? Colors.accent : Colors.textTertiary} size={20} />}
-                title="Interface Pilot"
-                subtitle="Accessibility-layer app control"
-                value={accessibilityPilot}
-                onValueChange={setAccessibilityPilot}
-                color={Colors.accent}
-              />
-            </View>
           </Animated.View>
 
-          {/* Memory Banks */}
-          <Animated.View entering={FadeInUp.duration(600).delay(320)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Memory Banks</Text>
-            <View style={styles.memoryCard}>
-              <View style={styles.memoryHeader}>
-                <Database color={Colors.primary} size={20} />
-                <Text style={styles.memoryCount}>{totalMem} memories stored</Text>
-              </View>
-              <View style={styles.memoryStatsRow}>
-                <View style={styles.memoryStat}>
-                  <Text style={styles.memoryStatNum}>{memCounts.preferences}</Text>
-                  <Text style={styles.memoryStatLabel}>Preferences</Text>
-                </View>
-                <View style={styles.memoryStatDivider} />
-                <View style={styles.memoryStat}>
-                  <Text style={styles.memoryStatNum}>{memCounts.facts}</Text>
-                  <Text style={styles.memoryStatLabel}>Facts</Text>
-                </View>
-                <View style={styles.memoryStatDivider} />
-                <View style={styles.memoryStat}>
-                  <Text style={styles.memoryStatNum}>{memCounts.context}</Text>
-                  <Text style={styles.memoryStatLabel}>Context</Text>
-                </View>
-              </View>
-              <View style={styles.memoryButtons}>
-                <TouchableOpacity
-                  style={styles.memoryBtn}
-                  onPress={() => Alert.alert('Memory Banks', 'Memory management interface coming soon.')}
-                >
-                  <Text style={styles.memoryBtnText}>View Banks</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.memoryBtn, styles.memoryBtnDanger]} onPress={clearMemories}>
-                  <Text style={styles.memoryBtnTextDanger}>Erase All</Text>
-                </TouchableOpacity>
-              </View>
+          {/* ── Privacy & Security ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(340)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>PRIVACY & SECURITY</Text>
             </View>
-          </Animated.View>
-
-          {/* Data & Export */}
-          <Animated.View entering={FadeInUp.duration(600).delay(370)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Data & Export</Text>
-            <View style={styles.dataButtons}>
-              <TouchableOpacity style={styles.dataBtn} onPress={exportChat}>
-                <Text style={styles.dataBtnText}>📥 Export Chat</Text>
-                <Text style={styles.dataBtnSub}>Download as .txt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.dataBtn, styles.dataBtnDanger]} onPress={clearAllData}>
-                <Text style={styles.dataBtnTextDanger}>🗑️ Clear All Data</Text>
-                <Text style={[styles.dataBtnSub, { color: Colors.error + 'AA' }]}>Erase everything</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-
-          {/* Security & Privacy */}
-          <Animated.View entering={FadeInUp.duration(600).delay(400)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Security & Privacy</Text>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Fingerprint color={biometricLock ? Colors.primary : Colors.textTertiary} size={20} />}
-                title="Biometric Lock"
-                subtitle="Fingerprint or face authentication"
-                value={biometricLock}
-                onValueChange={setBiometricLock}
+            <View style={styles.toggleList}>
+              <ToggleRow
+                icon={<Fingerprint size={18} color={biometric ? Colors.primary : Colors.textTertiary} />}
+                label="Biometric Lock"
+                desc="Fingerprint / Face unlock"
+                value={biometric}
+                onValueChange={setBiometric}
                 color={Colors.primary}
               />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Eye color={privacyMode ? Colors.accent : Colors.textTertiary} size={20} />}
-                title="Privacy Mode"
-                subtitle="Restrict access to owner only"
+              <ToggleRow
+                icon={<Eye size={18} color={privacyMode ? Colors.accent : Colors.textTertiary} />}
+                label="Privacy Mode"
+                desc="Restrict to owner only"
                 value={privacyMode}
                 onValueChange={setPrivacyMode}
                 color={Colors.accent}
               />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Lock color={Colors.secondary} size={20} />}
-                title="On-Device Encryption"
-                subtitle="AES-256 local data encryption"
-                rightElement={<StatusBadge label="Active" color={Colors.secondary} />}
-                color={Colors.secondary}
-              />
-            </View>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<Shield color={Colors.secondary} size={20} />}
-                title="Zero Cloud Architecture"
-                subtitle="No data leaves your device"
-                rightElement={<StatusBadge label="Verified" color={Colors.secondary} />}
-                color={Colors.secondary}
-              />
-            </View>
-          </Animated.View>
-
-          {/* Offline AI */}
-          <Animated.View entering={FadeInUp.duration(600).delay(480)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Offline Mode</Text>
-            <View style={styles.settingsGap}>
-              <SettingRow
-                icon={<WifiOff color={offlinePriority ? Colors.secondary : Colors.textTertiary} size={20} />}
-                title="On-Device Priority"
-                subtitle="Always use local brain first"
+              <ToggleRow
+                icon={<WifiOff size={18} color={offlinePriority ? Colors.secondary : Colors.textTertiary} />}
+                label="On-Device Priority"
+                desc="Always use local brain first"
                 value={offlinePriority}
                 onValueChange={setOfflinePriority}
                 color={Colors.secondary}
               />
             </View>
-            <View style={styles.offlineInfoCard}>
-              <Wifi color={Colors.textTertiary} size={16} />
-              <Text style={styles.offlineInfoText}>
-                The on-device model uses pattern-matching and local inference. Configure a cloud fallback above for extended capabilities — your data is only sent when you explicitly choose a cloud provider.
-              </Text>
+            <GeminiCard style={{ marginTop: Spacing.md }}>
+              <View style={styles.securityRow}>
+                <Lock color={Colors.secondary} size={16} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.securityTitle}>On-Device Encryption</Text>
+                  <Text style={styles.securityDesc}>AES-256 · No cloud · Zero data sharing</Text>
+                </View>
+                <View style={styles.verifiedBadge}>
+                  <CheckCircle color={Colors.secondary} size={11} />
+                  <Text style={styles.verifiedText}>Active</Text>
+                </View>
+              </View>
+            </GeminiCard>
+          </Animated.View>
+
+          {/* ── Data & Export ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(380)} style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <GeminiAccentLine />
+              <Text style={styles.sectionTitle}>DATA & EXPORT</Text>
+            </View>
+            <View style={styles.dataRow}>
+              <TouchableOpacity style={styles.dataBtn} onPress={exportChat} activeOpacity={0.8}>
+                <Download color={Colors.primary} size={18} />
+                <Text style={styles.dataBtnLabel}>Export Chat</Text>
+                <Text style={styles.dataBtnSub}>.txt file</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.dataBtn, styles.dataBtnDanger]} onPress={clearAll} activeOpacity={0.8}>
+                <Trash2 color={Colors.error} size={18} />
+                <Text style={[styles.dataBtnLabel, { color: Colors.error }]}>Clear All</Text>
+                <Text style={[styles.dataBtnSub, { color: Colors.error + '80' }]}>Cannot undo</Text>
+              </TouchableOpacity>
             </View>
           </Animated.View>
 
-          {/* Premium */}
-          <Animated.View entering={FadeInUp.duration(600).delay(560)} style={styles.section}>
-            <TouchableOpacity activeOpacity={0.8}>
-              <LinearGradient colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.06)']} style={styles.premiumCard}>
-                <Crown color={Colors.primary} size={24} />
-                <View style={styles.premiumText}>
+          {/* ── Premium ── */}
+          <Animated.View entering={FadeInUp.duration(500).delay(420)} style={styles.section}>
+            <TouchableOpacity activeOpacity={0.85}>
+              <LinearGradient
+                colors={['rgba(168,85,247,0.18)', 'rgba(59,130,246,0.1)', 'rgba(16,185,129,0.08)']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.premiumCard}
+              >
+                <Crown color={Colors.primary} size={22} />
+                <View style={{ flex: 1 }}>
                   <Text style={styles.premiumTitle}>Upgrade to Riuka Pro</Text>
-                  <Text style={styles.premiumDesc}>Unlock extended automation pipelines, unlimited memory banks, and priority on-device model updates</Text>
+                  <Text style={styles.premiumDesc}>Unlimited memory · Extended automation · Priority model updates</Text>
                 </View>
-                <ChevronRight color={Colors.primary} size={18} />
+                <ChevronRight color={Colors.primary} size={16} />
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <CheckCircle color={Colors.secondary} size={14} />
+            <Sparkles color={Colors.primary} size={13} />
             <Text style={styles.footerText}>Riuka AI v1.0.0</Text>
-            <Text style={styles.footerSubtext}>On-Device · Zero Cloud · Absolute Privacy</Text>
+            <Text style={styles.footerSub}>On-Device · Zero Cloud · Evolving</Text>
           </View>
 
         </ScrollView>
@@ -595,232 +727,178 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  gradient: { flex: 1 },
-  scrollContent: { paddingBottom: Spacing.xxxl },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  gradient:  { flex: 1 },
+  scroll:    { paddingBottom: 60 },
+
+  // Header
+  headerWrap:  { overflow: 'hidden', marginBottom: Spacing.lg, paddingBottom: Spacing.lg },
+  headerInner: {
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xxxl + Spacing.md,
-    marginBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  headerTitle: { fontSize: FontSizes.xxl, fontWeight: '700', color: Colors.text },
-  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
+  headerIconRing: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'rgba(168,85,247,0.12)',
+    borderWidth: 1.5, borderColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+  },
+  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: 0.5 },
+  headerSub:   { fontSize: FontSizes.xs, color: Colors.secondary, fontWeight: '600', marginTop: 2 },
+  headerOrb: {
+    position: 'absolute', width: W * 0.8, height: W * 0.4,
+    borderRadius: W * 0.2, top: -W * 0.1, left: W * 0.1,
+  },
+  headerScan: {
+    position: 'absolute', top: 0, bottom: 0,
+    width: 70,
+  },
+
+  // Sections
+  section:        { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
+  sectionTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
+  sectionAccentLine: { width: 3, height: 14, borderRadius: 2 },
   sectionTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
+    fontSize: FontSizes.xs, fontWeight: '800',
+    color: Colors.textSecondary, letterSpacing: 1.5,
     textTransform: 'uppercase',
-    letterSpacing: 1,
   },
-  providerScroll: { marginBottom: Spacing.md },
-  providerScrollContent: { gap: Spacing.md, paddingRight: Spacing.md },
-  providerCard: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    width: 90,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.xs,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-  providerName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.textTertiary },
-  providerDot: { width: 6, height: 6, borderRadius: 3 },
-  apiKeyRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.sm },
-  apiKeyInputWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-  },
-  apiKeyInput: { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: Spacing.md },
-  eyeButton: { padding: Spacing.xs },
-  saveButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    alignSelf: 'flex-start',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  saveButtonText: { fontSize: FontSizes.md, fontWeight: '700', color: '#ffffff' },
-  settingsGap: { marginBottom: Spacing.md },
-  memoryCard: {
+
+  // Gemini card
+  geminiCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-  },
-  memoryHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
-  memoryCount: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text },
-  memoryStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: Spacing.lg },
-  memoryStat: { alignItems: 'center', flex: 1 },
-  memoryStatNum: { fontSize: FontSizes.xl, fontWeight: '700', color: Colors.primary },
-  memoryStatLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
-  memoryStatDivider: { width: 1, height: 32, backgroundColor: Colors.border },
-  memoryButtons: { flexDirection: 'row', gap: Spacing.md },
-  memoryBtn: {
-    flex: 1,
-    paddingVertical: Spacing.sm + 2,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  memoryBtnText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  memoryBtnDanger: { borderColor: Colors.error + '50', backgroundColor: 'rgba(239,68,68,0.06)' },
-  memoryBtnTextDanger: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.error },
-  offlineInfoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.backgroundTertiary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: Spacing.sm,
-  },
-  offlineInfoText: { flex: 1, fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 18 },
-  premiumCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.primary + '40',
-    gap: Spacing.md,
-  },
-  premiumText: { flex: 1 },
-  premiumTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: 2 },
-  premiumDesc: { fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 },
-  footer: {
-    paddingHorizontal: Spacing.lg,
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
-  footerSubtext: { fontSize: FontSizes.xs, color: Colors.textTertiary },
-  profileCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
     overflow: 'hidden',
   },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  // Inputs
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  inputRowLast: { borderBottomWidth: 0 },
+  inputLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '600', width: 44 },
+  textInput:  { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: 4 },
+
+  // Save button
+  saveBtn: {
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
+  },
+  saveBtnText: { fontSize: FontSizes.sm, fontWeight: '700', color: '#fff' },
+
+  // Provider cards
+  providerRow:  { gap: Spacing.sm, paddingBottom: Spacing.md },
+  providerCard: {
+    width: 82, borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface, borderWidth: 1.5,
+    borderColor: Colors.border, alignItems: 'center',
+    paddingVertical: Spacing.md, gap: Spacing.xs,
+  },
+  providerIcon:      { fontSize: 20 },
+  providerName:      { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.textTertiary },
+  providerActiveDot: { width: 5, height: 5, borderRadius: 2.5 },
+  apiRow:       { marginBottom: Spacing.sm },
+  apiInputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: Spacing.sm,
   },
-  profileLabel: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    width: 84,
+  apiInput:  { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: Spacing.md },
+  eyeBtn:    { padding: Spacing.xs },
+
+  // Toggles
+  toggleList: { gap: Spacing.sm },
+  toggleRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: BorderRadius.lg, padding: Spacing.md,
+    borderWidth: 1.5, gap: Spacing.md,
   },
-  profileInput: {
-    flex: 1,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    paddingVertical: Spacing.sm,
+  toggleIcon: {
+    width: 42, height: 42, borderRadius: BorderRadius.md,
+    backgroundColor: Colors.backgroundTertiary,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  themeCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
+  toggleText:  { flex: 1 },
+  toggleLabel: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: 1 },
+  toggleDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary },
+
+  // Evolution
+  evoCard:    { padding: Spacing.lg },
+  evoHeader:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
+  evoIcon:    { fontSize: 28 },
+  evoInfo:    { flex: 1 },
+  evoLevel:   { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  evoXP:      { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '600', marginTop: 2 },
+  evoMemBadge:{ alignItems: 'center' },
+  evoMemNum:  { fontSize: FontSizes.xl, fontWeight: '800', color: Colors.primary },
+  evoMemLabel:{ fontSize: 9, color: Colors.textTertiary, fontWeight: '600' },
+  xpTrack:    { height: 6, borderRadius: 3, backgroundColor: Colors.backgroundTertiary, overflow: 'hidden', marginBottom: 6 },
+  xpFill:     { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
+  evoNextLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginBottom: Spacing.md },
+  evoActions: { flexDirection: 'row' },
+  evoActionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: 5,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
   },
-  themeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
+  evoActionText: { fontSize: FontSizes.xs, fontWeight: '600' },
+
+  // Theme
+  themeHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md, padding: Spacing.md, paddingBottom: 0 },
+  themeLabel:  { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '600' },
+  swatchRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, padding: Spacing.md, paddingTop: Spacing.sm },
+  swatch:      { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  swatchActive:{ borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
+  swatchCheck: { color: '#fff', fontWeight: '800', fontSize: 16 },
+
+  // Security
+  securityRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+  securityTitle: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  securityDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.secondary + '15',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderWidth: 1, borderColor: Colors.secondary + '30',
   },
-  themeDesc: {
-    fontSize: FontSizes.sm,
-    color: Colors.textTertiary,
+  verifiedText: { fontSize: 9, color: Colors.secondary, fontWeight: '700' },
+
+  // Data
+  dataRow:     { flexDirection: 'row', gap: Spacing.md },
+  dataBtn:     {
+    flex: 1, backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg, borderWidth: 1,
+    borderColor: Colors.border, padding: Spacing.md,
+    alignItems: 'center', gap: 4,
   },
-  themeSwatches: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    flexWrap: 'wrap',
+  dataBtnDanger: { borderColor: Colors.error + '40', backgroundColor: 'rgba(239,68,68,0.05)' },
+  dataBtnLabel:  { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  dataBtnSub:    { fontSize: FontSizes.xs, color: Colors.textTertiary },
+
+  // Premium
+  premiumCard: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: BorderRadius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: Colors.primary + '40', gap: Spacing.md,
   },
-  themeSwatch: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeSwatchActive: {
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  themeCheck: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 18,
-  },
-  dataButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  dataBtn: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: 4,
-  },
-  dataBtnDanger: {
-    borderColor: Colors.error + '40',
-    backgroundColor: 'rgba(239,68,68,0.05)',
-  },
-  dataBtnText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  dataBtnTextDanger: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.error,
-  },
-  dataBtnSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-  },
+  premiumTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: 2 },
+  premiumDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 },
+
+  // Footer
+  footer:     { paddingHorizontal: Spacing.lg, alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.xs },
+  footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
+  footerSub:  { fontSize: FontSizes.xs, color: Colors.textTertiary },
 });
