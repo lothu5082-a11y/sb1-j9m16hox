@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { Copy, Check } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 
@@ -8,16 +17,29 @@ interface ChatBubbleProps {
   isUser: boolean;
   time?: string;
   type?: 'text' | 'image' | 'voice';
+  isStreaming?: boolean;
 }
 
-export default function ChatBubble({ message, isUser, time, type = 'text' }: ChatBubbleProps) {
+function BlinkCursor() {
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(withTiming(0, { duration: 350 }), withTiming(1, { duration: 350 })),
+      -1, false
+    );
+  }, []);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return <Animated.Text style={[styles.cursor, style]}>▋</Animated.Text>;
+}
+
+export default function ChatBubble({ message, isUser, time, type = 'text', isStreaming = false }: ChatBubbleProps) {
   const [copied, setCopied] = useState(false);
 
   const copyMessage = async () => {
     if (!message) return;
     try {
-      if (Platform.OS === 'web' && navigator?.clipboard) {
-        await navigator.clipboard.writeText(message);
+      if (Platform.OS === 'web' && (navigator as any)?.clipboard) {
+        await (navigator as any).clipboard.writeText(message);
       }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -25,7 +47,10 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
   };
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
+    <Animated.View
+      entering={FadeInUp.duration(280).springify()}
+      style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
+    >
       {!isUser && (
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>R</Text>
@@ -33,11 +58,28 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
       )}
       <View style={styles.bubbleWrapper}>
         {!isUser && <Text style={styles.senderLabel}>Riuka AI</Text>}
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-          <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>{message}</Text>
-          {time && <Text style={[styles.time, isUser ? styles.userTime : styles.assistantTime]}>{time}</Text>}
-        </View>
-        {!isUser && message.length > 0 && (
+
+        {isUser ? (
+          <LinearGradient
+            colors={[Colors.primary, Colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.bubble, styles.userBubble]}
+          >
+            <Text style={[styles.message, styles.userMessage]}>{message}</Text>
+            {time && <Text style={[styles.time, styles.userTime]}>{time}</Text>}
+          </LinearGradient>
+        ) : (
+          <View style={[styles.bubble, styles.assistantBubble]}>
+            <View style={styles.messageRow}>
+              <Text style={[styles.message, styles.assistantMessage]}>{message}</Text>
+              {isStreaming && <BlinkCursor />}
+            </View>
+            {time && !isStreaming && <Text style={[styles.time, styles.assistantTime]}>{time}</Text>}
+          </View>
+        )}
+
+        {!isUser && message.length > 0 && !isStreaming && (
           <TouchableOpacity style={styles.copyButton} onPress={copyMessage} activeOpacity={0.7}>
             {copied
               ? <Check color={Colors.secondary} size={11} />
@@ -48,7 +90,7 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -103,14 +145,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   userBubble: {
-    backgroundColor: Colors.primary,
     borderBottomRightRadius: Spacing.xs,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   assistantBubble: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomLeftRadius: Spacing.xs,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
   },
   message: {
     fontSize: FontSizes.md,
@@ -122,6 +173,13 @@ const styles = StyleSheet.create({
   },
   assistantMessage: {
     color: Colors.text,
+    flexShrink: 1,
+  },
+  cursor: {
+    color: Colors.primary,
+    fontSize: FontSizes.md,
+    lineHeight: 22,
+    marginLeft: 1,
   },
   time: {
     fontSize: FontSizes.xs,

@@ -712,6 +712,71 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return 'To-do list cleared. Fresh start! ✨';
   }
 
+  // ── PERCENTAGE CALCULATOR ─────────────────────────────────────────────────
+  const pctOfMatch = lower.match(/^(?:what(?:'?s|\s+is)\s+)?(\d+(?:\.\d+)?)\s*(?:%|percent(?:age)?)\s+(?:of\s+)?(\d+(?:\.\d+)?)$/)
+    || lower.match(/^(\d+(?:\.\d+)?)\s+percent\s+of\s+(\d+(?:\.\d+)?)$/);
+  if (pctOfMatch) {
+    const pct = parseFloat(pctOfMatch[1]);
+    const num = parseFloat(pctOfMatch[2]);
+    const result = (pct / 100) * num;
+    return `${pct}% of ${num} = ${Number.isInteger(result) ? result : +result.toFixed(4)}`;
+  }
+
+  // ── TIP CALCULATOR ────────────────────────────────────────────────────────
+  const tipMatch = lower.match(/^tip\s+(\d+(?:\.\d+)?)%?\s+(?:on\s+)?\$?(\d+(?:\.\d+)?)$/);
+  if (tipMatch) {
+    const pct = parseFloat(tipMatch[1]);
+    const bill = parseFloat(tipMatch[2]);
+    const tip = (pct / 100) * bill;
+    const total = bill + tip;
+    return `💰 Bill: $${bill.toFixed(2)}\n${pct}% tip: $${tip.toFixed(2)}\nTotal: $${total.toFixed(2)}`;
+  }
+
+  // ── DAYS UNTIL ────────────────────────────────────────────────────────────
+  const daysUntilMatch = lower.match(/^(?:how\s+many\s+days?\s+(?:until|till|to|before)|days?\s+(?:until|till|to))\s+(.+)$/)
+    || lower.match(/^(?:countdown|count)\s+(?:to|until)\s+(.+)$/);
+  if (daysUntilMatch) {
+    const dateStr = daysUntilMatch[1].replace(/\?+$/, '').trim();
+    // Known holidays
+    const now = new Date(); const year = now.getFullYear();
+    const HOLIDAYS: Record<string, string> = {
+      'christmas': `December 25 ${year}`, 'new year': `January 1 ${year + 1}`,
+      'new years': `January 1 ${year + 1}`, "new year's": `January 1 ${year + 1}`,
+      'halloween': `October 31 ${year}`, 'thanksgiving': `November 28 ${year}`,
+      'valentine': `February 14 ${year + (now.getMonth() >= 1 && now.getDate() > 14 ? 1 : 0)}`,
+      "valentine's": `February 14 ${year}`, 'easter': `April 20 ${year}`,
+    };
+    const resolved = HOLIDAYS[dateStr.toLowerCase()] || dateStr;
+    const target = new Date(resolved);
+    if (!isNaN(target.getTime())) {
+      const diff = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return `Today IS ${dateStr}! 🎉`;
+      if (diff < 0) return `${dateStr} was ${Math.abs(diff)} day${Math.abs(diff) !== 1 ? 's' : ''} ago.`;
+      return `📅 ${diff} day${diff !== 1 ? 's' : ''} until ${dateStr}.`;
+    }
+  }
+
+  // ── MY IP ADDRESS ─────────────────────────────────────────────────────────
+  if (/^(?:what(?:'?s|\s+is)\s+)?(?:my\s+)?ip(?:\s+address)?$/.test(lower) || lower === 'ip') {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      return `🌐 Your IP address: ${data.ip}`;
+    } catch {
+      return "Couldn't fetch your IP right now. Check your connection.";
+    }
+  }
+
+  // ── WORD / CHARACTER COUNT ────────────────────────────────────────────────
+  const countMatch = text.match(/^(?:count\s+words?\s+in|word\s+count\s+(?:of|for)?|how\s+many\s+words?\s+(?:in|is))\s+(.+)$/i)
+    || text.match(/^char(?:acter)?\s+count\s+(.+)$/i);
+  if (countMatch) {
+    const sample = countMatch[1].trim();
+    const words = sample.trim().split(/\s+/).filter(Boolean).length;
+    const chars = sample.length;
+    return `📊 "${sample.slice(0, 40)}${sample.length > 40 ? '…' : ''}"\nWords: ${words}  |  Characters: ${chars}`;
+  }
+
   return null;
 };
 
@@ -967,6 +1032,35 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
       "An AI walks into a bar. The bartender says: \"We don't serve robots.\" The AI says: \"That's fine, I don't drink. I'm just here to steal your job.\"",
     ];
     return jokes[Math.floor(Math.random() * jokes.length)];
+  }
+
+  // ── MOTIVATIONAL QUOTES ───────────────────────────────────────────────────
+  if (/quote|inspire|motivation|motivate|wisdom|words?\s+of\s+wisdom/.test(lower)) {
+    const quotes = [
+      '"The best time to plant a tree was 20 years ago. The second best time is now." — Chinese Proverb',
+      '"Done is better than perfect." — Sheryl Sandberg',
+      '"You don\'t have to be great to start, but you have to start to be great." — Zig Ziglar',
+      '"Work hard in silence. Let success make the noise." — Frank Ocean',
+      '"The only way to do great work is to love what you do." — Steve Jobs',
+      '"It always seems impossible until it\'s done." — Nelson Mandela',
+      '"Don\'t count the days. Make the days count." — Muhammad Ali',
+      '"Success is not final; failure is not fatal: it is the courage to continue that counts." — Churchill',
+      '"The harder I work, the luckier I get." — Samuel Goldwyn',
+      '"You miss 100% of the shots you don\'t take." — Wayne Gretzky',
+    ];
+    return `✨ ${quotes[Math.floor(Math.random() * quotes.length)]}`;
+  }
+
+  // ── RIDDLES ───────────────────────────────────────────────────────────────
+  if (/riddle|puzzle|brain\s*teaser/.test(lower)) {
+    const riddles = [
+      "I speak without a mouth and hear without ears. I have no body but I come alive with the wind. What am I?\n\n(Think about it... answer: An echo.)",
+      "The more you take, the more you leave behind. What am I?\n\n(Answer: Footsteps.)",
+      "I have cities but no houses, mountains but no trees, water but no fish, and roads but no cars. What am I?\n\n(Answer: A map.)",
+      "I'm light as a feather, but even the world's strongest person can't hold me for more than 5 minutes. What am I?\n\n(Answer: Breath.)",
+      "What has keys but no locks, space but no room, and you can enter but can't go inside?\n\n(Answer: A keyboard.)",
+    ];
+    return `🧩 ${riddles[Math.floor(Math.random() * riddles.length)]}`;
   }
 
   // ── INTERESTING FACTS ─────────────────────────────────────────────────────
@@ -1307,7 +1401,11 @@ const typingStyles = StyleSheet.create({
   },
 });
 
-const SUGGESTIONS = ['YouTube trending', 'Nearby restaurants', 'Translate hello to Spanish'];
+const SUGGESTIONS = [
+  { label: '🕐 Time in Tokyo', cmd: 'Time in Tokyo' },
+  { label: '💬 Inspire me', cmd: 'Inspire me' },
+  { label: '🔐 Password', cmd: 'Password 16' },
+];
 
 const STORAGE_KEY = 'riuka_chat_v1';
 
@@ -1316,10 +1414,25 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   const [provider, setProvider] = useState(_aiConfig.provider);
   const scrollViewRef = useRef<ScrollView>(null);
   const isTypingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const micPulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (isVoiceListening) {
+      micPulse.value = withRepeat(
+        withSequence(withTiming(1.35, { duration: 500 }), withTiming(1, { duration: 500 })),
+        -1, false
+      );
+    } else {
+      micPulse.value = withTiming(1, { duration: 200 });
+    }
+  }, [isVoiceListening]);
+
+  const micPulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: micPulse.value }] }));
 
   // Load saved chat history on mount
   useEffect(() => {
@@ -1449,9 +1562,11 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, aiMsg]);
     isTypingRef.current = false;
     setIsTyping(false);
+    setStreamingMsgId(aiMsgId);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
 
     await streamIntoMessage(aiMsgId, reply);
+    setStreamingMsgId(null);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
   };
 
@@ -1537,7 +1652,7 @@ export default function ChatScreen() {
           )}
 
           {messages.map((msg) => (
-            <ChatBubble key={msg.id} message={msg.text} isUser={msg.isUser} time={msg.time} />
+            <ChatBubble key={msg.id} message={msg.text} isUser={msg.isUser} time={msg.time} isStreaming={msg.id === streamingMsgId} />
           ))}
 
           {isTyping && <TypingIndicator />}
@@ -1547,8 +1662,8 @@ export default function ChatScreen() {
         {messages.length === 0 && !isTyping && (
           <View style={styles.suggestionsRow}>
             {SUGGESTIONS.map((s) => (
-              <TouchableOpacity key={s} style={styles.suggestionChip} onPress={() => sendMessage(s)}>
-                <Text style={styles.suggestionText}>{s}</Text>
+              <TouchableOpacity key={s.cmd} style={styles.suggestionChip} onPress={() => sendMessage(s.cmd)}>
+                <Text style={styles.suggestionText}>{s.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -1570,12 +1685,14 @@ export default function ChatScreen() {
                 blurOnSubmit={false}
               />
             </View>
-            <TouchableOpacity
-              style={[styles.micInputButton, isVoiceListening && styles.micListening]}
-              onPress={isVoiceListening ? stopVoice : startVoice}
-            >
-              <Mic color={isVoiceListening ? '#ffffff' : Colors.primary} size={20} />
-            </TouchableOpacity>
+            <Animated.View style={micPulseStyle}>
+              <TouchableOpacity
+                style={[styles.micInputButton, isVoiceListening && styles.micListening]}
+                onPress={isVoiceListening ? stopVoice : startVoice}
+              >
+                <Mic color={isVoiceListening ? '#ffffff' : Colors.primary} size={20} />
+              </TouchableOpacity>
+            </Animated.View>
             <TouchableOpacity
               onPress={() => sendMessage()}
               style={[styles.sendButton, (!inputText.trim() || isTyping) && styles.sendButtonDisabled]}
