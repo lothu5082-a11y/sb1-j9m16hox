@@ -1627,16 +1627,23 @@ export default function ChatScreen() {
         >
           {messages.length === 0 && (
             <Animated.View entering={FadeInUp.duration(600)} style={styles.emptyState}>
-              <View style={styles.emptyAvatar}>
+              <LinearGradient
+                colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.06)']}
+                style={styles.emptyAvatarRing}
+              >
                 <Text style={styles.emptyAvatarLetter}>R</Text>
-              </View>
+              </LinearGradient>
               <Text style={styles.emptyTitle}>Riuka AI</Text>
-              <Text style={styles.emptySubtitle}>Autonomous on-device executive assistant. All intelligence stays on your hardware.</Text>
+              <Text style={styles.emptySubtitle}>Your personal AI — type a command or tap the mic to speak.</Text>
               <View style={styles.emptyFeatures}>
-                {['100% Offline', 'Zero Latency', 'Ironclad Privacy'].map((f) => (
-                  <View key={f} style={styles.emptyFeatureChip}>
-                    <Cpu color={Colors.secondary} size={10} />
-                    <Text style={styles.emptyFeatureText}>{f}</Text>
+                {[
+                  { icon: '🎤', label: 'Voice' },
+                  { icon: '🌐', label: '50+ Commands' },
+                  { icon: '🔒', label: 'Private' },
+                ].map((f) => (
+                  <View key={f.label} style={styles.emptyFeatureChip}>
+                    <Text style={styles.emptyFeatureIcon}>{f.icon}</Text>
+                    <Text style={styles.emptyFeatureText}>{f.label}</Text>
                   </View>
                 ))}
               </View>
@@ -1809,11 +1816,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xxxl,
     paddingHorizontal: Spacing.xl,
   },
-  emptyAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+  emptyAvatarRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 2,
     borderColor: Colors.primary,
     alignItems: 'center',
@@ -1821,9 +1827,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
   },
   emptyAvatarLetter: {
     fontSize: FontSizes.xxxl,
@@ -1832,14 +1838,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: FontSizes.xxl,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.text,
     marginBottom: Spacing.sm,
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
   emptySubtitle: {
     fontSize: FontSizes.md,
-    color: Colors.textTertiary,
+    color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: Spacing.lg,
@@ -1851,17 +1857,20 @@ const styles = StyleSheet.create({
   emptyFeatureChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: Colors.secondary + '40',
+    borderColor: Colors.primary + '30',
+  },
+  emptyFeatureIcon: {
+    fontSize: 12,
   },
   emptyFeatureText: {
     fontSize: FontSizes.xs,
-    color: Colors.secondary,
+    color: Colors.primary,
     fontWeight: '600',
   },
   dateSeparator: {
