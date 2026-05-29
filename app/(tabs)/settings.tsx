@@ -198,6 +198,39 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const exportChat = () => {
+    if (Platform.OS !== 'web') { Alert.alert('Export', 'Chat export works in the web version.'); return; }
+    try {
+      const raw = localStorage.getItem('riuka_chat_v1');
+      if (!raw) { Alert.alert('Export', 'No chat history to export.'); return; }
+      const msgs: { text: string; isUser: boolean; time: string }[] = JSON.parse(raw);
+      const lines = msgs.map((m) => `[${m.time}] ${m.isUser ? 'You' : 'Riuka'}: ${m.text}`).join('\n\n');
+      const blob = new Blob([lines], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = (document as any).createElement('a');
+      a.href = url; a.download = `riuka-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch { Alert.alert('Export failed', 'Could not export chat.'); }
+  };
+
+  const clearAllData = () => {
+    Alert.alert('Clear ALL Data', 'This will erase your chat, todos, profile, and theme. Cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Erase Everything', style: 'destructive', onPress: () => {
+          if (Platform.OS === 'web') {
+            try {
+              ['riuka_chat_v1','riuka_todos_v1','riuka_profile_v1','riuka_theme_v1','riuka_voice_reply','riuka_wake_v1'].forEach((k) => localStorage.removeItem(k));
+            } catch {}
+          }
+          setMemCounts({ preferences: 0, facts: 0, context: 0 });
+          setProfileName(''); setProfileCity(''); setAccentColor('#A855F7');
+          Alert.alert('Done', 'All data cleared. Fresh start! ✨');
+        },
+      },
+    ]);
+  };
+
   const totalMem = memCounts.preferences + memCounts.facts + memCounts.context;
 
   return (
@@ -451,6 +484,21 @@ export default function SettingsScreen() {
                   <Text style={styles.memoryBtnTextDanger}>Erase All</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </Animated.View>
+
+          {/* Data & Export */}
+          <Animated.View entering={FadeInUp.duration(600).delay(370)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Data & Export</Text>
+            <View style={styles.dataButtons}>
+              <TouchableOpacity style={styles.dataBtn} onPress={exportChat}>
+                <Text style={styles.dataBtnText}>📥 Export Chat</Text>
+                <Text style={styles.dataBtnSub}>Download as .txt</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.dataBtn, styles.dataBtnDanger]} onPress={clearAllData}>
+                <Text style={styles.dataBtnTextDanger}>🗑️ Clear All Data</Text>
+                <Text style={[styles.dataBtnSub, { color: Colors.error + 'AA' }]}>Erase everything</Text>
+              </TouchableOpacity>
             </View>
           </Animated.View>
 
@@ -742,5 +790,37 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 18,
+  },
+  dataButtons: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  dataBtn: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    alignItems: 'center',
+    gap: 4,
+  },
+  dataBtnDanger: {
+    borderColor: Colors.error + '40',
+    backgroundColor: 'rgba(239,68,68,0.05)',
+  },
+  dataBtnText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  dataBtnTextDanger: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.error,
+  },
+  dataBtnSub: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
   },
 });

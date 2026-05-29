@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated as RNAnimated,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -62,11 +63,17 @@ const QUICK_CMDS = [
   { label: '🔐 Password', cmd: 'Password 16' },
   { label: '📰 News', cmd: 'News' },
   { label: '🍅 Pomodoro', cmd: 'Pomodoro' },
+  { label: '🎧 Lofi', cmd: 'Lofi' },
   { label: '💡 Inspire me', cmd: 'Inspire me' },
   { label: '🧩 Riddle', cmd: 'Riddle' },
+  { label: '😂 Joke', cmd: 'Tell me a joke' },
+  { label: '🎱 8 Ball', cmd: '8 ball will today be great' },
   { label: '💰 Tip 20 on 50', cmd: 'Tip 20 on 50' },
   { label: '🪙 Flip coin', cmd: 'Flip a coin' },
+  { label: '🧘 Breathe', cmd: 'Breathe' },
   { label: '📋 Read clipboard', cmd: 'Read clipboard' },
+  { label: '🆔 UUID', cmd: 'UUID' },
+  { label: '⭐ Horoscope', cmd: 'Horoscope' },
 ];
 
 // ── Animated status dot ───────────────────────────────────────────────────────
@@ -86,12 +93,24 @@ function LiveDot({ color = Colors.secondary }: { color?: string }) {
 export default function HomeScreen() {
   const [clockTime, setClockTime] = useState(new Date());
   const [uptime, setUptime] = useState('0s');
-  const [cmdCount] = useState(Math.floor(Math.random() * 40) + 10);
+  const [todoCount, setTodoCount] = useState(0);
+  const [profileName, setProfileName] = useState('');
   const fadeAnim = useRef(new RNAnimated.Value(1)).current;
 
   useEffect(() => {
     const t = setInterval(() => { setClockTime(new Date()); setUptime(formatUptime()); }, 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      try {
+        const todos = JSON.parse(localStorage.getItem('riuka_todos_v1') || '[]');
+        setTodoCount(todos.length);
+        const p = JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}');
+        if (p.name) setProfileName(p.name);
+      } catch {}
+    }
   }, []);
 
   const sendCmd = (cmd: string | null, route: string) => {
@@ -126,7 +145,7 @@ export default function HomeScreen() {
 
         {/* ── Hero ── */}
         <Animated.View entering={FadeInDown.duration(500)} style={s.hero}>
-          <Text style={s.greeting}>{getGreeting()}</Text>
+          <Text style={s.greeting}>{getGreeting()}{profileName ? `, ${profileName}` : ''} 👋</Text>
           <Text style={s.clockBig}>
             {clockTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Text>
@@ -138,12 +157,13 @@ export default function HomeScreen() {
         {/* ── Stats strip ── */}
         <Animated.View entering={FadeInUp.duration(500).delay(100)} style={s.statsStrip}>
           {[
-            { val: `${cmdCount}`, label: 'Commands', color: Colors.primary },
-            { val: uptime, label: 'Uptime', color: Colors.secondary },
-            { val: '100%', label: 'Private', color: Colors.accent },
+            { val: '70+', label: 'Commands', color: Colors.primary },
+            { val: `${todoCount}`, label: 'Todos', color: Colors.secondary },
+            { val: uptime, label: 'Uptime', color: Colors.accent },
+            { val: '🔒', label: 'Private', color: Colors.secondary },
           ].map((item, i) => (
             <View key={i} style={s.statItem}>
-              <Text style={[s.statVal, { color: item.color }]}>{item.val}</Text>
+              <Text style={[s.statVal, { color: item.color }]}>{item.val || '0'}</Text>
               <Text style={s.statLabel}>{item.label}</Text>
             </View>
           ))}

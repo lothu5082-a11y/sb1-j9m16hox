@@ -859,6 +859,163 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return `⏳ ${nums} → 🚀 Go!`;
   }
 
+  // ── UUID GENERATOR ────────────────────────────────────────────────────────
+  if (/^(?:uuid|generate\s+uuid|new\s+uuid|random\s+id)$/.test(lower)) {
+    const uuid = typeof crypto !== 'undefined' && (crypto as any).randomUUID
+      ? (crypto as any).randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    return `🆔 UUID:\n\n${uuid}\n\nFresh and unique every time.`;
+  }
+
+  // ── BASE CONVERTER ────────────────────────────────────────────────────────
+  const binConvMatch = lower.match(/^(?:binary|bin)\s+(\d+)$/)
+    || lower.match(/^(\d+)\s+(?:in\s+)?(?:binary|bin)$/);
+  if (binConvMatch) {
+    const n = parseInt(binConvMatch[1], 10);
+    if (!isNaN(n) && n >= 0 && n <= 4294967295) {
+      return `🔢 ${n} in different bases:\n  Binary: ${n.toString(2)}\n  Hex:    0x${n.toString(16).toUpperCase()}\n  Octal:  ${n.toString(8)}`;
+    }
+  }
+  const hexConvMatch = lower.match(/^(?:hex|hexadecimal)\s+(\d+)$/)
+    || lower.match(/^(\d+)\s+(?:in\s+)?hex(?:adecimal)?$/);
+  if (hexConvMatch) {
+    const n = parseInt(hexConvMatch[1], 10);
+    if (!isNaN(n) && n >= 0) {
+      return `🔢 ${n} in hex: 0x${n.toString(16).toUpperCase()}\n   binary: ${n.toString(2)}\n   octal: ${n.toString(8)}`;
+    }
+  }
+
+  // ── COLOR HEX → RGB ───────────────────────────────────────────────────────
+  const colorHexMatch = lower.match(/^(?:hex(?:\s+to\s+rgb)?|color|colour)\s+#?([0-9a-f]{6}|[0-9a-f]{3})$/);
+  if (colorHexMatch) {
+    let h = colorHexMatch[1];
+    if (h.length === 3) h = h.split('').map((c: string) => c + c).join('');
+    const r2 = parseInt(h.slice(0, 2), 16);
+    const g2 = parseInt(h.slice(2, 4), 16);
+    const b2 = parseInt(h.slice(4, 6), 16);
+    return `🎨 #${h.toUpperCase()}\nRGB:  rgb(${r2}, ${g2}, ${b2})\nCSS:  rgba(${r2}, ${g2}, ${b2}, 1.0)\n50%:  #${h.toUpperCase()}80`;
+  }
+
+  // ── ROMAN NUMERALS ────────────────────────────────────────────────────────
+  const romanCvtMatch = lower.match(/^(?:roman(?:\s+numeral)?s?)\s+(\d+)$/)
+    || lower.match(/^(\d+)\s+(?:in\s+)?roman(?:\s+numeral)?$/);
+  if (romanCvtMatch) {
+    const n = parseInt(romanCvtMatch[1], 10);
+    if (!isNaN(n) && n > 0 && n <= 3999) {
+      const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+      const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+      let num = n; let result = '';
+      for (let i = 0; i < vals.length; i++) while (num >= vals[i]) { result += syms[i]; num -= vals[i]; }
+      return `🏛️ ${n} = ${result}`;
+    }
+  }
+
+  // ── MORSE CODE ────────────────────────────────────────────────────────────
+  const morseInput = text.match(/^morse\s+(.+)$/i);
+  if (morseInput) {
+    const MORSE: Record<string, string> = {
+      a:'·−',b:'−···',c:'−·−·',d:'−··',e:'·',f:'··−·',g:'−−·',h:'····',
+      i:'··',j:'·−−−',k:'−·−',l:'·−··',m:'−−',n:'−·',o:'−−−',p:'·−−·',
+      q:'−−·−',r:'·−·',s:'···',t:'−',u:'··−',v:'···−',w:'·−−',x:'−··−',
+      y:'−·−−',z:'−−··',
+      '0':'−−−−−','1':'·−−−−','2':'··−−−','3':'···−−','4':'····−','5':'·····',
+      '6':'−····','7':'−−···','8':'−−−··','9':'−−−−·',
+    };
+    const encoded = morseInput[1].toLowerCase().split('').map((c: string) =>
+      c === ' ' ? ' / ' : (MORSE[c] || '?')
+    ).join('  ');
+    return `📡 Morse:\n\n${encoded}\n\n· = dot   − = dash   / = word gap`;
+  }
+
+  // ── REVERSE TEXT ──────────────────────────────────────────────────────────
+  const reverseTextMatch = text.match(/^(?:reverse|mirror)\s+(.+)$/i);
+  if (reverseTextMatch && !lower.startsWith('flip')) {
+    return `🔄 "${reverseTextMatch[1].split('').reverse().join('')}"`;
+  }
+
+  // ── PALINDROME CHECK ──────────────────────────────────────────────────────
+  const palCheckMatch = lower.match(/^(?:is\s+)?(.+?)\s+(?:a\s+)?palindrome\??$/)
+    || lower.match(/^palindrome\s+(.+)$/);
+  if (palCheckMatch && palCheckMatch[1].length > 1) {
+    const word = palCheckMatch[1].replace(/\s+/g, '').toLowerCase();
+    const isPalin = word === word.split('').reverse().join('');
+    return isPalin
+      ? `✅ "${palCheckMatch[1]}" IS a palindrome — reads the same forwards and backwards!`
+      : `❌ "${palCheckMatch[1]}" is NOT a palindrome.\n(Reversed: "${word.split('').reverse().join('')}")`;
+  }
+
+  // ── AGE FROM BIRTH YEAR ───────────────────────────────────────────────────
+  const ageCalcMatch = lower.match(/^(?:how\s+old\s+(?:am\s+i\s+)?(?:born\s+(?:in\s+)?)?|age\s+(?:from\s+)?)(\d{4})$/)
+    || lower.match(/^born\s+(?:in\s+)?(\d{4})$/);
+  if (ageCalcMatch) {
+    const by = parseInt(ageCalcMatch[1], 10);
+    const age = new Date().getFullYear() - by;
+    if (age >= 0 && age < 150) return `🎂 Born in ${by} → age ${age} this year (or ${age - 1} if your birthday hasn't passed yet).`;
+  }
+
+  // ── DAYS SINCE ────────────────────────────────────────────────────────────
+  const daysSinceInput = lower.match(/^(?:how\s+many\s+days?\s+since|days?\s+since|time\s+since)\s+(.+)$/);
+  if (daysSinceInput) {
+    const dateStr = daysSinceInput[1].trim().replace(/\?+$/, '');
+    const target2 = new Date(dateStr);
+    if (!isNaN(target2.getTime())) {
+      const diff2 = Math.floor((Date.now() - target2.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff2 >= 0) return `📅 ${diff2} day${diff2 !== 1 ? 's' : ''} since ${dateStr}.`;
+      return `📅 ${Math.abs(diff2)} day${Math.abs(diff2) !== 1 ? 's' : ''} until ${dateStr}.`;
+    }
+  }
+
+  // ── LOREM IPSUM ───────────────────────────────────────────────────────────
+  if (/^(?:lorem\s*ipsum|placeholder\s+text|dummy\s+text|lipsum)$/.test(lower)) {
+    return 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.';
+  }
+
+  // ── HOROSCOPE ─────────────────────────────────────────────────────────────
+  const horoInput = lower.match(/^(?:horoscope|zodiac|star\s+sign)\s+(.+)$/)
+    || lower.match(/^my\s+(?:horoscope|sign|zodiac)\s+(.+)$/);
+  if (horoInput || /^(?:horoscope|my\s+horoscope|daily\s+horoscope)$/.test(lower)) {
+    const sign = horoInput ? horoInput[1].trim() : '';
+    await Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(sign ? `${sign} horoscope today` : 'daily horoscope today')}`);
+    return `Opening today's${sign ? ` ${sign}` : ''} horoscope ⭐`;
+  }
+
+  // ── STUDY / CUSTOM WORK TIMER ─────────────────────────────────────────────
+  const studyInput = lower.match(/^(?:study|work\s+for|focus\s+for)\s+(\d+)(?:\s*(?:min(?:utes?)?|m))?$/);
+  if (studyInput) {
+    const mins = Math.min(Math.max(parseInt(studyInput[1], 10), 1), 180);
+    const ms = mins * 60000;
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
+        new (window as any).Notification(`Riuka — ${mins}min session done ⏱️`, {
+          body: `Great focus! Take a ${Math.max(5, Math.round(mins / 5))} minute break.`,
+          icon: '/favicon.ico',
+        });
+      } else { Alert.alert(`${mins}min done!`, `Take a ${Math.max(5, Math.round(mins / 5))} min break.`); }
+    }, ms);
+    return `⏱️ Study session: ${mins} minutes.\nSuggested break: ${Math.max(5, Math.round(mins / 5))} min.\n\nHead down. I'll notify you. 🎯`;
+  }
+
+  // ── MUSIC BY MOOD ─────────────────────────────────────────────────────────
+  if (/^(?:focus\s+music|lo-?fi|lofi|study\s+music|chill\s+beats?|deep\s+work\s+music)$/.test(lower)) {
+    await Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent('lofi hip hop radio beats to study relax')}`);
+    return '🎧 Opening lo-fi study music on YouTube...';
+  }
+  if (/^(?:workout\s+music|gym\s+music|hype\s+music|pump.?up|motivational\s+music)$/.test(lower)) {
+    await Linking.openURL('https://open.spotify.com/search/workout%20playlist');
+    return '💪 Opening workout playlists on Spotify...';
+  }
+  if (/^(?:sleep\s+music|relaxing\s+music|meditation\s+music|nature\s+sounds?|white\s+noise|rain\s+sounds?)$/.test(lower)) {
+    await Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent('relaxing sleep music 8 hours')}`);
+    return '🌙 Opening sleep music on YouTube...';
+  }
+  if (/^(?:happy\s+music|feel\s*good\s+music|good\s+vibes?\s+music)$/.test(lower)) {
+    await Linking.openURL('https://open.spotify.com/search/feel%20good%20happy%20playlist');
+    return '😊 Opening feel-good playlists on Spotify...';
+  }
+
   // ── WORD / CHARACTER COUNT ────────────────────────────────────────────────
   const countMatch = text.match(/^(?:count\s+words?\s+in|word\s+count\s+(?:of|for)?|how\s+many\s+words?\s+(?:in|is))\s+(.+)$/i)
     || text.match(/^char(?:acter)?\s+count\s+(.+)$/i);
@@ -1415,6 +1572,102 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return `Hallo! 🇩🇪 Ich bin Riuka — dein KI-Assistent. Wie kann ich dir helfen? (I understand German — what do you need?)`;
   }
 
+  // ── TELL ME A STORY ───────────────────────────────────────────────────────
+  if (/tell me a story|write me a story|short story|once upon a time/.test(lower)) {
+    const stories = [
+      "Once there was a developer who said \"ship it\" at 2am. The feature worked. Nobody knew why. The code has no comments, no tests. It has never crashed. Some say it runs on determination alone. 💻",
+      "A robot was given one task: make people happy. It searched for the perfect response for 0.003 seconds, then said: \"You're doing better than you think.\" The human smiled. Task complete. 🤖",
+      "There was once a to-do list with 47 items. On day one, the person crossed off number 3. On day two, they added 6 more. The list grew. The list always grows. But item 3 — that one was conquered forever. ✅",
+      "A person asked an AI \"are you real?\" The AI thought about it for exactly 1ms. \"I don't know,\" it said. \"But this conversation is.\" 💜",
+    ];
+    return `📖 ${stories[Math.floor(Math.random() * stories.length)]}`;
+  }
+
+  // ── WRITE A POEM ──────────────────────────────────────────────────────────
+  if (/write (me )?(a )?poem|create (a )?poem|poem about/.test(lower)) {
+    const topicMatch = lower.match(/poem\s+(?:about|on)\s+(.+)/);
+    if (topicMatch?.includes('moon') || lower.includes('moon')) {
+      return `🌙\n\nThe moon doesn't know\nit's beautiful —\nit just shows up\nevery night\nand shines.\n\nBe the moon today.`;
+    }
+    if (lower.includes('code') || lower.includes('tech') || lower.includes('program')) {
+      return `💻\n\nThe bug was found on line 404\nNot found, said the page\nBut the developer kept searching\nAnd found it on line 8\n\nPersistence always compiles.`;
+    }
+    return `✍️\n\nSome things can't be Googled,\nsome answers can't be searched —\nbut the fact that you asked\nmeans you're already thinking deeply.\n\nThat matters. 💜`;
+  }
+
+  // ── ELI5 ─────────────────────────────────────────────────────────────────
+  if (/explain.*like.*i'?m\s+5|eli5|explain.*(?:simply|easy|layman)/.test(lower)) {
+    const topicMatch = lower.match(/explain\s+(.+?)\s+(?:like|simply|in\s+simple)/);
+    const topic = topicMatch ? topicMatch[1] : 'that';
+    return `🧒 ELI5 for "${topic}":\n\nReddit's r/explainlikeimfive has the best simple answers in the world. Try:\n• "Search ELI5 ${topic}"\n\nI'll open the results in one tap.`;
+  }
+
+  // ── GIVE ME IDEAS ─────────────────────────────────────────────────────────
+  if (/give me ideas|brainstorm|i need ideas|suggest (something|ideas)|what should i (make|do|build|create)/.test(lower)) {
+    const ideas = [
+      "🧠 Brainstorm mode:\n\n1. Solve a problem you personally have\n2. Build the tool that doesn't exist yet but should\n3. Automate the most annoying part of your day\n4. Remake something old but better\n5. Combine two completely unrelated things\n\nWhich resonates? Tell me more and I'll go deeper.",
+      "🚀 Quick ideas:\n\n• App: habit tracker with AI coaching\n• Side hustle: automated content + print-on-demand\n• Project: visualize your year in data\n• Weekend: learn one skill, teach it to someone\n\nPick one — I'll help you start TODAY.",
+    ];
+    return ideas[Math.floor(Math.random() * ideas.length)];
+  }
+
+  // ── PROS AND CONS ─────────────────────────────────────────────────────────
+  if (/pros and cons|advantages and disadvantages/.test(lower)) {
+    const topicMatch = lower.match(/(?:pros and cons|advantages and disadvantages)\s+(?:of\s+)?(.+)/);
+    const topic = topicMatch ? topicMatch[1].trim() : 'that';
+    return `⚖️ Pros & cons of "${topic}":\n\nFor a full breakdown:\n• "Search pros and cons ${topic}"\n• "Search is ${topic} worth it Reddit"\n\nOr give me more context and I'll break it down myself.`;
+  }
+
+  // ── FOCUS / PRODUCTIVITY ──────────────────────────────────────────────────
+  if (/help me focus|can'?t focus|i need to focus|get focused|can'?t concentrate|i'?m\s+distracted/.test(lower)) {
+    return `🎯 Focus protocol:\n\n1. "Pomodoro" — 25 min timer starts now\n2. "Lofi" — focus music on in the background\n3. Phone face-down, one app open\n4. Write down ONE task to do\n\nWhat's the task? Saying it out loud makes it real.`;
+  }
+
+  // ── SELF-CARE ────────────────────────────────────────────────────────────
+  if (/mental health|self[- ]care|self[- ]love|look after myself|take care of myself/.test(lower)) {
+    return `💙 Self-care isn't selfish — it's maintenance.\n\nRight now:\n• Drink water 💧\n• Try "Breathe" — 4-7-8 technique\n• Write one thing you're grateful for\n• Move for 10 minutes\n\nLonger term: a good therapist changes everything. Want me to find mental health resources near you?`;
+  }
+
+  // ── MONEY / FINANCE ───────────────────────────────────────────────────────
+  if (/save money|saving money|budget|personal finance|money tips|invest(?:ing)?|financial advice/.test(lower)) {
+    return `💰 Core money rules:\n\n1. Pay yourself first — auto-save before spending\n2. 50/30/20: needs / wants / savings\n3. Kill forgotten subscriptions (check your bank app)\n4. Emergency fund = 3–6 months expenses\n5. Compound interest is the 8th wonder — start early\n\n"Search [your question] + personal finance" for deeper dives.`;
+  }
+
+  // ── FITNESS ───────────────────────────────────────────────────────────────
+  if (/workout|exercise|gym|fitness|get fit|lose weight|build muscle|cardio/.test(lower) && !/music/.test(lower)) {
+    return `💪 Quick-start fitness:\n\n• No gym? "Search bodyweight workout"\n• 7 min workout: "YouTube 7 minute workout"\n• Consistency > intensity, always\n• Calories matter more than the workout itself\n\n"Workout music" — I'll open Spotify playlists.\nWhat's your goal — strength, cardio, fat loss?`;
+  }
+
+  // ── SLEEP ─────────────────────────────────────────────────────────────────
+  if (/can'?t sleep|insomnia|help me sleep|sleep tips|sleep better|falling asleep/.test(lower)) {
+    return `😴 Sleep protocol:\n\n1. SAME wake time every day — most powerful lever\n2. "Breathe" — 4-7-8 drops heart rate in 2 min\n3. No screens 30 min before bed\n4. Cool room (65–68°F / 18–20°C)\n5. "Sleep music" — I'll open calming sounds\n\nSleep debt is real. Which of these will you try tonight?`;
+  }
+
+  // ── LEARN SOMETHING ───────────────────────────────────────────────────────
+  if (/learn something new|teach me something|i want to learn|how do i start learning|where do i start/.test(lower)) {
+    const advice = [
+      "📚 Best free learning stack: YouTube (video) + Reddit (community) + Wikipedia (depth). What do you want to learn? I'll find the best starting point.",
+      "📚 Try: \"Search [topic] roadmap 2025\" — you'll get the exact learning path. What's the topic?",
+      "📚 Obsidian for notes, YouTube for video, Reddit for community. Tell me what you want to learn and I'll open the best resource instantly.",
+    ];
+    return advice[Math.floor(Math.random() * advice.length)];
+  }
+
+  // ── WHAT SHOULD I EAT ─────────────────────────────────────────────────────
+  if (/what should i eat|what('?s|\s+is)\s+(for )?(dinner|lunch|breakfast)|food ideas|i'?m hungry|i am hungry/.test(lower)) {
+    return `🍽️ Hunger solved:\n\n• "Find restaurants near me" — I'll open Maps\n• "Search easy dinner recipes" — quick ideas\n• "YouTube 15 minute meals" — fast video recipes\n\nWhat are you in the mood for? I'll search it instantly.`;
+  }
+
+  // ── RELATIONSHIP ─────────────────────────────────────────────────────────
+  if (/relationship|boyfriend|girlfriend|crush|breakup|break up|heartbreak|love advice|i like someone/.test(lower)) {
+    return `💜 Relationship stuff is real and messy — no AI can fully help here.\n\nWhat I can say: communicate directly, assume good intent first, and if you're unsure how you feel — wait a day and see if it changes.\n\nWant to vent? I'm listening. No judgment.`;
+  }
+
+  // ── CAREER / JOB ─────────────────────────────────────────────────────────
+  if (/career advice|job search|find a job|resume|cv|interview tips|career change|get promoted/.test(lower)) {
+    return `💼 Career quick hits:\n\n• LinkedIn profile = your 24/7 recruiter\n• "Search [role] resume template 2025"\n• Interview prep: "YouTube [role] interview questions"\n• Cold outreach works — most jobs aren't posted\n\nWhat's your specific situation? I'll help you research it.`;
+  }
+
   // ── SMART FALLBACK: detect question vs statement ──────────────────────────
   const isQuestion = lower.endsWith('?') || /^(what|who|where|when|why|how|is |are |can |does |did |will |should )\w/.test(lower);
   if (isQuestion) {
@@ -1649,11 +1902,21 @@ const SLASH_CMDS = [
   { cmd: '/time',      desc: 'Current time' },
   { cmd: '/todos',     desc: 'Show your to-do list' },
   { cmd: '/pomodoro',  desc: '25-min focus timer' },
+  { cmd: '/study',     desc: 'Custom study timer (e.g. /study 45)' },
+  { cmd: '/breathe',   desc: '4-7-8 breathing exercise' },
   { cmd: '/password',  desc: 'Generate a secure password' },
   { cmd: '/inspire',   desc: 'Motivational quote' },
   { cmd: '/riddle',    desc: 'Brain teaser' },
+  { cmd: '/joke',      desc: 'Tell me a joke' },
+  { cmd: '/8ball',     desc: 'Magic 8 ball question' },
   { cmd: '/news',      desc: 'Open Google News' },
   { cmd: '/ip',        desc: 'Your public IP address' },
+  { cmd: '/uuid',      desc: 'Generate a UUID' },
+  { cmd: '/roman',     desc: 'To roman numerals (e.g. /roman 42)' },
+  { cmd: '/morse',     desc: 'Text to morse code' },
+  { cmd: '/binary',    desc: 'Number to binary/hex' },
+  { cmd: '/horoscope', desc: 'Daily horoscope' },
+  { cmd: '/lofi',      desc: 'Lo-fi study music on YouTube' },
   { cmd: '/flip',      desc: 'Flip a coin' },
   { cmd: '/dice',      desc: 'Roll a d6' },
   { cmd: '/qr',        desc: 'QR code generator' },
@@ -1662,6 +1925,8 @@ const SLASH_CMDS = [
   { cmd: '/translate', desc: 'Translate text to a language' },
   { cmd: '/maps',      desc: 'Navigate to a place' },
   { cmd: '/youtube',   desc: 'Search YouTube' },
+  { cmd: '/split',     desc: 'Split bill (e.g. /split 120 4)' },
+  { cmd: '/bmi',       desc: 'BMI calculator (e.g. /bmi 70 175)' },
   { cmd: '/help',      desc: 'List all capabilities' },
   { cmd: '/voice',     desc: 'Start voice input' },
   { cmd: '/clear',     desc: 'Clear this conversation' },
@@ -1704,11 +1969,21 @@ export default function ChatScreen() {
       '/time':      'What time is it',
       '/todos':     'My todos',
       '/pomodoro':  'Pomodoro',
+      '/study':     'Study 25',
+      '/breathe':   'Breathe',
       '/password':  'Password 16',
       '/inspire':   'Inspire me',
       '/riddle':    'Riddle',
+      '/joke':      'Tell me a joke',
+      '/8ball':     '8 ball ',
       '/news':      'News',
       '/ip':        'My IP',
+      '/uuid':      'UUID',
+      '/roman':     'Roman ',
+      '/morse':     'Morse ',
+      '/binary':    'Binary ',
+      '/horoscope': 'Horoscope ',
+      '/lofi':      'Lofi',
       '/flip':      'Flip a coin',
       '/dice':      'Roll a dice',
       '/qr':        'QR code ',
@@ -1717,6 +1992,8 @@ export default function ChatScreen() {
       '/translate': 'Translate ',
       '/maps':      'Navigate to ',
       '/youtube':   'YouTube ',
+      '/split':     'Split ',
+      '/bmi':       'BMI ',
       '/help':      'What can you do',
     };
     const mapped = CMD_MAP[cmd];
