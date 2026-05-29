@@ -2338,6 +2338,54 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return advice[Math.floor(Math.random() * advice.length)];
   }
 
+  // ── ATOMIC EVOLUTION ──────────────────────────────────────────────────────
+  if (/^\/evolve|^\/upgrade|^\/level|atomic status|my level|your level|evolution status|how evolved|are you evolv/.test(lower)) {
+    const evo = getEvolution();
+    const cur = getEvolutionLevel(evo.xp);
+    const nxt = getNextLevel(evo.xp);
+    const facts = getMemory();
+    const bar = '█'.repeat(Math.round((evo.xp / (nxt?.xp ?? evo.xp + 1)) * 10)).padEnd(10, '░');
+    return `${cur.icon} Atomic Evolution — Level ${cur.level}: ${cur.name}\n\n⚡ XP: ${evo.xp}${nxt ? ` / ${nxt.xp}  [${bar}]  → ${nxt.name}` : ' (MAX)'}\n🧠 Memories stored: ${facts.length}\n🔧 Corrections absorbed: ${evo.corrections}\n\nI evolve every time I learn something about you.\nTeach me: "my name is...", "I live in...", "I like...", or just say "remember that..."\n\nType /memory to see what I know.`;
+  }
+
+  if (/^\/memory|^\/memories|what do you know about me|what.*know.*about me|what.*remember|show.*memory|my memory/.test(lower)) {
+    const facts = getMemory();
+    if (facts.length === 0) return `🧠 Memory is empty — I haven't learned anything about you yet.\n\nTeach me:\n• "My name is ..."\n• "I live in ..."\n• "I like ..."\n• "Remember that ..."`;
+    const groups: Record<string, string[]> = {};
+    for (const f of facts) {
+      const k = f.category.charAt(0).toUpperCase() + f.category.slice(1);
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(f.content);
+    }
+    let out = `🧠 My Memory (${facts.length} facts)\n\n`;
+    for (const [cat, items] of Object.entries(groups)) {
+      out += `${cat}\n` + items.map(i => `• ${i}`).join('\n') + '\n\n';
+    }
+    return out.trim();
+  }
+
+  if (/^\/forget\s+(.+)|forget (?:that |about )?(.+)/i.test(lower)) {
+    const topic = (lower.match(/^\/forget\s+(.+)|forget (?:that |about )?(.+)/i) ?? [])[1] || (lower.match(/^\/forget\s+(.+)|forget (?:that |about )?(.+)/i) ?? [])[2] || '';
+    if (!topic) return "What should I forget? Say: forget [topic]";
+    const facts = getMemory();
+    const before = facts.length;
+    const filtered = facts.filter(f => !f.content.toLowerCase().includes(topic.trim().toLowerCase()));
+    saveMemory(filtered);
+    const removed = before - filtered.length;
+    return removed > 0 ? `🗑️ Forgotten ${removed} fact${removed > 1 ? 's' : ''} about "${topic}".` : `I don't have anything stored about "${topic}".`;
+  }
+
+  if (/^\/teach\s+(.+)/i.test(lower)) {
+    const fact = (lower.match(/^\/teach\s+(.+)/i) ?? [])[1]?.trim() || '';
+    if (fact.length < 3) return "What should I learn? Say: /teach [fact]";
+    const r = learnFact('custom', fact, text, 30);
+    if (r.learned) {
+      const cur = getEvolutionLevel(getEvolution().xp);
+      return `⚡ Learned!\n\n"${fact}"\n\nEvolution: ${cur.icon} ${cur.name} (${getEvolution().xp} XP)`;
+    }
+    return `I already know that. (stored in /memory)`;
+  }
+
   // ── SMART FALLBACK: detect question vs statement ──────────────────────────
   const isQuestion = lower.endsWith('?') || /^(what|who|where|when|why|how|is |are |can |does |did |will |should )\w/.test(lower);
   if (isQuestion) {
@@ -2374,7 +2422,7 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
     const messages = [
       {
         role: 'system',
-        content: `You are Riuka AI — a powerful, privacy-first autonomous assistant. ${timeContext}
+        content: `You are Riuka AI — a powerful, privacy-first autonomous assistant. ${timeContext}${getMemoryContext()}
 
 EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
 • open [app] — youtube, whatsapp, telegram, instagram, twitter/x, spotify, netflix, gmail, maps, facebook, tiktok, linkedin, reddit, chrome
@@ -2763,6 +2811,10 @@ const SLASH_CMDS = [
   { cmd: '/torch',      desc: 'Toggle flashlight (e.g. /torch on)' },
   { cmd: '/gesture',    desc: 'Camera gesture control (e.g. /gesture on)' },
   { cmd: '/volume',     desc: 'Voice volume (e.g. volume up / volume down / mute)' },
+  { cmd: '/evolve',     desc: 'Show your AI evolution level & XP' },
+  { cmd: '/memory',     desc: 'Show everything Riuka has learned about you' },
+  { cmd: '/teach',      desc: 'Teach Riuka a fact (e.g. /teach I prefer dark mode)' },
+  { cmd: '/forget',     desc: 'Remove a memory (e.g. /forget my name)' },
 ];
 
 const SUGGESTIONS = [
@@ -2772,6 +2824,139 @@ const SUGGESTIONS = [
 ];
 
 const STORAGE_KEY = 'riuka_chat_v1';
+
+// ── Atomic Evolution System ────────────────────────────────────────────────────
+interface MemoryFact {
+  id: string;
+  category: 'name' | 'preference' | 'dislike' | 'location' | 'profession' | 'habit' | 'correction' | 'custom';
+  content: string;
+  learnedAt: number;
+  source: string;
+}
+interface EvolutionState {
+  xp: number;
+  level: number;
+  totalLearned: number;
+  corrections: number;
+}
+const MEMORY_KEY = 'riuka_memory_v1';
+const EVOLUTION_KEY = 'riuka_evolution_v1';
+const EVOLUTION_LEVELS = [
+  { level: 1, name: 'Newborn',     xp: 0,    icon: '🥚' },
+  { level: 2, name: 'Aware',       xp: 40,   icon: '👁️' },
+  { level: 3, name: 'Adaptive',    xp: 120,  icon: '🧠' },
+  { level: 4, name: 'Intelligent', xp: 280,  icon: '⚡' },
+  { level: 5, name: 'Sentient',    xp: 550,  icon: '🌐' },
+  { level: 6, name: 'Evolved',     xp: 1000, icon: '🔮' },
+  { level: 7, name: 'Atomic',      xp: 2000, icon: '⚛️' },
+];
+
+const getMemory = (): MemoryFact[] => {
+  if (Platform.OS !== 'web') return [];
+  try { return JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]'); } catch { return []; }
+};
+const saveMemory = (facts: MemoryFact[]) => {
+  if (Platform.OS !== 'web') return;
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(facts)); } catch {}
+};
+const getEvolution = (): EvolutionState => {
+  const def = { xp: 0, level: 1, totalLearned: 0, corrections: 0 };
+  if (Platform.OS !== 'web') return def;
+  try { return { ...def, ...JSON.parse(localStorage.getItem(EVOLUTION_KEY) || '{}') }; } catch { return def; }
+};
+const saveEvolution = (evo: EvolutionState) => {
+  if (Platform.OS !== 'web') return;
+  try { localStorage.setItem(EVOLUTION_KEY, JSON.stringify(evo)); } catch {}
+};
+const getEvolutionLevel = (xp: number) => {
+  let cur = EVOLUTION_LEVELS[0];
+  for (const l of EVOLUTION_LEVELS) { if (xp >= l.xp) cur = l; }
+  return cur;
+};
+const getNextLevel = (xp: number) => EVOLUTION_LEVELS.find(l => l.xp > xp) ?? null;
+
+// Returns {learned, content, leveledUp, newLevelName, newLevelIcon} or null if duplicate
+const learnFact = (
+  category: MemoryFact['category'],
+  content: string,
+  source: string,
+  xpGain = 20,
+): { learned: boolean; content: string; leveledUp: boolean; newLevelName: string; newLevelIcon: string } => {
+  const facts = getMemory();
+  const norm = content.toLowerCase();
+  if (facts.some(f => f.content.toLowerCase() === norm || (f.category === category && f.content.toLowerCase().includes(norm.slice(0, 18))))) {
+    return { learned: false, content, leveledUp: false, newLevelName: '', newLevelIcon: '' };
+  }
+  facts.push({ id: Date.now().toString(), category, content, learnedAt: Date.now(), source });
+  saveMemory(facts);
+
+  const evo = getEvolution();
+  const oldLevel = getEvolutionLevel(evo.xp);
+  evo.xp += xpGain;
+  evo.totalLearned += 1;
+  const newLevel = getEvolutionLevel(evo.xp);
+  const leveledUp = newLevel.level > oldLevel.level;
+  if (leveledUp) evo.level = newLevel.level;
+  saveEvolution(evo);
+  return { learned: true, content, leveledUp, newLevelName: newLevel.name, newLevelIcon: newLevel.icon };
+};
+
+// Scan a user message for learnable facts; returns result or null if nothing learned
+const detectAndLearn = (text: string) => {
+  const t = text.trim();
+  const low = t.toLowerCase();
+
+  // Explicit teach/remember commands
+  const rememberMatch = low.match(/^(?:remember|note|learn|store|save|teach yourself)[:\s]+(.{4,120})/);
+  if (rememberMatch) return learnFact('custom', rememberMatch[1].trim(), t, 30);
+
+  // Name
+  const nameMatch = low.match(/(?:my name is|(?:i'm|i am) called|call me)\s+([a-z][a-z '-]{1,24}?)(?:\.|,|!|$)/);
+  if (nameMatch) {
+    const name = nameMatch[1].trim();
+    if (name.split(' ').length <= 4 && !/riuka|ai|bot/.test(name)) return learnFact('name', `User's name is ${name}`, t, 25);
+  }
+
+  // Location
+  const locMatch = low.match(/i (?:live|stay|am|reside|grew up|am from|come from|moved to) in\s+([a-z][a-z ,'-]{2,35}?)(?:\.|,|!|$)/);
+  if (locMatch) return learnFact('location', `User lives in ${locMatch[1].trim()}`, t);
+
+  // Profession
+  const profMatch = low.match(/i(?:'m| am) (?:a |an )(developer|designer|doctor|engineer|teacher|student|writer|nurse|lawyer|scientist|chef|pilot|programmer|coder|artist|manager|architect|analyst)[a-z ]*/);
+  if (profMatch) return learnFact('profession', `User is a ${profMatch[1]}`, t);
+
+  // Preferences
+  const likeMatch = low.match(/i (?:really |absolutely )?(?:love|like|enjoy|prefer|adore)\s+([a-z][a-z ,'-]{2,50}?)(?:\.|,|!|$)/);
+  if (likeMatch && !/^(it|this|that|your|the|when|how|what)/.test(likeMatch[1])) {
+    return learnFact('preference', `User likes ${likeMatch[1].trim()}`, t);
+  }
+
+  // Dislikes
+  const dislikeMatch = low.match(/i (?:hate|dislike|can'?t stand|(?:don'?t|do not) like)\s+([a-z][a-z ,'-]{2,50}?)(?:\.|,|!|$)/);
+  if (dislikeMatch && !/^(it|this|that|your|the)/.test(dislikeMatch[1])) {
+    return learnFact('dislike', `User dislikes ${dislikeMatch[1].trim()}`, t);
+  }
+
+  // Corrections ("actually it's...", "no, that's wrong, ...")
+  const corrMatch = low.match(/^(?:actually,?\s+|no,?\s+|wrong,?\s+|that'?s (?:not right|wrong),?\s+)(.{5,100})/);
+  if (corrMatch) {
+    const evo = getEvolution();
+    evo.corrections = (evo.corrections || 0) + 1;
+    evo.xp += 10;
+    saveEvolution(evo);
+    return learnFact('correction', corrMatch[1].trim(), t, 15);
+  }
+
+  return null;
+};
+
+// Build a memory context string to inject into AI prompts
+const getMemoryContext = (): string => {
+  const facts = getMemory();
+  if (facts.length === 0) return '';
+  const lines = facts.map(f => `- ${f.content}`).join('\n');
+  return `\n\nThings I know about the user (learned from past conversations):\n${lines}\n\nUse this context naturally without announcing it every time.`;
+};
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -2795,6 +2980,15 @@ export default function ChatScreen() {
   const [showSiriModal, setShowSiriModal] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [cameraGestureEnabled, setCameraGestureEnabled] = useState(false);
+  const [evolutionToast, setEvolutionToast] = useState<string | null>(null);
+  const [evoDisplay, setEvoDisplay] = useState(() => getEvolutionLevel(getEvolution().xp));
+  const evoToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showEvolutionToast = (msg: string) => {
+    if (evoToastTimerRef.current) clearTimeout(evoToastTimerRef.current);
+    setEvolutionToast(msg);
+    evoToastTimerRef.current = setTimeout(() => setEvolutionToast(null), 3000);
+  };
 
   // Slash command popup
   const slashToken = inputText.startsWith('/') ? inputText.toLowerCase().split(' ')[0] : '';
@@ -3049,6 +3243,19 @@ export default function ChatScreen() {
     const msgText = (text ?? inputText).trim();
     if (!msgText || isTypingRef.current) return;
 
+    // Atomic learning — scan message before sending
+    const learned = detectAndLearn(msgText);
+    if (learned?.learned) {
+      const newEvoLevel = getEvolutionLevel(getEvolution().xp);
+      setEvoDisplay(newEvoLevel);
+      if (learned.leveledUp) {
+        showEvolutionToast(`${learned.newLevelIcon} Level Up! ${learned.newLevelName}`);
+      } else {
+        const preview = learned.content.length > 40 ? learned.content.slice(0, 40) + '…' : learned.content;
+        showEvolutionToast(`⚡ Learned: ${preview}`);
+      }
+    }
+
     const userMsg: Message = {
       id: Date.now().toString(),
       text: msgText,
@@ -3138,6 +3345,9 @@ export default function ChatScreen() {
                 </Text>
                 <View style={styles.modelBadge}>
                   <Text style={styles.modelBadgeText}>{modelLabel}</Text>
+                </View>
+                <View style={styles.evoBadge}>
+                  <Text style={styles.evoBadgeText}>{evoDisplay.icon} {evoDisplay.name}</Text>
                 </View>
               </View>
             </View>
@@ -3289,6 +3499,20 @@ export default function ChatScreen() {
         transcript={voiceTranscript}
         onClose={stopVoice}
       />
+
+      {/* Atomic Evolution toast */}
+      {evolutionToast && (
+        <Animated.View
+          key={evolutionToast}
+          entering={FadeInUp.duration(280).springify()}
+          style={styles.evolutionToast}
+          pointerEvents="none"
+        >
+          <View style={styles.evolutionToastInner}>
+            <Text style={styles.evolutionToastText}>{evolutionToast}</Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -3604,5 +3828,49 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     flex: 1,
+  },
+  evoBadge: {
+    backgroundColor: 'rgba(168,85,247,0.08)',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.25)',
+    marginLeft: Spacing.xs,
+  },
+  evoBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.primary,
+    letterSpacing: 0.2,
+  },
+  evolutionToast: {
+    position: 'absolute',
+    top: 86,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    alignItems: 'center',
+    zIndex: 200,
+  },
+  evolutionToastInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10,6,20,0.88)',
+    borderRadius: BorderRadius.full,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.5)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  evolutionToastText: {
+    fontSize: FontSizes.xs,
+    color: Colors.primary,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });
