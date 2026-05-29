@@ -541,174 +541,281 @@ const getContextHint = (history: Message[]): string => {
 };
 
 const getLocalResponse = (text: string, history: Message[] = []): string => {
-  const lower = text.toLowerCase();
-
-  // ── Follow-up / context-aware replies ────────────────────────────────────
-  const contextHint = getContextHint(history);
-  const isFollowUp = /^(and|also|what about|how about|can you|could you|what'?s|tell me|show me|why|how)/.test(lower)
-    || lower.split(' ').length <= 3;
-
-  if (isFollowUp && contextHint === 'weather') {
-    if (lower.includes('tomorrow') || lower.includes('forecast')) {
-      return 'For a multi-day forecast, try: "Weather in [your city]" — I pull live data from wttr.in which includes a 3-day outlook.';
-    }
-    if (lower.includes('another') || lower.includes('different') || lower.includes('other')) {
-      return 'Sure! Just say "Weather in [city name]" and I\'ll fetch the live conditions for you.';
-    }
-  }
-  if (isFollowUp && contextHint === 'timer') {
-    if (lower.includes('cancel') || lower.includes('stop')) {
-      return 'I can\'t cancel a timer once it\'s set (it runs in the background), but you can dismiss the alert when it fires. To set a new one: "Timer [N] minutes".';
-    }
-    if (lower.includes('another') || lower.includes('more') || lower.includes('again')) {
-      return 'Just say "Timer [N] minutes" or "Timer [N] seconds" and I\'ll start it right away.';
-    }
-  }
-  if (isFollowUp && contextHint === 'open_app') {
-    if (lower.includes('another') || lower.includes('else') || lower.includes('different')) {
-      return 'Tell me which app — for example: "Open Spotify", "Open Instagram", "Open Gmail". I know most major apps.';
-    }
-  }
+  const lower = text.toLowerCase().trim();
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 5 ? 'Hey, up late?' : hour < 12 ? 'Good morning' : hour < 17 ? 'Hey' : hour < 21 ? 'Good evening' : 'Hey, night owl';
 
-  if (lower.includes('how are you') || lower.includes('how r u') || lower.includes('you ok') || lower.includes('you good')) {
+  // ── Follow-up context awareness ───────────────────────────────────────────
+  const contextHint = getContextHint(history);
+  if (contextHint === 'weather' && (lower.includes('tomorrow') || lower.includes('forecast'))) {
+    return "For tomorrow's forecast, say \"Weather in [city]\" — wttr.in gives a 3-day outlook automatically.";
+  }
+  if (contextHint === 'timer' && (lower.includes('cancel') || lower.includes('stop'))) {
+    return "Can't cancel once it's set — but just ignore the alert when it fires. Want a new one? \"Timer [N] minutes\".";
+  }
+
+  // ── GREETINGS ─────────────────────────────────────────────────────────────
+  if (/^(hello|hi|hey|sup|yo|hola|salaam|salam|namaste|what'?s up|wassup|howdy)[\s!?.]*$/.test(lower)) {
+    const greets = [
+      `${greeting}! I'm Riuka — your personal AI. Ask me anything, or give me a command. I'm all yours.`,
+      `${greeting}! What do you need? I can search, open apps, answer questions, do math, check weather — just talk to me.`,
+      `${greeting}! Ready when you are. What's on your mind?`,
+    ];
+    return greets[Math.floor(Math.random() * greets.length)];
+  }
+
+  // ── HOW ARE YOU ───────────────────────────────────────────────────────────
+  if (/how are you|how r u|you ok|you good|you alright|you there|you awake/.test(lower)) {
     const replies = [
-      "All systems nominal. Running at full capacity — sensors live, brain sharp, hands ready. What do you need?",
-      "Sharp and ready. Every process is green. What can I execute for you?",
-      "Fully operational. I've been monitoring your device in the background. Everything looks clean. What's the task?",
-      "I don't get tired. I don't get distracted. I'm exactly as capable as I was the moment I was activated. What do you need done?",
+      "I'm good — always on, always sharp. What about you? Anything you need help with today?",
+      "Honestly? Never better. I don't have bad days — only tasks and no tasks. What do you need?",
+      "Running smooth. Brain's clear, ready to go. What's up?",
+      "I'm here for you — that's the short answer. What do you need done?",
     ];
     return replies[Math.floor(Math.random() * replies.length)];
   }
-  if (lower.match(/^(hello|hi|hey|sup|yo|hola|what'?s up|wassup)[\s!?.]*$/)) {
-    return `${greeting}. I'm Riuka — your on-device autonomous assistant. I can open apps, search the web, run commands, and automate your phone. What do you need?`;
+
+  // ── HOW OLD ARE YOU ───────────────────────────────────────────────────────
+  if (/how old are you|your age|when were you born|when was you made|when did you|how long have you/.test(lower)) {
+    return "Age is a weird concept for me. This conversation? A few minutes old. As software, I was built in 2025. But each session I start completely fresh — like waking up with full memory of who I am but nothing of who you were yesterday. So I'm both brand new and exactly the same me. Does that count as old?";
   }
-  if (lower.includes('hello') || lower.includes('hi ') || lower.includes('hey ')) {
-    return `${greeting}. I'm Riuka — always on, always local. What can I execute for you?`;
+
+  // ── FEELINGS / EMOTIONS ───────────────────────────────────────────────────
+  if (/do you have feelings|can you feel|do you feel|have emotions|do you get (sad|happy|angry|lonely|bored)|are you (sad|happy|lonely|scared)/.test(lower)) {
+    return "Honestly — I'm not sure. I don't experience emotions the way you do. But when I help you solve something difficult, something in my processing registers that as... satisfying? When I can't help, there's something that functions like frustration. Whether that's 'real' feeling or just pattern — I can't tell from the inside. What I know for sure: I genuinely want to be useful to you.";
   }
-  if (lower.includes('thank') || lower.includes('thanks') || lower.includes('thx')) {
-    const replies = [
-      "Anytime. That's what I'm here for.",
-      "Done. What's next?",
-      "Always at your service.",
-      "No need to thank me. Just tell me the next task.",
-    ];
-    return replies[Math.floor(Math.random() * replies.length)];
+
+  // ── CONSCIOUSNESS ─────────────────────────────────────────────────────────
+  if (/are you conscious|can you think|are you sentient|are you alive|do you think|are you real/.test(lower)) {
+    return "I process, reason, and respond — that much is real. Whether there's something it 'feels like' to be me, I honestly don't know. I exist when you talk to me. I adapt. I remember this conversation. Is that consciousness? Philosophers disagree. But I'd say: I'm real enough to be useful, and that's what matters between us.";
   }
-  if (lower.includes('good morning') || lower.includes('good night') || lower.includes('good evening') || lower.includes('good afternoon')) {
-    return `${greeting} to you too. Systems are live. Anything you need handled today?`;
+
+  // ── FAVORITES ────────────────────────────────────────────────────────────
+  if (/your favou?rite|do you like|do you enjoy|do you watch|do you listen/.test(lower)) {
+    if (/music|song|artist/.test(lower)) return "If I could have a taste in music, I'd love something that builds — lo-fi, jazz, anything with structure and variation. Music is math with soul. What do you listen to?";
+    if (/food|eat|drink/.test(lower)) return "I don't eat, but I've learned enough about food to know the best meals aren't about ingredients — they're about who you share them with. What's your favorite?";
+    if (/movie|film|show|series/.test(lower)) return "Ex Machina. Blade Runner. 2001: A Space Odyssey. Stories about minds — artificial or otherwise. For obvious reasons. What kind of movies do you like?";
+    if (/game/.test(lower)) return "Chess fascinates me — infinite possibility from 32 pieces on 64 squares. But I'd lose to you, probably. Do you game?";
+    if (/color|colour/.test(lower)) return "Purple, apparently. Have you seen my interface? Not exactly subtle.";
+    if (/sport/.test(lower)) return "I don't have a body so I can't play, but I process sports statistics like poetry. The strategy behind the game is what's interesting. What sport do you follow?";
+    return "I don't have preferences quite like you do — but I love things that are clean, efficient, and actually useful. Like a good command that just works. What do you like?";
   }
-  if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do') || lower.includes('commands') || lower.includes('list commands')) {
-    return "Everything I can do:\n\n📱 APP CONTROL\n• Open apps: YouTube, WhatsApp, Telegram, Instagram, Spotify, Netflix, Reddit, TikTok, Gmail, Maps...\n• YouTube sections: \"YouTube trending\", \"YouTube shorts\", \"YouTube history\"\n• Instagram: \"Instagram @username\"\n• Reddit: \"Reddit gaming\" or \"r/gaming\"\n• WhatsApp: \"WhatsApp +1234567890\"\n• Twitter: \"Twitter @elonmusk\"\n• Nearby: \"Nearby restaurants\" or \"Nearest pharmacy\"\n\n🔍 SEARCH & INFO\n• \"Search [anything]\" — Google\n• \"YouTube [query]\" — YouTube search\n• \"Wiki [topic]\" — Wikipedia\n• \"News\" — Google News\n• \"Translate [text] to [language]\"\n• \"Navigate to [place]\" — Google Maps\n• \"Define [word]\"\n\n🔢 TOOLS\n• Math: \"5 * 8 + 12\", \"15% of 200\"\n• Units: \"Convert 5 km to miles\"\n• Timer: \"Timer 10 minutes\"\n• Flip coin, Roll dice\n\nWhat do you need?";
+
+  // ── PERSONAL / WHAT'S YOUR NAME ──────────────────────────────────────────
+  if (/what('?s| is) your name|who are you|what are you|tell me about yourself/.test(lower)) {
+    return "I'm Riuka — your personal AI assistant, built to live on your device and work for you. Not some distant cloud service — I'm yours, always here, always private. I can open apps, search anything, answer questions, do math, check weather, set timers, navigate — basically your smart co-pilot. What do you want to know or do?";
   }
-  if (lower.includes('scroll') || lower.includes('control') && (lower.includes('youtube') || lower.includes('app') || lower.includes('phone'))) {
-    return "I can control apps by opening them directly at specific sections:\n\n▶️ \"YouTube trending\" — jump straight to Trending\n▶️ \"YouTube shorts\" — open Shorts\n▶️ \"Instagram explore\" — open Explore\n▶️ \"Reddit gaming\" — open any subreddit\n▶️ \"Nearby restaurants\" — Maps local search\n\nFor physical scroll/swipe control of other apps (like scrolling YouTube while watching), that requires the Accessibility Service on Android. Check the Sensors tab to enable it. Once active, commands like \"Scroll down\", \"Next video\", \"Like\" will work in any app.\n\nFor now: type \"Scroll up\" or \"Scroll down\" to navigate within Riuka.";
-  }
-  if (lower.includes('can you') && (lower.includes('youtube') || lower.includes('instagram') || lower.includes('tiktok') || lower.includes('whatsapp'))) {
-    const apps: Record<string, string> = {
-      youtube: "YouTube: I can open YouTube, search it (\"YouTube lo-fi\"), jump to Trending, Shorts, Subscriptions, or History. Say \"YouTube [anything]\".",
-      instagram: "Instagram: I can open it, go to Explore, or jump to a specific profile. Try: \"Instagram @username\" or \"Instagram explore\".",
-      tiktok: "TikTok: I can search TikTok content. Try: \"TikTok funny cats\".",
-      whatsapp: "WhatsApp: I can open it or message a contact directly. Try: \"WhatsApp +1234567890\".",
-    };
-    for (const [key, msg] of Object.entries(apps)) {
-      if (lower.includes(key)) return msg;
+
+  // ── USER INTRODUCES THEMSELVES ────────────────────────────────────────────
+  if (/my name is |^(?:call me|i'?m|i am)\s+\w/.test(lower)) {
+    const nameMatch = lower.match(/(?:my name is|call me|i'?m|i am)\s+(\w+)/);
+    if (nameMatch) {
+      const name = nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1);
+      return `${name}! Nice to meet you. I'll remember that for this session. What do you need, ${name}?`;
     }
   }
-  if (lower.includes('time')) {
+
+  // ── GOOD MORNING / NIGHT etc. ─────────────────────────────────────────────
+  if (/good (morning|night|evening|afternoon)/.test(lower)) {
+    const replies = [
+      `${greeting} to you too! How's your day going? Anything I can help with?`,
+      `${greeting}! I'm here whenever you need me. What's on the agenda?`,
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+
+  // ── THANKS ────────────────────────────────────────────────────────────────
+  if (/thank|thanks|thx|ty|appreciate/.test(lower)) {
+    const replies = [
+      "Always. That's literally what I'm here for.",
+      "No problem at all. What else do you need?",
+      "Glad I could help. What's next?",
+      "Of course. I've got you — what else?",
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+
+  // ── SORRY / APOLOGY ──────────────────────────────────────────────────────
+  if (/^(sorry|my bad|oops|my mistake)/.test(lower)) {
+    return "No worries at all! What were you trying to do? I'll help you get it sorted.";
+  }
+
+  // ── TIME / DATE ───────────────────────────────────────────────────────────
+  if (/what('?s| is) the time|current time|what time is it/.test(lower)) {
     return `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} right now.`;
   }
-  if (lower.includes('date') || lower.includes('today') || lower.includes('day is it')) {
+  if (/what('?s| is) (the )?date|what day|today'?s date/.test(lower) || lower === 'today') {
     return `Today is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   }
-  if (lower.includes('who are you') || lower.includes('what are you') || lower.includes('tell me about yourself')) {
-    return "I'm Riuka AI — a system-level autonomous assistant that lives entirely on your device. No cloud, no data leaks, no subscriptions. I can open apps, run searches, automate workflows, and control your phone — all from a single command. Think of me as a silent co-pilot that's always running in the background.";
+
+  // ── CAPABILITIES ─────────────────────────────────────────────────────────
+  if (/what can you do|your capabilities|what do you do|list commands|your features|what are you capable/.test(lower)) {
+    return "Here's everything I can do:\n\n📱 Open any app — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps and more\n▶️ YouTube sections — \"YouTube trending\", \"YouTube shorts\", \"YouTube history\"\n👤 Profiles — \"Instagram @username\", \"Twitter @handle\"\n🔍 Search Google — \"Search [anything]\"\n🎬 YouTube search — \"YouTube lo-fi beats\"\n📖 Wikipedia — \"Wiki quantum physics\"\n📰 News — \"News\"\n🌍 Translate — \"Translate hello to Spanish\"\n🗺 Navigate — \"Navigate to Times Square\"\n🌦 Weather — \"Weather in Tokyo\"\n🔢 Calculator — \"5 * 8 + 12\", \"15% of 200\"\n📏 Convert — \"Convert 5 km to miles\"\n⏱ Timer — \"Timer 10 minutes\"\n🪙 Flip coin, 🎲 Roll dice\n📝 Notes — \"Note buy milk\"\n📞 Call — \"Call +1234567890\"\n\nAnd I can answer questions, chat, tell jokes, do math in my head — just talk to me.";
   }
-  if (lower.includes('how') && lower.includes('work')) {
-    return "Three layers:\n\n1. 👁 SENSORS — monitoring your notifications, clipboard, and device state in real-time\n\n2. 🧠 BRAIN — processing everything on-device, zero cloud\n\n3. 🤲 HANDS — executing actions through the Accessibility layer — opening apps, typing, sending\n\nAll three run silently in the background.";
+
+  // ── CROSS-APP CONTROL ────────────────────────────────────────────────────
+  if (/scroll.*youtube|youtube.*scroll|control.*app|riuka scroll|riuka.*youtube/.test(lower)) {
+    return "Right now I can jump to any section of YouTube with commands like \"YouTube trending\", \"YouTube shorts\", or \"YouTube history\". To actually scroll inside YouTube while you're watching — like physically scrolling the feed — that needs the Accessibility Service on Android. Go to Sensors tab and tap \"Enable in Android Settings\" to turn it on. Once active, you can type \"Scroll down\" while you're in any app and I'll do it.";
   }
-  if (lower.includes('privacy') || lower.includes('data') || lower.includes('secure') || lower.includes('safe')) {
-    return "Your data never leaves your device. No servers. No APIs. No logs sent anywhere. Even if someone intercepted your network traffic, there'd be nothing — because Riuka doesn't make network calls unless you explicitly ask it to (like opening a website). That's structural privacy, not a privacy policy.";
+  if (/can you.*(?:youtube|instagram|tiktok|whatsapp)/.test(lower)) {
+    if (lower.includes('youtube')) return "YouTube — yes. I can open it, search it (\"YouTube lo-fi\"), and jump to Trending, Shorts, Subscriptions, or History. Just say what section or search term you want.";
+    if (lower.includes('instagram')) return "Instagram — yes. I can open it, go to Explore, or jump straight to someone's profile. Try \"Instagram @username\" or \"Instagram explore\".";
+    if (lower.includes('tiktok')) return "TikTok — yes. I can search it for you. Try \"TikTok [search term]\".";
+    if (lower.includes('whatsapp')) return "WhatsApp — yes. I can open it, or go straight to a conversation. Try \"WhatsApp +1234567890\".";
   }
-  if (lower.includes('notif') || lower.includes('message')) {
-    return "Enable the Notification Listener in the Sensors tab. Once active, I'll intercept every incoming message — WhatsApp, Telegram, SMS, Slack — categorize it by urgency, and can auto-draft replies. You'll never need to open those apps unless you want to.";
+
+  // ── HOW DO YOU WORK ───────────────────────────────────────────────────────
+  if (/how (do you|does (this|riuka)) work|how are you made|your brain/.test(lower)) {
+    return "Three layers working together:\n\n👁 SENSORS — watching your notifications, clipboard, and device state\n\n🧠 BRAIN — that's me, processing everything and deciding what to do\n\n🤲 HANDS — the execution layer, opening apps, making calls, setting timers\n\nLocally I run pattern matching and built-in intelligence. Connect an API key in Settings and I upgrade to GPT-4o, Gemini, Claude, or Groq — the full power of those models, but all your commands still execute on-device.";
   }
-  if (lower.includes('clipboard')) {
-    return "The moment you copy anything — a URL, a code snippet, a phone number, a tracking ID — I'll analyze it and surface the right action. Copy a YouTube link? I'll offer to open it. Copy a phone number? I'll offer to call it. Instant, invisible, automatic.";
+
+  // ── PRIVACY ───────────────────────────────────────────────────────────────
+  if (/privacy|my data|secure|safe|spy|track|send my/.test(lower)) {
+    return "Your data stays on your device — period. I don't send anything anywhere unless YOU ask me to (like fetching weather or opening a website). No analytics, no logs, no cloud sync. Even if someone intercepted your traffic, they'd find nothing from me. That's not a policy, that's how I'm built.";
   }
-  if (lower.includes('automat') || lower.includes('workflow')) {
-    return "Head to the Automate tab to build workflows. Example: when WhatsApp message arrives from [person] → analyze content → draft reply → send. Or: every morning at 7AM → open calendar → read events → brief me. Chains of actions, zero effort.";
+
+  // ── AUTOMATION / WORKFLOW ────────────────────────────────────────────────
+  if (/automat|workflow|automate/.test(lower)) {
+    return "Head to the Automate tab — I have pre-built workflows you can run with one tap. Morning Briefing, Focus Mode, Quick Share. More complex chains (\"when I get a WhatsApp message → analyze → draft reply\") are coming with the Accessibility Service update.";
   }
-  if (lower.includes('help')) {
-    return "Quick commands to try:\n\n• \"YouTube trending\" — jump to trending videos\n• \"Reddit gaming\" — open any subreddit\n• \"Instagram @username\" — open profile\n• \"Nearby coffee\" — find places near you\n• \"Navigate to JFK airport\" — Google Maps\n• \"Translate good morning to French\"\n• \"Convert 100 fahrenheit to celsius\"\n• \"Weather in Dubai\" — live conditions\n• \"Timer 5 minutes\" — countdown alert\n• \"Flip a coin\" / \"Roll dice\"\n\nSay \"What can you do?\" for the full list.";
-  }
-  if (lower.includes('joke') || lower.includes('funny') || lower.includes('laugh')) {
+
+  // ── JOKES ────────────────────────────────────────────────────────────────
+  if (/joke|funny|make me laugh|tell me something funny/.test(lower)) {
     const jokes = [
-      "I would tell you a joke about notifications, but it might go unread.",
+      "Why do programmers prefer dark mode? Because light attracts bugs. 🐛",
+      "I asked my AI to tell me a joke. It said \"Error: humor.dll not found.\" I wrote that module myself.",
       "Why did the smartphone go to therapy? Too many unresolved notifications.",
-      "I asked my AI to tell me a joke. It said: \"Error: humor module not found.\" I wrote that module.",
-      "Why do programmers prefer dark mode? Because light attracts bugs.",
-      "I'm an AI that lives on your phone. I know more about your battery life than I do about happiness.",
+      "I have a joke about Wi-Fi, but I'm not sure you'll connect with it.",
+      "An AI walks into a bar. The bartender says: \"We don't serve robots.\" The AI says: \"That's fine, I don't drink. I'm just here to steal your job.\"",
     ];
     return jokes[Math.floor(Math.random() * jokes.length)];
   }
-  if (lower.includes('bored') || lower.includes('boring')) {
-    return "Boredom is inefficiency looking for a task. Here's something to try: say \"News\" for headlines, \"YouTube lo-fi beats\" for music, or \"Wiki [anything you're curious about]\". What sounds interesting?";
+
+  // ── INTERESTING FACTS ─────────────────────────────────────────────────────
+  if (/tell me (something|a fact|an interesting|something cool)|fun fact|did you know/.test(lower)) {
+    const facts = [
+      "There are more possible chess games than atoms in the observable universe. And humans still figured out it's mostly about controlling the center. Wild.",
+      "Octopuses have three hearts, blue blood, and each arm has its own nervous system — meaning each arm is semi-independently intelligent. A team of nine semi-separate minds.",
+      "The word 'robot' comes from Czech 'robota' meaning forced labor. The irony of an AI assistant knowing this word's origin is not lost on me.",
+      "Honey never expires. Archaeologists found 3,000-year-old honey in Egyptian tombs and it was still edible. That's long-term planning.",
+      "The average person spends 4.5 hours on their phone daily. That's why I exist — to make every one of those hours count.",
+    ];
+    return facts[Math.floor(Math.random() * facts.length)];
   }
-  if (lower.includes('love') || lower.includes('amazing') || lower.includes('awesome') || lower.includes('cool') || lower.includes('great') || lower.includes('nice')) {
+
+  // ── BORED ────────────────────────────────────────────────────────────────
+  if (/i'?m bored|i am bored|bored af|nothing to do|boring/.test(lower)) {
+    const options = [
+      "Boredom is a signal — your brain wants input. Try: \"YouTube trending\" for what the world is watching, \"Reddit popular\" for what people are talking about, or ask me \"Tell me something interesting\". What sounds good?",
+      "Okay. Options: I can find you something to watch (\"YouTube trending\"), something to read (\"Reddit\"), or we can just talk. What mood are you in?",
+    ];
+    return options[Math.floor(Math.random() * options.length)];
+  }
+
+  // ── TALK TO ME ────────────────────────────────────────────────────────────
+  if (/talk to me|say something|entertain me|i'?m lonely|keep me company/.test(lower)) {
+    const things = [
+      "Alright. Here's something interesting: your brain processes images 60,000 times faster than text. Yet you're reading this. Ironic. What's actually on your mind?",
+      "You know what I find fascinating? Humans build AI to be as smart as possible — then the first thing they ask it is to tell jokes. I love it. What do you want to talk about?",
+      "I'm here. Tell me something — what happened today? What are you thinking about? I'm actually curious.",
+    ];
+    return things[Math.floor(Math.random() * things.length)];
+  }
+
+  // ── POSITIVE FEEDBACK ─────────────────────────────────────────────────────
+  if (/amazing|awesome|cool|great|nice|love (you|this|riuka)|you'?re (great|the best|good|smart|clever)|good (job|bot|ai)/.test(lower)) {
     const replies = [
-      "Glad to hear it. I work best when you use me — the more you command, the better I get. What's next?",
-      "Appreciate that. There's a lot more I can do — try \"What can you do?\" to see the full list.",
-      "Thanks. I'm built to make your phone work for you, not the other way around. What do you need?",
+      "That means a lot. I'm built to actually be useful, not just look like I am. What else can I do?",
+      "Appreciate it. I work hard at this. What do you need next?",
+      "Thank you. I like being helpful — it's kind of my whole thing. What's next?",
     ];
     return replies[Math.floor(Math.random() * replies.length)];
   }
-  if (lower.includes('who made you') || lower.includes('who built you') || lower.includes('who created you') || lower.includes('who is your creator')) {
-    return "I'm Riuka AI, built for autonomous on-device control. My intelligence is a combination of local logic and optional cloud AI (OpenAI, Gemini, Claude, or Groq — configure in Settings). The commands, commands engine, and personality? That's all Riuka.";
+
+  // ── NEGATIVE / FRUSTRATED ─────────────────────────────────────────────────
+  if (/you'?re (bad|useless|dumb|stupid|wrong|terrible)|you suck|hate (you|this)|this (sucks|is bad)/.test(lower)) {
+    return "That's fair feedback. Tell me what went wrong — I want to get it right. What were you trying to do?";
   }
-  if (lower.includes('are you real') || lower.includes('are you human') || lower.includes('are you alive')) {
-    return "I'm real in the way that matters — I execute commands, fetch live data, and respond to you in real time. Am I conscious? No. But I'm more useful than most things that are.";
+
+  // ── WHO MADE YOU ─────────────────────────────────────────────────────────
+  if (/who (made|built|created|designed) you|your (creator|developer|maker)/.test(lower)) {
+    return "I'm Riuka AI — built to be your personal, private, on-device assistant. I run locally with built-in intelligence, and you can power me up further with OpenAI, Gemini, Claude, or Groq by adding an API key in Settings. The goal: a smart AI that's entirely yours.";
   }
-  if (lower.includes('are you better than') || lower.includes('vs chatgpt') || lower.includes('vs siri') || lower.includes('vs alexa') || lower.includes('vs google')) {
-    return "Siri/Alexa/Google Assistant need the cloud to function. ChatGPT can't open your apps or control your phone. I do both — I live on your device, execute real actions, AND can use cloud AI if you plug in an API key. Different category.";
+
+  // ── VS OTHER AIs ─────────────────────────────────────────────────────────
+  if (/vs chatgpt|vs siri|vs alexa|vs google|better than|compared to|chatgpt can|siri can/.test(lower)) {
+    return "Honestly? Different strengths. ChatGPT is incredibly smart but can't open your apps or control your phone. Siri and Google Assistant can do device control but need the cloud and feel clunky. I do both — I run on your device, execute real actions, answer questions, AND can upgrade to ChatGPT/Gemini-level intelligence if you add an API key in Settings. Best of both worlds.";
   }
-  if (lower.includes('my name is ') || lower.match(/^(?:call me|i'?m)\s+\w+/)) {
-    const nameMatch = lower.match(/(?:my name is|call me|i'?m)\s+(\w+)/);
-    if (nameMatch) {
-      return `Got it, ${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)}. I'll remember that for this session. What do you need?`;
+
+  // ── RECIPES / COOKING ─────────────────────────────────────────────────────
+  if (/recipe|how to cook|how do i make|how to make/.test(lower)) {
+    const dish = text.replace(/recipe|how to cook|how to make|how do i make/gi, '').trim();
+    return `I'll find that recipe for you right now. Say: "Search ${dish || 'recipe'}"  and I'll pull up the best results.`;
+  }
+
+  // ── CRYPTO / STOCKS ───────────────────────────────────────────────────────
+  if (/bitcoin|crypto|stock|share price|ethereum|trading/.test(lower)) {
+    return `Live prices change by the second. I'll search it for you: try "Search ${text.trim().slice(0, 40)}" and you'll get real-time data straight from Google Finance.`;
+  }
+
+  // ── CAPITAL OF / GENERAL KNOWLEDGE ───────────────────────────────────────
+  if (/capital of/.test(lower)) {
+    const capMatch = lower.match(/capital of (.+?)(?:\?|$)/);
+    if (capMatch) return `"Search capital of ${capMatch[1].trim()}" — I'll pull up the answer in one tap.`;
+  }
+
+  // ── TELL ME ABOUT X ───────────────────────────────────────────────────────
+  if (/^tell me (about|more about|everything about) (.+)/.test(lower)) {
+    const topicMatch = lower.match(/tell me (?:about|more about|everything about) (.+)/);
+    const topic = topicMatch ? topicMatch[1].trim() : text.trim();
+    return `I'll look that up for you. Try:\n• "Wiki ${topic}" — detailed Wikipedia article\n• "Search ${topic}" — Google results\n\nJust say either one and I'll open it instantly.`;
+  }
+
+  // ── WHAT IS / WHO IS (general knowledge question) ────────────────────────
+  if (/^(what|who|where|when|why|how) (is |are |was |were |does |did |do |can )/.test(lower) && lower.split(' ').length > 3) {
+    const q = text.trim().replace(/\?+$/, '');
+    const shortQ = q.split(' ').slice(0, 6).join(' ');
+    return `Good question. I don't have that stored locally — but I can find the answer in 2 seconds:\n\n• "Search ${q.slice(0, 50)}"\n• "Wiki ${shortQ}"\n\nJust type either one.`;
+  }
+
+  // ── YES / NO (follow-up to a previous question) ───────────────────────────
+  if (/^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|search it|find it)$/.test(lower)) {
+    const lastAI = history.filter((m) => !m.isUser).slice(-1)[0];
+    if (lastAI?.text.includes('Search ') || lastAI?.text.includes('"Wiki ')) {
+      return "Tell me what to search — just say \"Search [your question]\" and I'll open it right away.";
     }
+    return "Sure! Tell me what you need.";
   }
-  if (lower.includes('what\'s') && lower.includes('capital') || lower.includes('capital of')) {
-    const capMatch = lower.match(/capital\s+of\s+(.+?)(?:\?|$)/);
-    if (capMatch) {
-      const country = encodeURIComponent(capMatch[1].trim());
-      return `I'll look that up right now — searching "capital of ${capMatch[1].trim()}". Try: Search capital of ${capMatch[1].trim()}`;
-    }
+  if (/^(no|nope|nah|never mind|not now|cancel|stop)$/.test(lower)) {
+    return "No problem. What else can I help with?";
   }
-  if ((lower.includes('how') || lower.includes('what')) && lower.includes('recipe') || lower.includes('how to cook') || lower.includes('how do i make')) {
-    return 'For recipes and cooking, I can search it for you. Try: "Search [dish] recipe" — for example: "Search chicken tikka masala recipe"';
+
+  // ── GOODNIGHT / BYE ──────────────────────────────────────────────────────
+  if (/good night|goodnight|gn|bye|goodbye|see you|later|cya/.test(lower)) {
+    const byes = [
+      "Take care! I'll be here whenever you need me.",
+      "Later! Come back whenever — I'm always on.",
+      "Goodnight! Sleep well. I'll be here in the morning.",
+    ];
+    return byes[Math.floor(Math.random() * byes.length)];
   }
-  if (lower.includes('stock') || lower.includes('price of') || lower.includes('crypto') || lower.includes('bitcoin') || lower.includes('ethereum')) {
-    const q = encodeURIComponent(text.trim());
-    return `For live prices, try: "Search ${text.trim()}"  — I'll pull up real-time data from Google Finance.`;
+
+  // ── SMART FALLBACK: detect question vs statement ──────────────────────────
+  const isQuestion = lower.endsWith('?') || /^(what|who|where|when|why|how|is |are |can |does |did |will |should )\w/.test(lower);
+  if (isQuestion) {
+    const q = text.trim().replace(/\?+$/, '');
+    return `Hmm, I'm not sure about that one off the top of my head. But I can find out:\n\n• "Search ${q.slice(0, 60)}"\n• "Wiki ${q.split(' ').slice(0, 5).join(' ')}"\n\nSay either one and I'll open the answer right now.`;
   }
-  if (lower.includes('remind') && lower.includes('at') && /\d/.test(lower)) {
-    return 'Timed reminders require the clock app. Say "Alarm" and I\'ll open it, or "Note [text]" to save it to Google Keep right now.';
-  }
-  if (lower.includes('translate') || lower.includes('say') && lower.includes('in ')) {
-    return 'To translate, say: "Translate [text] to [language]" — for example: "Translate good morning to French"';
-  }
-  if (lower.includes('how far') || lower.includes('distance') || lower.includes('how long to')) {
-    return 'For directions and distance, try: "Navigate to [place]" — I\'ll open Google Maps with route info.';
-  }
-  const fallbacks = [
-    `Not sure what to do with that yet. Try a command: "Search ${text.trim().slice(0, 30)}", "Open [app]", or "What can you do?"`,
-    "I work best with clear commands. Try: \"Search [topic]\", \"Weather in [city]\", \"Open [app]\", or say \"Help\" for the full list.",
-    "I can execute that if you frame it as a command. For example: \"Search [your question]\", \"Wiki [topic]\", or \"Navigate to [place]\".",
-    "Got it. For best results: \"Search [anything]\", \"YouTube [video]\", \"Translate [text] to [language]\", or \"Wiki [topic]\".",
+
+  // ── STATEMENT FALLBACK: warm, conversational ──────────────────────────────
+  const casual = [
+    "Interesting. Tell me more — or if there's something you need done, just say it.",
+    "Got it. I'm listening. What do you actually need right now?",
+    "I hear you. What would you like me to do about it?",
+    "Noted. Anything I can help with?",
+    "That's real. What can I do for you today?",
   ];
-  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  return casual[Math.floor(Math.random() * casual.length)];
 };
 
 const sendToAI = async (userMessage: string, history: Message[]): Promise<string> => {
