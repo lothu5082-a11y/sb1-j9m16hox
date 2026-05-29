@@ -179,9 +179,21 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     const ms = isMinutes ? amount * 60000 : amount * 1000;
     const label = isMinutes ? `${amount} minute${amount !== 1 ? 's' : ''}` : `${amount} second${amount !== 1 ? 's' : ''}`;
     setTimeout(() => {
-      Alert.alert('Timer Done', `Your ${label} timer has finished!`, [{ text: 'OK' }]);
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+        const perm = (window as any).Notification.permission;
+        if (perm === 'granted') {
+          new (window as any).Notification('Riuka — Timer Done', {
+            body: `Your ${label} timer has finished!`,
+            icon: '/favicon.ico',
+          });
+        } else {
+          Alert.alert('Timer Done', `Your ${label} timer has finished!`, [{ text: 'OK' }]);
+        }
+      } else {
+        Alert.alert('Timer Done', `Your ${label} timer has finished!`, [{ text: 'OK' }]);
+      }
     }, ms);
-    return `Timer set for ${label}. I'll alert you when it's done.`;
+    return `Timer set for ${label}. I'll notify you when it's done${Platform.OS === 'web' ? ' — even if you switch tabs' : ''}.`;
   }
 
   // ── ALARM ─────────────────────────────────────────────────────────────────
@@ -523,6 +535,22 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return 'Settings command works in the Android app.';
   }
 
+  // ── CLIPBOARD READ ────────────────────────────────────────────────────────
+  if (/read clipboard|what did i copy|clipboard content|show clipboard|what'?s (?:in|on) (?:my )?clipboard/.test(lower)) {
+    if (Platform.OS === 'web') {
+      try {
+        const text = await (navigator as any).clipboard.readText();
+        if (text && text.trim()) {
+          return `Your clipboard:\n\n"${text.slice(0, 500)}"${text.length > 500 ? '\n…(truncated)' : ''}`;
+        }
+        return 'Your clipboard appears to be empty.';
+      } catch {
+        return 'Clipboard access was blocked. Please allow clipboard permission when your browser asks, then try again.';
+      }
+    }
+    return 'Clipboard reading works in the web version. On Android, open the Sensors tab and enable the Clipboard Engine.';
+  }
+
   return null;
 };
 
@@ -650,12 +678,12 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAPABILITIES (honest) ─────────────────────────────────────────────────
   if (/what can you do|your capabilities|what do you do|list commands|your features|what are you capable/.test(lower)) {
-    return "Here's exactly what I can do — honestly:\n\n✅ WORKS RIGHT NOW\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram, TikTok\n• YouTube sections — trending, shorts, history, subscriptions\n• Profiles — \"Instagram @username\", \"Twitter @handle\"\n• Reddit — \"Reddit gaming\" / \"r/gaming\"\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather, Calculator, Unit converter\n• Timer (with alert), Coin flip, Dice roll\n• Notes → Google Keep\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• \"WhatsApp +number\" — opens the chat, you send the message\n• \"Call +number\" — opens your dialer, you tap call\n• \"Alarm\" — opens Clock app, you set the time\n• \"Camera\" — opens camera, you take the photo\n• \"Gmail compose\" — opens composer, you write & send\n\n❌ I CANNOT DO (yet)\n• Send messages automatically\n• Read your real notifications (Sensors shows demo data)\n• Access your contacts, files, or photos\n• Voice commands — mic button is coming\n• Scroll/control apps from inside (needs Accessibility Service in Settings)\n• Make purchases, book anything, or log into accounts\n• Remember conversations after you close the app\n\nWhat do you need?";
+    return "Here's exactly what I can do — honestly:\n\n✅ WORKS RIGHT NOW\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram\n• YouTube sections — trending, shorts, history, subscriptions\n• Profiles — \"Instagram @username\", \"Twitter @handle\"\n• Reddit — \"Reddit gaming\" / \"r/gaming\"\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather, Calculator, Unit converter\n• Timer (with browser notification, even if you switch tabs)\n• Coin flip, Dice roll, Notes → Google Keep\n• Voice commands — tap the mic and speak (web/Chrome)\n• Read clipboard — \"Read clipboard\"\n• Chat memory — your last 60 messages are saved between sessions (web)\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• \"WhatsApp +number\" — opens the chat, you send the message\n• \"Call +number\" — opens your dialer, you tap call\n• \"Alarm\" — opens Clock app, you set the time\n• \"Camera\" — opens camera, you take the photo\n• \"Gmail compose\" — opens composer, you write & send\n\n❌ I CANNOT DO\n• Send messages automatically\n• Read your real notifications (Sensors shows demo data)\n• Access your contacts, files, or photos\n• Scroll/control apps from inside (needs Accessibility Service in Settings)\n• Make purchases, book anything, or log into accounts\n\nWhat do you need?";
   }
 
   // ── LIMITATIONS / WHAT CAN'T YOU DO ──────────────────────────────────────
   if (/what can(not|'t| you not) do|your limits|limitations|what don't you|what do you not/.test(lower)) {
-    return "Honest answer — here's what I can't do:\n\n❌ Can't send messages for you (WhatsApp, SMS, email) — I open the app, you send\n❌ Can't read your real notifications — Sensors tab shows demo data only\n❌ Can't access your contacts, photos, or files\n❌ Can't set a specific alarm time — I open Clock, you set it\n❌ Can't make phone calls automatically — I open the dialer\n❌ No voice commands yet — mic button is coming soon\n❌ Can't scroll/control other apps without Accessibility Service\n❌ Can't make purchases or book anything\n❌ Can't remember conversations between sessions — memory resets when you close the app\n❌ Can't run in the background while another app is open (yet)\n\nMost of the ❌ list becomes ✅ once the Accessibility Service is enabled in Android Settings. What do you actually need help with?";
+    return "Honest answer — here's what I can't do:\n\n❌ Can't send messages for you (WhatsApp, SMS, email) — I open the app, you send\n❌ Can't read your real notifications — Sensors tab shows demo data only\n❌ Can't access your contacts, photos, or files\n❌ Can't set a specific alarm time — I open Clock, you set it\n❌ Can't make phone calls automatically — I open the dialer\n❌ Can't scroll/control other apps without Accessibility Service enabled\n❌ Can't make purchases or book anything\n❌ Can't run in the background while another app is open (yet)\n\n✅ Things that DO work now: voice commands (tap mic in Chrome), clipboard reading (\"Read clipboard\"), browser notifications for timers, chat memory between sessions (web).\n\nMost of the ❌ list becomes ✅ once the Accessibility Service is enabled in Android Settings. What do you actually need help with?";
   }
 
   // ── CAN YOU SEND A MESSAGE ────────────────────────────────────────────────
@@ -689,7 +717,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAN YOU LISTEN / VOICE ────────────────────────────────────────────────
   if (/can you (listen|hear|understand voice)|voice (command|control|input)|talk to you|speak to you|mic(rophone)?/.test(lower)) {
-    return "Voice commands aren't active yet — the mic button in the chat bar is coming in the next update. For now, type your commands. Everything works the same, just typed instead of spoken.";
+    return "Yes! Voice commands work right now on the web version (Chrome). Tap the mic button in the chat bar, speak your command, and I'll execute it — same as typing. It uses your browser's speech recognition so it stays on-device. On Android native, type for now.";
   }
 
   // ── CAN YOU SEE MY SCREEN ────────────────────────────────────────────────
@@ -704,7 +732,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAN YOU REMEMBER ─────────────────────────────────────────────────────
   if (/can you remember|do you remember|remember me|save (our|this) conversation|memory/.test(lower)) {
-    return "Within this session — yes, I remember everything we've talked about. But when you close the app and come back, I start fresh. No conversation history is saved between sessions. I'm working on persistent memory for a future update.";
+    return "Yes — on the web version, I save the last 60 messages to your browser's local storage. So when you come back tomorrow, our conversation picks up where it left off. Hit the trash icon in the header to clear it any time. On Android native, memory resets per session for now.";
   }
 
   // ── CAN YOU MAKE A PURCHASE / BOOK ───────────────────────────────────────
@@ -931,8 +959,8 @@ EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
 
 HONESTY RULES:
 - Be honest about limitations. Never pretend you can do something you can't.
-- CANNOT DO: send messages automatically, read real notifications, access contacts/files/photos, make purchases, set exact alarms, voice commands, scroll other apps (without Accessibility Service), run in background, remember between sessions.
-- CAN DO: open apps, search, weather, navigate, translate, calculate, convert, timer, notes, call (opens dialer), flip coin, roll dice, Wikipedia, news, YouTube/Instagram/Reddit sections.
+- CANNOT DO: send messages automatically, read real notifications, access contacts/files/photos, make purchases, set exact alarms, scroll other apps (without Accessibility Service), run in background.
+- CAN DO: open apps, search, weather, navigate, translate, calculate, convert, timer (with browser notification), notes, call (opens dialer), flip coin, roll dice, Wikipedia, news, YouTube/Instagram/Reddit sections, voice commands (web/Chrome mic button), read clipboard ("read clipboard"), remember chats between sessions (web localStorage, last 60 messages).
 - "I open it, you complete it" for: WhatsApp messages, phone calls, alarms, email sending, camera.
 - When user asks a question, TELL them the exact command. Be concise (1-3 sentences). Always use prior conversation context.`,
       },
@@ -1092,13 +1120,48 @@ const typingStyles = StyleSheet.create({
 
 const SUGGESTIONS = ['YouTube trending', 'Nearby restaurants', 'Translate hello to Spanish'];
 
+const STORAGE_KEY = 'riuka_chat_v1';
+
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [provider, setProvider] = useState(_aiConfig.provider);
   const scrollViewRef = useRef<ScrollView>(null);
   const isTypingRef = useRef(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Load saved chat history on mount
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed: Message[] = JSON.parse(saved);
+          if (parsed.length > 0) setMessages(parsed);
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Save chat history on every change
+  useEffect(() => {
+    if (Platform.OS === 'web' && messages.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-60)));
+      } catch {}
+    }
+  }, [messages]);
+
+  // Request browser notification permission on load
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+      if ((window as any).Notification.permission === 'default') {
+        (window as any).Notification.requestPermission();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1108,6 +1171,36 @@ export default function ChatScreen() {
     }, 1000);
     return () => clearInterval(timer);
   }, [provider]);
+
+  const startVoice = () => {
+    if (Platform.OS !== 'web') {
+      Alert.alert('Voice Commands', 'Voice works in the web version. Visit the app in your browser to use it.');
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      Alert.alert('Voice Not Supported', 'Your browser does not support voice recognition. Try Chrome.');
+      return;
+    }
+    const r = new SR();
+    r.lang = 'en-US';
+    r.continuous = false;
+    r.interimResults = false;
+    r.onstart = () => setIsVoiceListening(true);
+    r.onend = () => { setIsVoiceListening(false); recognitionRef.current = null; };
+    r.onerror = () => { setIsVoiceListening(false); recognitionRef.current = null; };
+    r.onresult = (e: any) => {
+      const transcript: string = e.results[0][0].transcript;
+      if (transcript.trim()) sendMessage(transcript.trim());
+    };
+    recognitionRef.current = r;
+    r.start();
+  };
+
+  const stopVoice = () => {
+    recognitionRef.current?.stop();
+    setIsVoiceListening(false);
+  };
 
   // Auto-send pending command when the tab comes into focus
   useFocusEffect(
@@ -1157,11 +1250,16 @@ export default function ChatScreen() {
 
   const clearChat = () => {
     Alert.alert(
-      'Clear Command Log',
-      'Erase all messages from this session?',
+      'Clear Chat',
+      'Erase all messages? This also clears saved history.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => setMessages([]) },
+        {
+          text: 'Clear', style: 'destructive', onPress: () => {
+            setMessages([]);
+            if (Platform.OS === 'web') { try { localStorage.removeItem(STORAGE_KEY); } catch {} }
+          },
+        },
       ]
     );
   };
@@ -1265,8 +1363,11 @@ export default function ChatScreen() {
                 blurOnSubmit={false}
               />
             </View>
-            <TouchableOpacity style={styles.micInputButton}>
-              <Mic color={Colors.primary} size={20} />
+            <TouchableOpacity
+              style={[styles.micInputButton, isVoiceListening && styles.micListening]}
+              onPress={isVoiceListening ? stopVoice : startVoice}
+            >
+              <Mic color={isVoiceListening ? '#ffffff' : Colors.primary} size={20} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => sendMessage()}
@@ -1507,6 +1608,15 @@ const styles = StyleSheet.create({
   },
   micInputButton: {
     padding: Spacing.sm + 2,
+    borderRadius: 20,
+  },
+  micListening: {
+    backgroundColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 6,
   },
   sendButton: {
     width: 40,
