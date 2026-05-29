@@ -94,7 +94,7 @@ const LANG_TTS_CODE: Record<string, string> = {
   nl:'nl-NL', sv:'sv-SE', no:'nb-NO', da:'da-DK', fi:'fi-FI', pl:'pl-PL', cs:'cs-CZ',
   sk:'sk-SK', ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL', th:'th-TH', vi:'vi-VN',
   id:'id-ID', ms:'ms-MY', sw:'sw-KE', tl:'fil-PH', bn:'bn-BD', ur:'ur-PK', fa:'fa-IR',
-  af:'af-ZA', am:'am-ET',
+  af:'af-ZA', am:'am-ET', ta:'ta-IN', ml:'ml-IN', si:'si-LK',
 };
 
 const speakText = (text: string) => {
@@ -166,6 +166,9 @@ const LANGS: Record<string, { name: string; flag: string; greet: string; ack: st
   fa: { name: 'Persian',    flag: '🇮🇷', greet: '!سلام',         ack: '.فهمیدم',         bye: '!خداحافظ 👋',           thanks: '!خواهش می‌کنم',      dontKnow: '.مطمئن نیستم، اما می‌توانم جستجو کنم' },
   af: { name: 'Afrikaans',  flag: '🇿🇦', greet: 'Hallo!',        ack: 'Verstaan.',      bye: 'Totsiens! 👋',          thanks: 'Graag gedaan!',      dontKnow: 'Nie seker nie, maar kan soek.' },
   am: { name: 'Amharic',    flag: '🇪🇹', greet: 'ሰላም!',          ack: 'ገባኝ።',           bye: 'ቻው! 👋',               thanks: 'በደስታ!',             dontKnow: 'እርግጠኛ አይደለሁም፣ ግን ፈልጌ ልስጥ።' },
+  ta: { name: 'Tamil',      flag: '🇮🇳', greet: 'வணக்கம்!',       ack: 'புரிந்தது.',       bye: 'விடைபெறுகிறேன்! 👋',   thanks: 'நன்றி!',             dontKnow: 'தெரியவில்லை, ஆனால் தேடி கண்டுபிடிக்கலாம்.' },
+  ml: { name: 'Malayalam',  flag: '🇮🇳', greet: 'നമസ്കാരം!',      ack: 'മനസ്സിലായി.',     bye: 'വിട! 👋',               thanks: 'നന്ദി!',              dontKnow: 'ഉറപ്പില്ല, പക്ഷേ തിരയാം.' },
+  si: { name: 'Sinhala',    flag: '🇱🇰', greet: 'ආයුබෝවන්!',      ack: 'තේරුණා.',          bye: 'ගිහින් එන්නම්! 👋',    thanks: 'ස්තූතියි!',          dontKnow: 'නිශ්චිත නැහැ, නමුත් සොයා දෙන්නම්.' },
 };
 
 const detectLang = (text: string): string => {
@@ -184,6 +187,9 @@ const detectLang = (text: string): string => {
   if (/[א-ת]/.test(text)) return 'he';
   if (/[฀-๿]/.test(text)) return 'th';
   if (/[ሀ-፿]/.test(text)) return 'am';
+  if (/[஀-௿]/.test(text)) return 'ta';
+  if (/[ഀ-ൿ]/.test(text)) return 'ml';
+  if (/[඀-෿]/.test(text)) return 'si';
   const w = text.toLowerCase().split(/\s+/);
   const has = (arr: string[]) => arr.some(p => w.includes(p));
   if (has(['hola','gracias','cómo','estoy','quiero','necesito','buenos','buenas','qué','está','tiene','puede','también','español'])) return 'es';
@@ -218,7 +224,7 @@ const LANG_SWITCH_MAP: Record<string, string> = {
   finnish:'fi', polish:'pl', czech:'cs', slovak:'sk', romanian:'ro', hungarian:'hu',
   greek:'el', hebrew:'he', thai:'th', vietnamese:'vi', indonesian:'id', malay:'ms',
   swahili:'sw', filipino:'tl', tagalog:'tl', bengali:'bn', urdu:'ur', persian:'fa',
-  farsi:'fa', afrikaans:'af', amharic:'am',
+  farsi:'fa', afrikaans:'af', amharic:'am', tamil:'ta', malayalam:'ml', sinhala:'si', sinhalese:'si',
 };
 
 const getProfile = (): { name: string; city: string } => {
