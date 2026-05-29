@@ -88,6 +88,15 @@ const APP_URLS: Record<string, string> = {
   linkedin: 'linkedin://',
 };
 
+const LANG_TTS_CODE: Record<string, string> = {
+  en:'en-US', es:'es-ES', fr:'fr-FR', de:'de-DE', it:'it-IT', pt:'pt-BR', ar:'ar-SA',
+  hi:'hi-IN', ja:'ja-JP', zh:'zh-CN', ko:'ko-KR', ru:'ru-RU', uk:'uk-UA', tr:'tr-TR',
+  nl:'nl-NL', sv:'sv-SE', no:'nb-NO', da:'da-DK', fi:'fi-FI', pl:'pl-PL', cs:'cs-CZ',
+  sk:'sk-SK', ro:'ro-RO', hu:'hu-HU', el:'el-GR', he:'he-IL', th:'th-TH', vi:'vi-VN',
+  id:'id-ID', ms:'ms-MY', sw:'sw-KE', tl:'fil-PH', bn:'bn-BD', ur:'ur-PK', fa:'fa-IR',
+  af:'af-ZA', am:'am-ET',
+};
+
 const speakText = (text: string) => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const synth = (window as any).speechSynthesis;
@@ -97,9 +106,12 @@ const speakText = (text: string) => {
   const utter = new ((window as any).SpeechSynthesisUtterance)(clean);
   utter.rate = 1.0;
   utter.pitch = 1.05;
+  const ttsCode = LANG_TTS_CODE[_userLang] ?? 'en-US';
+  utter.lang = ttsCode;
   const voices: any[] = synth.getVoices?.() ?? [];
-  const preferred = voices.find((v: any) => /Google.*en|en-US.*Natural/i.test(v.name + v.lang))
-    || voices.find((v: any) => /Google/i.test(v.name) && v.lang?.startsWith('en'))
+  const preferred = voices.find((v: any) => v.lang === ttsCode)
+    || voices.find((v: any) => v.lang?.startsWith(ttsCode.split('-')[0]))
+    || voices.find((v: any) => /Google.*en|en-US.*Natural/i.test(v.name + v.lang))
     || voices.find((v: any) => v.lang?.startsWith('en'));
   if (preferred) utter.voice = preferred;
   synth.speak(utter);
@@ -109,6 +121,104 @@ export const stopSpeaking = () => {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     (window as any).speechSynthesis?.cancel();
   }
+};
+
+// ── LANGUAGE SYSTEM ─────────────────────────────────────────────────────────
+let _userLang = 'en';
+export const setUserLang = (lang: string) => { _userLang = lang; };
+export const getUserLang = () => _userLang;
+
+const LANGS: Record<string, { name: string; flag: string; greet: string; ack: string; bye: string; thanks: string; dontKnow: string; }> = {
+  en: { name: 'English',    flag: '🇺🇸', greet: 'Hello!',       ack: 'Got it.',        bye: 'Bye! 👋',              thanks: "You're welcome!",   dontKnow: "Not sure, but I can search that for you." },
+  es: { name: 'Spanish',    flag: '🇪🇸', greet: '¡Hola!',       ack: 'Entendido.',     bye: '¡Hasta luego! 👋',     thanks: '¡De nada!',          dontKnow: 'No estoy seguro, pero puedo buscarlo.' },
+  fr: { name: 'French',     flag: '🇫🇷', greet: 'Bonjour!',     ack: 'Compris.',       bye: 'Au revoir! 👋',         thanks: 'De rien!',           dontKnow: "Je ne suis pas sûr, mais je peux chercher." },
+  de: { name: 'German',     flag: '🇩🇪', greet: 'Hallo!',       ack: 'Verstanden.',    bye: 'Tschüss! 👋',           thanks: 'Bitte!',             dontKnow: 'Nicht sicher, aber ich kann suchen.' },
+  it: { name: 'Italian',    flag: '🇮🇹', greet: 'Ciao!',        ack: 'Capito.',        bye: 'Arrivederci! 👋',       thanks: 'Prego!',             dontKnow: 'Non sono sicuro, ma posso cercare.' },
+  pt: { name: 'Portuguese', flag: '🇧🇷', greet: 'Olá!',         ack: 'Entendido.',     bye: 'Tchau! 👋',             thanks: 'De nada!',           dontKnow: 'Não tenho certeza, mas posso pesquisar.' },
+  ar: { name: 'Arabic',     flag: '🌙',  greet: '!أهلاً',       ack: '.حسناً',          bye: '!مع السلامة 👋',        thanks: '!عفواً',             dontKnow: '.لست متأكداً، لكن يمكنني البحث' },
+  hi: { name: 'Hindi',      flag: '🇮🇳', greet: 'नमस्ते!',       ack: 'समझ गया।',       bye: 'अलविदा! 👋',           thanks: 'कोई बात नहीं!',      dontKnow: 'निश्चित नहीं, लेकिन खोज सकता हूँ।' },
+  ja: { name: 'Japanese',   flag: '🇯🇵', greet: 'こんにちは！',    ack: 'わかりました。',   bye: 'さようなら！ 👋',        thanks: 'どういたしまして！',   dontKnow: 'わかりませんが、検索できます。' },
+  zh: { name: 'Chinese',    flag: '🇨🇳', greet: '你好！',         ack: '明白了。',        bye: '再见！ 👋',              thanks: '不客气！',            dontKnow: '不确定，但我可以帮你搜索。' },
+  ko: { name: 'Korean',     flag: '🇰🇷', greet: '안녕하세요!',     ack: '알겠습니다.',     bye: '안녕히 가세요! 👋',      thanks: '천만에요!',            dontKnow: '확실하지 않지만 검색할 수 있어요.' },
+  ru: { name: 'Russian',    flag: '🇷🇺', greet: 'Привет!',       ack: 'Понял.',         bye: 'Пока! 👋',              thanks: 'Пожалуйста!',        dontKnow: 'Не уверен, но могу поискать.' },
+  uk: { name: 'Ukrainian',  flag: '🇺🇦', greet: 'Привіт!',       ack: 'Зрозумів.',      bye: 'Бувай! 👋',             thanks: 'Будь ласка!',        dontKnow: 'Не певний, але можу пошукати.' },
+  tr: { name: 'Turkish',    flag: '🇹🇷', greet: 'Merhaba!',      ack: 'Anladım.',       bye: 'Güle güle! 👋',         thanks: 'Rica ederim!',       dontKnow: 'Emin değilim ama arayabilirim.' },
+  nl: { name: 'Dutch',      flag: '🇳🇱', greet: 'Hallo!',        ack: 'Begrepen.',      bye: 'Tot ziens! 👋',         thanks: 'Graag gedaan!',      dontKnow: 'Niet zeker, maar ik kan zoeken.' },
+  sv: { name: 'Swedish',    flag: '🇸🇪', greet: 'Hej!',          ack: 'Förstår.',       bye: 'Hej då! 👋',            thanks: 'Varsågod!',          dontKnow: 'Inte säker, men kan söka.' },
+  no: { name: 'Norwegian',  flag: '🇳🇴', greet: 'Hei!',          ack: 'Forstått.',      bye: 'Ha det! 👋',            thanks: 'Ingen årsak!',       dontKnow: 'Ikke sikker, men kan søke.' },
+  da: { name: 'Danish',     flag: '🇩🇰', greet: 'Hej!',          ack: 'Forstået.',      bye: 'Farvel! 👋',            thanks: 'Selv tak!',          dontKnow: 'Ikke sikker, men kan søge.' },
+  fi: { name: 'Finnish',    flag: '🇫🇮', greet: 'Hei!',          ack: 'Ymmärsin.',      bye: 'Heippa! 👋',            thanks: 'Ole hyvä!',          dontKnow: 'En ole varma, mutta voin etsiä.' },
+  pl: { name: 'Polish',     flag: '🇵🇱', greet: 'Cześć!',        ack: 'Rozumiem.',      bye: 'Do widzenia! 👋',       thanks: 'Nie ma za co!',      dontKnow: 'Nie jestem pewien, ale mogę poszukać.' },
+  cs: { name: 'Czech',      flag: '🇨🇿', greet: 'Ahoj!',         ack: 'Rozumím.',       bye: 'Nashledanou! 👋',       thanks: 'Rádo se stalo!',     dontKnow: 'Nevím, ale mohu hledat.' },
+  sk: { name: 'Slovak',     flag: '🇸🇰', greet: 'Ahoj!',         ack: 'Rozumiem.',      bye: 'Dovidenia! 👋',         thanks: 'Niet zač!',          dontKnow: 'Neviem, ale môžem hľadať.' },
+  ro: { name: 'Romanian',   flag: '🇷🇴', greet: 'Salut!',        ack: 'Înțeles.',       bye: 'La revedere! 👋',       thanks: 'Cu plăcere!',        dontKnow: 'Nu știu sigur, dar pot căuta.' },
+  hu: { name: 'Hungarian',  flag: '🇭🇺', greet: 'Szia!',         ack: 'Megértettem.',   bye: 'Viszlát! 👋',           thanks: 'Szívesen!',          dontKnow: 'Nem vagyok biztos, de kereshetek.' },
+  el: { name: 'Greek',      flag: '🇬🇷', greet: 'Γεια σου!',     ack: 'Κατάλαβα.',      bye: 'Αντίο! 👋',             thanks: 'Παρακαλώ!',          dontKnow: 'Δεν είμαι σίγουρος, αλλά μπορώ να ψάξω.' },
+  he: { name: 'Hebrew',     flag: '🇮🇱', greet: '!שלום',         ack: '.הבנתי',          bye: '!להתראות 👋',           thanks: '!בבקשה',             dontKnow: '.לא בטוח, אבל אוכל לחפש' },
+  th: { name: 'Thai',       flag: '🇹🇭', greet: 'สวัสดี!',       ack: 'เข้าใจแล้ว',     bye: 'ลาก่อน! 👋',            thanks: 'ยินดีเลย!',           dontKnow: 'ไม่แน่ใจ แต่ค้นหาให้ได้' },
+  vi: { name: 'Vietnamese', flag: '🇻🇳', greet: 'Xin chào!',     ack: 'Hiểu rồi.',      bye: 'Tạm biệt! 👋',          thanks: 'Không có gì!',       dontKnow: 'Không chắc, nhưng tôi có thể tìm kiếm.' },
+  id: { name: 'Indonesian', flag: '🇮🇩', greet: 'Halo!',         ack: 'Mengerti.',      bye: 'Selamat tinggal! 👋',   thanks: 'Sama-sama!',         dontKnow: 'Tidak yakin, tapi bisa saya cari.' },
+  ms: { name: 'Malay',      flag: '🇲🇾', greet: 'Helo!',         ack: 'Faham.',         bye: 'Selamat tinggal! 👋',   thanks: 'Sama-sama!',         dontKnow: 'Tidak pasti, tetapi boleh saya cari.' },
+  sw: { name: 'Swahili',    flag: '🌍',  greet: 'Habari!',       ack: 'Nimeelewa.',     bye: 'Kwaheri! 👋',           thanks: 'Karibu!',            dontKnow: 'Sijui, lakini ninaweza kutafuta.' },
+  tl: { name: 'Filipino',   flag: '🇵🇭', greet: 'Kumusta!',      ack: 'Naiintindihan.', bye: 'Paalam! 👋',            thanks: 'Walang anuman!',     dontKnow: 'Hindi sigurado, pero maaari kong hanapin.' },
+  bn: { name: 'Bengali',    flag: '🇧🇩', greet: 'হ্যালো!',        ack: 'বুঝেছি।',        bye: 'বিদায়! 👋',            thanks: 'স্বাগতম!',           dontKnow: 'নিশ্চিত নই, তবে খুঁজে দিতে পারি।' },
+  ur: { name: 'Urdu',       flag: '🇵🇰', greet: '!ہیلو',         ack: '.سمجھ گیا',       bye: '!خدا حافظ 👋',          thanks: '!خوش آمدید',         dontKnow: '.یقین سے نہیں، لیکن تلاش کر سکتا ہوں' },
+  fa: { name: 'Persian',    flag: '🇮🇷', greet: '!سلام',         ack: '.فهمیدم',         bye: '!خداحافظ 👋',           thanks: '!خواهش می‌کنم',      dontKnow: '.مطمئن نیستم، اما می‌توانم جستجو کنم' },
+  af: { name: 'Afrikaans',  flag: '🇿🇦', greet: 'Hallo!',        ack: 'Verstaan.',      bye: 'Totsiens! 👋',          thanks: 'Graag gedaan!',      dontKnow: 'Nie seker nie, maar kan soek.' },
+  am: { name: 'Amharic',    flag: '🇪🇹', greet: 'ሰላም!',          ack: 'ገባኝ።',           bye: 'ቻው! 👋',               thanks: 'በደስታ!',             dontKnow: 'እርግጠኛ አይደለሁም፣ ግን ፈልጌ ልስጥ።' },
+};
+
+const detectLang = (text: string): string => {
+  if (/[一-鿿㐀-䶿]/.test(text)) return 'zh';
+  if (/[぀-ゟ゠-ヿ]/.test(text)) return 'ja';
+  if (/[가-힯]/.test(text)) return 'ko';
+  if (/[ऀ-ॿ]/.test(text)) return 'hi';
+  if (/[ঀ-৿]/.test(text)) return 'bn';
+  if (/[؀-ۿ]/.test(text)) {
+    if (/[پچگی]/.test(text)) return 'ur';
+    if (/[پچی۰-۹]/.test(text)) return 'fa';
+    return 'ar';
+  }
+  if (/[Ѐ-ӿ]/.test(text)) return /[іїєґ]/.test(text) ? 'uk' : 'ru';
+  if (/[Ͱ-Ͽ]/.test(text)) return 'el';
+  if (/[א-ת]/.test(text)) return 'he';
+  if (/[฀-๿]/.test(text)) return 'th';
+  if (/[ሀ-፿]/.test(text)) return 'am';
+  const w = text.toLowerCase().split(/\s+/);
+  const has = (arr: string[]) => arr.some(p => w.includes(p));
+  if (has(['hola','gracias','cómo','estoy','quiero','necesito','buenos','buenas','qué','está','tiene','puede','también','español'])) return 'es';
+  if (has(['bonjour','merci','oui','très','avec','pour','dans','cette','votre','nous','vous','ils','elles','suis','avoir','être','français'])) return 'fr';
+  if (has(['hallo','danke','bitte','guten','nicht','können','müssen','haben','sein','werden','aber','auch','noch','schon','deutsch','über','für'])) return 'de';
+  if (has(['ciao','grazie','prego','sono','come','dove','questo','quella','anche','però','quindi','italiano','molto','tutto','cosa'])) return 'it';
+  if (has(['olá','obrigado','obrigada','sim','também','muito','mais','você','temos','aqui','agora','português','brasil'])) return 'pt';
+  if (has(['merhaba','teşekkür','lütfen','evet','hayır','nasıl','türkçe','değil','için','gibi','daha','bir','bu','şu','çok'])) return 'tr';
+  if (has(['hallo','dank','nee','goed','niet','ook','maar','wel','heel','nederlands','ben','kan','wil','heeft'])) return 'nl';
+  if (has(['hej','tack','varsågod','är','det','till','att','men','också','mycket','svenska','jag','kan','ska'])) return 'sv';
+  if (has(['hei','takk','ikke','er','til','norsk','og','men','også','mye','jeg','kan','vil','har'])) return 'no';
+  if (has(['hej','tak','dansk','og','men','også','meget','jeg','kan','vil','har','ikke','det'])) return 'da';
+  if (has(['kiitos','ole','hyvä','tässä','suomi','olen','voin','täällä','siellä','miksi','milloin'])) return 'fi';
+  if (has(['cześć','dziękuję','proszę','tak','nie','jak','polsku','jestem','mam','czy','ale','już'])) return 'pl';
+  if (has(['ahoj','děkuji','prosím','ano','ne','jak','česky','jsem','mám','proč','ale','ještě'])) return 'cs';
+  if (has(['ahoj','ďakujem','prosím','áno','nie','ako','slovensky','som','mám','prečo','ale'])) return 'sk';
+  if (has(['salut','mulțumesc','bine','este','sunt','acesta','românesc','pentru','care','mult'])) return 'ro';
+  if (has(['szia','köszönöm','kérem','igen','nem','hogy','magyar','vagyok','van','mi','és','de'])) return 'hu';
+  if (has(['kumusta','salamat','naman','talaga','pilipino','tagalog','mahal','oo','hindi','ngayon'])) return 'tl';
+  if (has(['habari','asante','karibu','ndiyo','hapana','swahili','niko','kwamba','watu','sana'])) return 'sw';
+  if (has(['halo','terima','kasih','ya','tidak','ini','itu','dengan','bahasa','indonesia','bisa'])) return 'id';
+  if (has(['helo','terima','kasih','ya','tidak','ini','itu','dengan','bahasa','melayu','boleh'])) return 'ms';
+  if (has(['xin','chào','cảm','ơn','vâng','này','đó','với','để','tiếng','việt','tôi','bạn'])) return 'vi';
+  if (has(['hallo','dankie','baie','asseblief','ja','nee','is','die','het','van','en','afrikaans'])) return 'af';
+  return 'en';
+};
+
+const LANG_SWITCH_MAP: Record<string, string> = {
+  english:'en', spanish:'es', french:'fr', german:'de', italian:'it', portuguese:'pt',
+  arabic:'ar', hindi:'hi', japanese:'ja', chinese:'zh', korean:'ko', russian:'ru',
+  ukrainian:'uk', turkish:'tr', dutch:'nl', swedish:'sv', norwegian:'no', danish:'da',
+  finnish:'fi', polish:'pl', czech:'cs', slovak:'sk', romanian:'ro', hungarian:'hu',
+  greek:'el', hebrew:'he', thai:'th', vietnamese:'vi', indonesian:'id', malay:'ms',
+  swahili:'sw', filipino:'tl', tagalog:'tl', bengali:'bn', urdu:'ur', persian:'fa',
+  farsi:'fa', afrikaans:'af', amharic:'am',
 };
 
 const getProfile = (): { name: string; city: string } => {
@@ -137,6 +247,31 @@ const safeMath = (expr: string): number | null => {
 
 const tryExecuteCommand = async (text: string): Promise<string | null> => {
   const lower = text.toLowerCase().trim();
+
+  // ── LANGUAGE SWITCHING ───────────────────────────────────────────────────
+  const langSwitchMatch = lower.match(/^(?:speak|respond in|switch to|talk in|use|language|lang)\s+([a-z]+)$/)
+    || lower.match(/^\/lang\s+([a-z]+)$/);
+  if (langSwitchMatch) {
+    const requested = langSwitchMatch[1].toLowerCase();
+    const code = LANG_SWITCH_MAP[requested] || requested;
+    const lang = LANGS[code];
+    if (lang) {
+      _userLang = code;
+      if (Platform.OS === 'web') { try { localStorage.setItem('riuka_lang_v1', code); } catch {} }
+      return `${lang.flag} ${lang.greet} I'll respond in ${lang.name} from now on. / Riuka speaks ${lang.name}! 🌐`;
+    }
+    return `Language "${requested}" not found. Try: Spanish, French, German, Japanese, Arabic, Hindi, Chinese, Korean, Russian, Turkish, Portuguese, Italian, Dutch, Swedish, Norwegian, Danish, Finnish, Polish, Ukrainian, Greek, Hebrew, Thai, Vietnamese, Indonesian, Swahili, Filipino, Bengali, Urdu, Persian, Romanian, Hungarian, Czech, Slovak, Afrikaans, Amharic`;
+  }
+  // reset language
+  if (/^(?:reset language|back to english|english only|lang reset)$/.test(lower)) {
+    _userLang = 'en';
+    if (Platform.OS === 'web') { try { localStorage.removeItem('riuka_lang_v1'); } catch {} }
+    return `🇺🇸 Switched back to English!`;
+  }
+  // list languages
+  if (/^(?:what languages|list languages|languages|\/languages)$/.test(lower)) {
+    return `🌐 I know ${Object.keys(LANGS).length} languages:\n\n${Object.values(LANGS).map(l => `${l.flag} ${l.name}`).join(' · ')}\n\nSay "speak [language]" to switch!`;
+  }
 
   // ── WEATHER ──────────────────────────────────────────────────────────────
   const weatherMatch = lower.match(/^(?:weather|forecast|temp(?:erature)?)\s+(?:in\s+|for\s+)?(.+)$/)
@@ -1780,33 +1915,88 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return `${w.charAt(0).toUpperCase() + w.slice(1)} day! Get the full forecast: "Weather in [your city]".`;
   }
 
-  // ── MULTI-LANGUAGE GREETINGS ──────────────────────────────────────────────
-  if (/^(bonjour|bonsoir|salut|merci|s'?il vous plaît)[\s!.]*$/.test(lower)) {
-    return `Bonjour! 🇫🇷 Je suis Riuka — votre assistant IA. Comment puis-je vous aider? (I speak English too — what do you need?)`;
-  }
-  if (/^(hola|buenos días|buenas|cómo estás|gracias|por favor)[\s!.]*$/.test(lower)) {
-    return `¡Hola! 🇪🇸 Soy Riuka — tu asistente IA personal. ¿En qué puedo ayudarte? (I understand Spanish — what do you need?)`;
-  }
-  if (/^(ciao|buongiorno|buonasera|grazie|prego|salve)[\s!.]*$/.test(lower)) {
-    return `Ciao! 🇮🇹 Sono Riuka — il tuo assistente IA. Come posso aiutarti? (I understand Italian — ask me anything!)`;
-  }
-  if (/^(marhaba|ahlan|ahlan wa sahlan|shukran|salam)[\s!.]*$/.test(lower)) {
-    return `أهلاً! 🌙 I'm Riuka — I understand Arabic greetings. What can I help you with?`;
-  }
-  if (/^(namaste|namaskar|dhanyavaad|shukriya)[\s!.]*$/.test(lower)) {
-    return `Namaste! 🙏 I'm Riuka — your AI assistant. How can I help you today?`;
-  }
-  if (/^(konnichiwa|ohayou|konbanwa|arigatou|sayonara|sumimasen)[\s!.]*$/.test(lower)) {
-    return `こんにちは！ 🇯🇵 I'm Riuka — nice to meet you! What can I do for you?`;
-  }
-  if (/^(ni hao|nihao|xie xie|zaijian|nǐ hǎo)[\s!.]*$/.test(lower)) {
-    return `你好！ 🇨🇳 I'm Riuka — your AI assistant. How can I help?`;
-  }
-  if (/^(annyeong|annyeonghaseyo|kamsahamnida|saranghae)[\s!.]*$/.test(lower)) {
-    return `안녕하세요! 🇰🇷 I'm Riuka — what can I do for you?`;
-  }
-  if (/^(guten tag|hallo|danke|bitte|auf wiedersehen)[\s!.]*$/.test(lower)) {
-    return `Hallo! 🇩🇪 Ich bin Riuka — dein KI-Assistent. Wie kann ich dir helfen? (I understand German — what do you need?)`;
+  // ── MULTI-LANGUAGE DETECTION & RESPONSE ─────────────────────────────────
+  {
+    const detectedLang = detectLang(text);
+    const activeLang = _userLang !== 'en' ? _userLang : detectedLang;
+    const L = LANGS[activeLang] ?? LANGS['en'];
+
+    // Greeting detection in many languages
+    const isGreeting = /^(hello|hi|hey|howdy|sup|what'?s\s+up|yo|hola|bonjour|bonsoir|salut|ciao|hallo|hei|hej|привет|здравствуй|مرحبا|أهلاً|سلام|مرحبا|نمستے|namaste|konnichiwa|ohayou|こんにちは|你好|니하오|안녕|annyeong|merhaba|habari|kumusta|xin chào|halo|helo|cześć|ahoj|szia|salut|γεια|שלום|สวัสดี|ሰላም)[\s!.,?]*$/i.test(lower);
+    const isThanks = /^(thanks?|thank you|thx|ty|gracias|merci|danke|grazie|obrigad|спасибо|شكرا|धन्यवाद|ありがとう|谢谢|감사|teşekkür|asante|salamat|cảm ơn|terima kasih|dziękuję|děkuji|köszönöm|ευχαριστ|תודה|ขอบคุณ|asa|አመሰግናለሁ)[\s!.]*$/i.test(lower);
+    const isBye = /^(bye|goodbye|see\s+you|cya|gotta\s+go|adios|au revoir|arrivederci|tschüss|sayonara|さようなら|再见|안녕히|güle güle|kwaheri|paalam|tạm biệt|selamat tinggal|do widzenia|nashledanou|viszlát|αντίο|להתראות|ลาก่อน|ቻው)[\s!.]*$/i.test(lower);
+    const isHowAreYou = /how are you|how r u|how's it going|كيف حالك|¿cómo estás|comment ça va|wie geht|come stai|como estás|как дела|お元気|你好吗|어떠세요|nasılsın|habari yako|kumusta ka|bạn khỏe không/.test(lower);
+
+    if (activeLang !== 'en' || detectedLang !== 'en') {
+      if (isGreeting) {
+        const intro: Record<string, string> = {
+          es: `${L.greet} 🌟 Soy Riuka — tu asistente IA personal. ¿En qué puedo ayudarte hoy?`,
+          fr: `${L.greet} 🌟 Je suis Riuka — votre assistant IA. Comment puis-je vous aider?`,
+          de: `${L.greet} 🌟 Ich bin Riuka — dein KI-Assistent. Wie kann ich dir helfen?`,
+          it: `${L.greet} 🌟 Sono Riuka — il tuo assistente IA. Come posso aiutarti?`,
+          pt: `${L.greet} 🌟 Sou Riuka — seu assistente IA. Como posso ajudá-lo?`,
+          ar: `${L.greet} 🌟 أنا ريوكا — مساعدك الذكي الشخصي. كيف يمكنني مساعدتك؟`,
+          hi: `${L.greet} 🌟 मैं Riuka हूँ — आपका AI सहायक। मैं आपकी कैसे मदद कर सकता हूँ?`,
+          ja: `${L.greet} 🌟 私はRiukaです — あなたのAIアシスタント。何かお手伝いできますか？`,
+          zh: `${L.greet} 🌟 我是Riuka — 您的AI助手。我能为您做什么？`,
+          ko: `${L.greet} 🌟 저는 Riuka입니다 — 당신의 AI 어시스턴트. 무엇을 도와드릴까요?`,
+          ru: `${L.greet} 🌟 Я Riuka — твой ИИ-ассистент. Чем могу помочь?`,
+          uk: `${L.greet} 🌟 Я Riuka — твій ШІ-помічник. Чим можу допомогти?`,
+          tr: `${L.greet} 🌟 Ben Riuka — kişisel AI asistanınız. Size nasıl yardımcı olabilirim?`,
+          nl: `${L.greet} 🌟 Ik ben Riuka — jouw AI-assistent. Hoe kan ik je helpen?`,
+          sv: `${L.greet} 🌟 Jag är Riuka — din AI-assistent. Hur kan jag hjälpa dig?`,
+          no: `${L.greet} 🌟 Jeg er Riuka — din AI-assistent. Hvordan kan jeg hjelpe deg?`,
+          da: `${L.greet} 🌟 Jeg er Riuka — din AI-assistent. Hvordan kan jeg hjælpe dig?`,
+          fi: `${L.greet} 🌟 Olen Riuka — tekoälyavustajasi. Kuinka voin auttaa?`,
+          pl: `${L.greet} 🌟 Jestem Riuka — Twój asystent AI. W czym mogę pomóc?`,
+          cs: `${L.greet} 🌟 Jsem Riuka — váš AI asistent. Jak vám mohu pomoci?`,
+          ro: `${L.greet} 🌟 Sunt Riuka — asistentul tău AI. Cu ce pot ajuta?`,
+          hu: `${L.greet} 🌟 Riuka vagyok — AI asisztensed. Miben segíthetek?`,
+          el: `${L.greet} 🌟 Είμαι η Riuka — ο AI βοηθός σου. Πώς μπορώ να βοηθήσω;`,
+          he: `${L.greet} 🌟 !אני Riuka — העוזר הבינה המלאכותי שלך. כיצד אוכל לעזור?`,
+          th: `${L.greet} 🌟 ฉันคือ Riuka — ผู้ช่วย AI ของคุณ จะให้ช่วยอะไรได้บ้าง?`,
+          vi: `${L.greet} 🌟 Tôi là Riuka — trợ lý AI của bạn. Tôi có thể giúp gì cho bạn?`,
+          id: `${L.greet} 🌟 Saya Riuka — asisten AI Anda. Bagaimana saya bisa membantu?`,
+          ms: `${L.greet} 🌟 Saya Riuka — pembantu AI anda. Bagaimana saya boleh membantu?`,
+          sw: `${L.greet} 🌟 Mimi ni Riuka — msaidizi wako wa AI. Ninaweza kukusaidia vipi?`,
+          tl: `${L.greet} 🌟 Ako si Riuka — ang iyong AI assistant. Paano kita matutulungan?`,
+          bn: `${L.greet} 🌟 আমি Riuka — আপনার AI সহকারী। আমি কীভাবে সাহায্য করতে পারি?`,
+          af: `${L.greet} 🌟 Ek is Riuka — jou AI-assistent. Hoe kan ek jou help?`,
+        };
+        const resp = intro[activeLang] ?? `${L.greet} 🌟 I'm Riuka — your AI assistant. How can I help?`;
+        if (detectedLang !== 'en' && _userLang === 'en') {
+          return `${resp}\n\n_(Say "speak ${L.name}" to always respond in ${L.name})_`;
+        }
+        return resp;
+      }
+      if (isThanks) return `${L.thanks} 😊`;
+      if (isBye) return `${L.bye}`;
+      if (isHowAreYou) {
+        const howAreYou: Record<string, string> = {
+          es: "¡Estoy genial! 😊 Listo para ayudarte. ¿Qué necesitas?",
+          fr: "Je vais très bien! 😊 Prêt à vous aider. Que puis-je faire pour vous?",
+          de: "Mir geht's super! 😊 Bereit zu helfen. Was brauchst du?",
+          it: "Sto benissimo! 😊 Pronto ad aiutarti. Cosa posso fare per te?",
+          pt: "Estou ótimo! 😊 Pronto para ajudar. O que você precisa?",
+          ar: "أنا بخير! 😊 جاهز للمساعدة. ماذا تحتاج؟",
+          hi: "मैं बहुत अच्छा हूँ! 😊 मदद के लिए तैयार। आपको क्या चाहिए?",
+          ja: "元気です！ 😊 何でもお手伝いします。何が必要ですか？",
+          zh: "我很好！ 😊 随时准备帮忙。你需要什么？",
+          ko: "잘 지내요! 😊 도움 드릴 준비가 됐어요. 무엇이 필요하세요?",
+          ru: "Всё отлично! 😊 Готов помочь. Что тебе нужно?",
+          tr: "İyiyim! 😊 Yardım etmeye hazırım. Ne gerekiyor?",
+        };
+        return howAreYou[activeLang] ?? "Doing great! 😊 Ready to help. What do you need?";
+      }
+    }
+
+    // Non-English script detected but no specific match — acknowledge and help
+    if (detectedLang !== 'en' && _userLang === 'en') {
+      const L2 = LANGS[detectedLang];
+      if (L2) {
+        return `${L2.flag} ${L2.greet} I detected ${L2.name}! I can respond in ${L2.name} — say "speak ${L2.name}" to switch. For now, what can I help with? 🌐`;
+      }
+    }
   }
 
   // ── TELL ME A STORY ───────────────────────────────────────────────────────
@@ -2270,6 +2460,8 @@ const SLASH_CMDS = [
   { cmd: '/upper',      desc: 'Uppercase text' },
   { cmd: '/lower',      desc: 'Lowercase text' },
   { cmd: '/challenge',  desc: 'Random daily challenge' },
+  { cmd: '/lang',       desc: 'Switch language (e.g. /lang spanish)' },
+  { cmd: '/languages',  desc: 'List all 35+ supported languages' },
 ];
 
 const SUGGESTIONS = [
@@ -2368,6 +2560,8 @@ export default function ChatScreen() {
           const parsed: Message[] = JSON.parse(saved);
           if (parsed.length > 0) setMessages(parsed);
         }
+        const savedLang = localStorage.getItem('riuka_lang_v1');
+        if (savedLang && LANGS[savedLang]) _userLang = savedLang;
       } catch {}
     }
   }, []);
