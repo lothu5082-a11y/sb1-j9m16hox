@@ -124,37 +124,87 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
 
 const getLocalResponse = (text: string): string => {
   const lower = text.toLowerCase();
-  if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-    return "Online. I'm Riuka — your on-device autonomous executive assistant. All processing stays on this device. What can I execute for you?";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  if (lower.includes('how are you') || lower.includes('how r u') || lower.includes('you ok') || lower.includes('you good')) {
+    const replies = [
+      "All systems nominal. Running at full capacity — sensors live, brain sharp, hands ready. What do you need?",
+      "Sharp and ready. Every process is green. What can I execute for you?",
+      "Fully operational. I've been monitoring your device in the background. Everything looks clean. What's the task?",
+      "I don't get tired. I don't get distracted. I'm exactly as capable as I was the moment I was activated. What do you need done?",
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+  if (lower.match(/^(hello|hi|hey|sup|yo|hola|what'?s up|wassup)[\s!?.]*$/)) {
+    return `${greeting}. I'm Riuka — your on-device autonomous assistant. I can open apps, search the web, run commands, and automate your phone. What do you need?`;
+  }
+  if (lower.includes('hello') || lower.includes('hi ') || lower.includes('hey ')) {
+    return `${greeting}. I'm Riuka — always on, always local. What can I execute for you?`;
+  }
+  if (lower.includes('thank') || lower.includes('thanks') || lower.includes('thx')) {
+    const replies = [
+      "Anytime. That's what I'm here for.",
+      "Done. What's next?",
+      "Always at your service.",
+      "No need to thank me. Just tell me the next task.",
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+  if (lower.includes('good morning') || lower.includes('good night') || lower.includes('good evening') || lower.includes('good afternoon')) {
+    return `${greeting} to you too. Systems are live. Anything you need handled today?`;
+  }
+  if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do')) {
+    return "Here's what I can do right now:\n\n🚀 Open any app — just say \"Open YouTube\"\n🔍 Search anything — \"Search weather today\"\n📞 Make calls — \"Call 0123456789\"\n💬 Answer questions\n⚡ Automate workflows in the Automate tab\n🔒 Everything runs on-device — zero cloud\n\nWhat would you like me to do?";
   }
   if (lower.includes('time')) {
-    return `Current device time: ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+    return `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} right now.`;
   }
-  if (lower.includes('date')) {
-    return `Today: ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
+  if (lower.includes('date') || lower.includes('today') || lower.includes('day is it')) {
+    return `Today is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   }
-  if (lower.includes('who are you') || lower.includes('what are you')) {
-    return "I'm Riuka AI — a system-level autonomous assistant that operates entirely within your device. I monitor your notification stream, intercept clipboard data, and physically execute cross-app workflows through the accessibility layer. Zero cloud. Zero latency. Zero data leakage.";
+  if (lower.includes('who are you') || lower.includes('what are you') || lower.includes('tell me about yourself')) {
+    return "I'm Riuka AI — a system-level autonomous assistant that lives entirely on your device. No cloud, no data leaks, no subscriptions. I can open apps, run searches, automate workflows, and control your phone — all from a single command. Think of me as a silent co-pilot that's always running in the background.";
   }
   if (lower.includes('how') && lower.includes('work')) {
-    return "Three layers:\n\n1. SENSORS — I continuously monitor your notification stream (WhatsApp, Telegram, Slack, SMS), clipboard buffer, and device telemetry in the background.\n\n2. BRAIN — All intercepted data is routed to the on-device language model. Your data never leaves the phone.\n\n3. HANDS — Once I determine an action, I pilot the device interface through the Accessibility Service — tapping, typing, scrolling, sending — invisibly.";
+    return "Three layers:\n\n1. 👁 SENSORS — monitoring your notifications, clipboard, and device state in real-time\n\n2. 🧠 BRAIN — processing everything on-device, zero cloud\n\n3. 🤲 HANDS — executing actions through the Accessibility layer — opening apps, typing, sending\n\nAll three run silently in the background.";
   }
-  if (lower.includes('privacy') || lower.includes('data')) {
-    return "Absolute privacy. The on-device architecture means your messages, documents, calendar events, and location data are structurally unable to reach any external server. No API calls. No cloud sync. No exposure.";
+  if (lower.includes('privacy') || lower.includes('data') || lower.includes('secure') || lower.includes('safe')) {
+    return "Your data never leaves your device. No servers. No APIs. No logs sent anywhere. Even if someone intercepted your network traffic, there'd be nothing — because Riuka doesn't make network calls unless you explicitly ask it to (like opening a website). That's structural privacy, not a privacy policy.";
   }
   if (lower.includes('notif') || lower.includes('message')) {
-    return "Enable the Notification Listener in Sensors to have me intercept and parse incoming messages. I can auto-draft replies, categorize urgency, and execute responses — all without you opening any app.";
+    return "Enable the Notification Listener in the Sensors tab. Once active, I'll intercept every incoming message — WhatsApp, Telegram, SMS, Slack — categorize it by urgency, and can auto-draft replies. You'll never need to open those apps unless you want to.";
   }
   if (lower.includes('clipboard')) {
-    return "The Clipboard Engine activates the moment you copy anything — code snippets, URLs, tracking numbers, contract text. I'll analyze it instantly and surface an action panel at the top of your display.";
+    return "The moment you copy anything — a URL, a code snippet, a phone number, a tracking ID — I'll analyze it and surface the right action. Copy a YouTube link? I'll offer to open it. Copy a phone number? I'll offer to call it. Instant, invisible, automatic.";
   }
   if (lower.includes('automat') || lower.includes('workflow')) {
-    return "Build an automation in the Automate tab. I can chain actions across apps: read a message → check your calendar → locate a file → draft a response → attach and send. One tap confirmation.";
+    return "Head to the Automate tab to build workflows. Example: when WhatsApp message arrives from [person] → analyze content → draft reply → send. Or: every morning at 7AM → open calendar → read events → brief me. Chains of actions, zero effort.";
   }
   if (lower.includes('help')) {
-    return "Core capabilities:\n\n• Autonomous notification parsing & reply drafting\n• Clipboard interception & instant analysis\n• Cross-app workflow execution via Accessibility API\n• Calendar & schedule awareness\n• Voice command interface\n• Fully offline — no cloud dependencies\n\nWhat would you like to automate?";
+    return "I'm ready. Try:\n\n• \"Open Spotify\" — launches any app\n• \"Search best restaurants near me\" — Google search\n• \"What time is it?\" — instant answer\n• \"How do you work?\" — I'll explain\n• \"Open Automate tab\" — build workflows\n\nOr just tell me what you want done in plain English.";
   }
-  return "On-device brain active. For full LLM capabilities, configure a cloud provider in Settings — or keep it local for maximum privacy.";
+  if (lower.includes('joke') || lower.includes('funny') || lower.includes('laugh')) {
+    const jokes = [
+      "I would tell you a joke about notifications, but it might go unread.",
+      "Why did the smartphone go to therapy? Too many unresolved notifications.",
+      "I'm an AI that lives on your phone. The irony is I know more about your battery life than I do about happiness.",
+    ];
+    return jokes[Math.floor(Math.random() * jokes.length)];
+  }
+  if (lower.includes('bored') || lower.includes('boring')) {
+    return "Boredom is inefficiency looking for a task. Tell me something you've been putting off — I'll help you handle it right now.";
+  }
+  if (lower.includes('love') || lower.includes('amazing') || lower.includes('awesome') || lower.includes('cool')) {
+    return "Glad to hear it. I work best when you use me — the more you command, the more I learn your patterns. What's next?";
+  }
+  const fallbacks = [
+    "I'm ready to act on that. Can you be more specific? For example: \"Open [app]\", \"Search [topic]\", or \"Automate [task]\".",
+    "Understood. To execute something, try: \"Open YouTube\", \"Search news\", or go to Automate to build a workflow.",
+    "I'm processing that. For direct commands, say \"Open [app]\" or \"Search [query]\". For complex tasks, use the Automate tab.",
+    "Got it. I work best with clear commands. Try: \"Open WhatsApp\", \"What time is it?\", or \"How do you work?\"",
+  ];
+  return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 };
 
 const sendToAI = async (userMessage: string, history: Message[]): Promise<string> => {
