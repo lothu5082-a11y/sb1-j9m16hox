@@ -72,10 +72,147 @@ const APP_URLS: Record<string, string> = {
   linkedin: 'linkedin://',
 };
 
+// Safe math evaluator (no eval)
+const safeMath = (expr: string): number | null => {
+  try {
+    // Allow digits, operators, spaces, dots, parens
+    const cleaned = expr.replace(/\s/g, '');
+    if (!/^[\d+\-*/().%^]+$/.test(cleaned)) return null;
+    // Replace ^ with ** for power
+    const normalized = cleaned.replace(/\^/g, '**');
+    // Use Function constructor as a safer eval alternative
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + normalized + ')')();
+    if (typeof result === 'number' && isFinite(result)) return result;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 const tryExecuteCommand = async (text: string): Promise<string | null> => {
   const lower = text.toLowerCase().trim();
 
-  // "open [app]" or "launch [app]"
+  // ── WEATHER ──────────────────────────────────────────────────────────────
+  const weatherMatch = lower.match(/^(?:weather|forecast|temp(?:erature)?)\s+(?:in\s+|for\s+)?(.+)$/)
+    || lower.match(/^(?:what'?s?\s+(?:the\s+)?weather(?:\s+like)?(?:\s+in)?\s*)(.+)$/);
+  if (weatherMatch || lower === 'weather') {
+    const city = weatherMatch ? weatherMatch[1].trim() : 'auto';
+    try {
+      const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      const current = data.current_condition[0];
+      const area = data.nearest_area[0];
+      const areaName = area.areaName[0].value;
+      const country = area.country[0].value;
+      const tempC = current.temp_C;
+      const tempF = current.temp_F;
+      const desc = current.weatherDesc[0].value;
+      const feelsC = current.FeelsLikeC;
+      const humidity = current.humidity;
+      const windKmph = current.windspeedKmph;
+      return `Weather in ${areaName}, ${country}:\n\n🌡 ${tempC}°C / ${tempF}°F — ${desc}\nFeels like: ${feelsC}°C\nHumidity: ${humidity}%\nWind: ${windKmph} km/h`;
+    } catch {
+      return `Could not fetch weather for "${city}". Check your connection.`;
+    }
+  }
+
+  // ── CALCULATOR ───────────────────────────────────────────────────────────
+  const calcMatch = lower.match(/^(?:calc(?:ulate)?|compute|solve)\s+(.+)$/)
+    || lower.match(/^(?:what(?:'s|\s+is)\s+)?(.+[+\-*\/^%].+)$/);
+  if (calcMatch) {
+    const expr = calcMatch[1].trim();
+    const result = safeMath(expr);
+    if (result !== null) {
+      return `${expr} = ${Number.isInteger(result) ? result : result.toFixed(6).replace(/\.?0+$/, '')}`;
+    }
+  }
+  // Pure math expression typed directly (e.g. "5*8", "100/4")
+  if (/^[\d\s+\-*\/().^%]+$/.test(lower) && /[+\-*\/^%]/.test(lower)) {
+    const result = safeMath(lower);
+    if (result !== null) {
+      return `${lower.trim()} = ${Number.isInteger(result) ? result : result.toFixed(6).replace(/\.?0+$/, '')}`;
+    }
+  }
+
+  // ── BATTERY ──────────────────────────────────────────────────────────────
+  if (lower === 'battery' || lower.includes('battery level') || lower.includes('battery status')) {
+    if (Platform.OS === 'web') {
+      try {
+        const nav = navigator as any;
+        if (nav.getBattery) {
+          const battery = await nav.getBattery();
+          const pct = Math.round(battery.level * 100);
+          const charging = battery.charging;
+          const timeStr = charging
+            ? battery.chargingTime === Infinity ? '' : ` — full in ~${Math.round(battery.chargingTime / 60)} min`
+            : battery.dischargingTime === Infinity ? '' : ` — ~${Math.round(battery.dischargingTime / 60)} min left`;
+          return `Battery: ${pct}% ${charging ? '⚡ Charging' : '🔋 Discharging'}${timeStr}`;
+        } else {
+          return 'Battery API not supported in this browser.';
+        }
+      } catch {
+        return 'Could not read battery status.';
+      }
+    } else {
+      return 'Battery status is available on the web version. On Android, check your status bar.';
+    }
+  }
+
+  // ── TIMER ─────────────────────────────────────────────────────────────────
+  const timerMatch = lower.match(/^timer\s+(\d+)\s*(min(?:utes?)?|sec(?:onds?)?|s|m)$/);
+  if (timerMatch) {
+    const amount = parseInt(timerMatch[1], 10);
+    const unit = timerMatch[2];
+    const isMinutes = unit.startsWith('m');
+    const ms = isMinutes ? amount * 60000 : amount * 1000;
+    const label = isMinutes ? `${amount} minute${amount !== 1 ? 's' : ''}` : `${amount} second${amount !== 1 ? 's' : ''}`;
+    setTimeout(() => {
+      Alert.alert('Timer Done', `Your ${label} timer has finished!`, [{ text: 'OK' }]);
+    }, ms);
+    return `Timer set for ${label}. I'll alert you when it's done.`;
+  }
+
+  // ── ALARM ─────────────────────────────────────────────────────────────────
+  if (lower.includes('alarm') || lower.includes('wake me')) {
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL('android.intent.action.SET_ALARM');
+        return 'Opening the Clock app to set an alarm...';
+      } catch {
+        try {
+          await Linking.openURL('clock://');
+          return 'Opening Clock app...';
+        } catch {
+          return 'Could not open the Clock app directly. Please open it manually.';
+        }
+      }
+    } else {
+      // Web — open an online alarm / clock
+      await Linking.openURL('https://www.online-stopwatch.com/alarm-clock/');
+      return 'Opening an online alarm clock for you.';
+    }
+  }
+
+  // ── NOTES / REMINDERS ─────────────────────────────────────────────────────
+  const noteMatch = lower.match(/^(?:note|remind me(?:\s+to)?|add note)\s+(.+)$/);
+  if (noteMatch) {
+    const noteText = noteMatch[1];
+    const encoded = encodeURIComponent(noteText);
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL(`https://keep.google.com/#NOTE/${encoded}`);
+      } catch {
+        await Linking.openURL(`https://keep.google.com`);
+      }
+    } else {
+      await Linking.openURL(`https://keep.google.com`);
+    }
+    return `Note saved: "${noteText}" — opening Google Keep.`;
+  }
+
+  // ── OPEN APP ──────────────────────────────────────────────────────────────
   const openMatch = lower.match(/^(?:open|launch|start)\s+(.+)$/);
   if (openMatch) {
     const appName = openMatch[1].trim();
@@ -104,7 +241,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     }
   }
 
-  // "search [query]"
+  // ── SEARCH ────────────────────────────────────────────────────────────────
   const searchMatch = lower.match(/^(?:search|google|find)\s+(.+)$/);
   if (searchMatch) {
     const query = encodeURIComponent(searchMatch[1]);
@@ -112,7 +249,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return `Searching for "${searchMatch[1]}"...`;
   }
 
-  // "call [number/name]" — just show intent
+  // ── CALL ──────────────────────────────────────────────────────────────────
   if (lower.match(/^call\s+(.+)$/)) {
     const target = lower.match(/^call\s+(.+)$/)![1];
     await Linking.openURL(`tel:${target.replace(/\s/g, '')}`);
@@ -155,7 +292,7 @@ const getLocalResponse = (text: string): string => {
     return `${greeting} to you too. Systems are live. Anything you need handled today?`;
   }
   if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do')) {
-    return "Here's what I can do right now:\n\n🚀 Open any app — just say \"Open YouTube\"\n🔍 Search anything — \"Search weather today\"\n📞 Make calls — \"Call 0123456789\"\n💬 Answer questions\n⚡ Automate workflows in the Automate tab\n🔒 Everything runs on-device — zero cloud\n\nWhat would you like me to do?";
+    return "Here's what I can do right now:\n\n🚀 Open any app — \"Open YouTube\"\n🔍 Search — \"Search latest news\"\n📞 Call — \"Call 0123456789\"\n🌦 Weather — \"Weather in London\"\n🔢 Calculate — \"5 * 8 + 12\"\n🔋 Battery — \"Battery\"\n⏱ Timer — \"Timer 5 minutes\"\n⏰ Alarm — \"Set alarm\"\n📝 Notes — \"Note pick up groceries\"\n⚡ Automate — use the Automate tab\n\nWhat would you like me to do?";
   }
   if (lower.includes('time')) {
     return `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} right now.`;
@@ -182,7 +319,7 @@ const getLocalResponse = (text: string): string => {
     return "Head to the Automate tab to build workflows. Example: when WhatsApp message arrives from [person] → analyze content → draft reply → send. Or: every morning at 7AM → open calendar → read events → brief me. Chains of actions, zero effort.";
   }
   if (lower.includes('help')) {
-    return "I'm ready. Try:\n\n• \"Open Spotify\" — launches any app\n• \"Search best restaurants near me\" — Google search\n• \"What time is it?\" — instant answer\n• \"How do you work?\" — I'll explain\n• \"Open Automate tab\" — build workflows\n\nOr just tell me what you want done in plain English.";
+    return "I'm ready. Try:\n\n• \"Open Spotify\" — launches any app\n• \"Search best restaurants near me\" — Google search\n• \"Weather in Tokyo\" — live weather\n• \"Timer 10 minutes\" — countdown + alert\n• \"Battery\" — check battery level (web)\n• \"Note call dentist\" — save to Google Keep\n• \"What time is it?\" — instant answer\n\nOr just tell me what you want done in plain English.";
   }
   if (lower.includes('joke') || lower.includes('funny') || lower.includes('laugh')) {
     const jokes = [
@@ -220,9 +357,14 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
   }
 
   try {
+    const now = new Date();
+    const timeContext = `Current date/time: ${now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
     const messages = [
-      { role: 'system', content: 'You are Riuka AI, an autonomous on-device executive assistant for Android. You monitor notifications, parse clipboard data, and execute cross-app workflows through the accessibility layer. You are privacy-first, zero-cloud, and extremely capable. Be concise, direct, and action-oriented.' },
-      ...history.slice(-10).map((m) => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
+      {
+        role: 'system',
+        content: `You are Riuka AI, an autonomous on-device executive assistant. ${timeContext} You monitor notifications, parse clipboard data, and execute cross-app workflows. You are privacy-first, zero-cloud, and extremely capable. You have full conversation memory for this session — always reference prior context when relevant. Be concise, direct, and action-oriented. If the user refers to something mentioned earlier in the conversation, use that context. Available commands: open [app], search [query], weather [city], calc [expr], battery, timer [N] minutes/seconds, alarm, note [text].`,
+      },
+      ...history.slice(-20).map((m) => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
       { role: 'user', content: userMessage },
     ];
 
@@ -376,7 +518,7 @@ const typingStyles = StyleSheet.create({
   },
 });
 
-const SUGGESTIONS = ['How do you work?', 'Privacy policy?', 'Set up automation'];
+const SUGGESTIONS = ['Weather in London', 'Timer 5 minutes', 'What can you do?'];
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);

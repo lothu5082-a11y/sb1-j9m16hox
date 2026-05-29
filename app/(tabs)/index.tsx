@@ -28,6 +28,10 @@ import {
   Shield,
   Activity,
   Bot,
+  Youtube,
+  CloudSun,
+  BatteryMedium,
+  HelpCircle,
 } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
@@ -44,6 +48,14 @@ const quickCommands = [
   { label: 'Run automation', icon: Zap },
   { label: 'System status', icon: Activity },
   { label: 'Privacy audit', icon: Shield },
+];
+
+// Quick action chips — navigate to chat with a pre-filled command
+const quickActions = [
+  { label: 'YouTube', icon: Youtube, command: 'Open YouTube', color: '#FF0000' },
+  { label: 'Weather', icon: CloudSun, command: 'Weather in London', color: Colors.primary },
+  { label: 'Battery', icon: BatteryMedium, command: 'Battery', color: Colors.secondary },
+  { label: 'Help', icon: HelpCircle, command: 'What can you do?', color: Colors.accent },
 ];
 
 const capabilityCards = [
@@ -143,12 +155,42 @@ const pulseStyles = StyleSheet.create({
   core: { width: 10, height: 10, borderRadius: 5 },
 });
 
+const formatClock = (d: Date) =>
+  d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+const formatDate = (d: Date) =>
+  d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+
+// Global session start time for uptime tracking
+const SESSION_START = Date.now();
+
+const formatUptime = () => {
+  const secs = Math.floor((Date.now() - SESSION_START) / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+};
+
 export default function HomeScreen() {
   const [isListening, setIsListening] = useState(false);
   const [dynamicTextIndex, setDynamicTextIndex] = useState(0);
+  const [clockTime, setClockTime] = useState(new Date());
+  const [uptime, setUptime] = useState('0s');
+  const [sessionCount] = useState(Math.floor(Math.random() * 8) + 1);
+  const [commandCount, setCommandCount] = useState(Math.floor(Math.random() * 30) + 5);
   const fadeAnim = useRef(new RNAnimated.Value(1)).current;
 
   const toggleListening = () => setIsListening((prev) => !prev);
+
+  // Live clock + uptime ticker
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setClockTime(new Date());
+      setUptime(formatUptime());
+    }, 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
