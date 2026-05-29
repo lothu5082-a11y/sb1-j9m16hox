@@ -9,7 +9,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { Copy, Check } from 'lucide-react-native';
+import { Copy, Check, Volume2, VolumeX } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 
 interface ChatBubbleProps {
@@ -18,6 +18,9 @@ interface ChatBubbleProps {
   time?: string;
   type?: 'text' | 'image' | 'voice';
   isStreaming?: boolean;
+  onSpeak?: () => void;
+  onStopSpeak?: () => void;
+  isSpeaking?: boolean;
 }
 
 function BlinkCursor() {
@@ -32,7 +35,10 @@ function BlinkCursor() {
   return <Animated.Text style={[styles.cursor, style]}>▋</Animated.Text>;
 }
 
-export default function ChatBubble({ message, isUser, time, type = 'text', isStreaming = false }: ChatBubbleProps) {
+export default function ChatBubble({
+  message, isUser, time, type = 'text', isStreaming = false,
+  onSpeak, onStopSpeak, isSpeaking = false,
+}: ChatBubbleProps) {
   const [copied, setCopied] = useState(false);
 
   const copyMessage = async () => {
@@ -52,7 +58,7 @@ export default function ChatBubble({ message, isUser, time, type = 'text', isStr
       style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}
     >
       {!isUser && (
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, isSpeaking && styles.avatarSpeaking]}>
           <Text style={styles.avatarText}>R</Text>
         </View>
       )}
@@ -70,7 +76,7 @@ export default function ChatBubble({ message, isUser, time, type = 'text', isStr
             {time && <Text style={[styles.time, styles.userTime]}>{time}</Text>}
           </LinearGradient>
         ) : (
-          <View style={[styles.bubble, styles.assistantBubble]}>
+          <View style={[styles.bubble, styles.assistantBubble, isSpeaking && styles.assistantBubbleSpeaking]}>
             <View style={styles.messageRow}>
               <Text style={[styles.message, styles.assistantMessage]}>{message}</Text>
               {isStreaming && <BlinkCursor />}
@@ -80,14 +86,31 @@ export default function ChatBubble({ message, isUser, time, type = 'text', isStr
         )}
 
         {!isUser && message.length > 0 && !isStreaming && (
-          <TouchableOpacity style={styles.copyButton} onPress={copyMessage} activeOpacity={0.7}>
-            {copied
-              ? <Check color={Colors.secondary} size={11} />
-              : <Copy color={Colors.textTertiary} size={11} />}
-            <Text style={[styles.copyText, copied && styles.copyTextDone]}>
-              {copied ? 'Copied!' : 'Copy'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.actionBtn} onPress={copyMessage} activeOpacity={0.7}>
+              {copied
+                ? <Check color={Colors.secondary} size={11} />
+                : <Copy color={Colors.textTertiary} size={11} />}
+              <Text style={[styles.actionText, copied && styles.actionTextDone]}>
+                {copied ? 'Copied!' : 'Copy'}
+              </Text>
+            </TouchableOpacity>
+
+            {(onSpeak || onStopSpeak) && (
+              <TouchableOpacity
+                style={[styles.actionBtn, isSpeaking && styles.actionBtnActive]}
+                onPress={isSpeaking ? onStopSpeak : onSpeak}
+                activeOpacity={0.7}
+              >
+                {isSpeaking
+                  ? <VolumeX color={Colors.primary} size={11} />
+                  : <Volume2 color={Colors.textTertiary} size={11} />}
+                <Text style={[styles.actionText, isSpeaking && styles.actionTextActive]}>
+                  {isSpeaking ? 'Stop' : 'Speak'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
     </Animated.View>
@@ -124,6 +147,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  avatarSpeaking: {
+    borderColor: Colors.secondary,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    shadowColor: Colors.secondary,
+  },
   avatarText: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
@@ -157,6 +185,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomLeftRadius: Spacing.xs,
+  },
+  assistantBubbleSpeaking: {
+    borderColor: Colors.secondary + '60',
+    backgroundColor: 'rgba(16, 185, 129, 0.04)',
   },
   messageRow: {
     flexDirection: 'row',
@@ -192,21 +224,31 @@ const styles = StyleSheet.create({
   assistantTime: {
     color: Colors.textTertiary,
   },
-  copyButton: {
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    marginTop: 4,
-    marginLeft: 4,
     paddingVertical: 2,
-    alignSelf: 'flex-start',
   },
-  copyText: {
+  actionBtnActive: {
+    opacity: 0.9,
+  },
+  actionText: {
     fontSize: 10,
     color: Colors.textTertiary,
     fontWeight: '500',
   },
-  copyTextDone: {
+  actionTextDone: {
     color: Colors.secondary,
+  },
+  actionTextActive: {
+    color: Colors.primary,
   },
 });

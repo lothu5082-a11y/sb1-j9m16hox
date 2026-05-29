@@ -32,10 +32,11 @@ import {
   ClipboardList,
   User,
   Palette,
+  Volume2,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
-import { setAIConfig } from './chat';
+import { setAIConfig, setVoiceReplyEnabled, setWakeWordActive } from './chat';
 
 export let riukaAIConfig = { provider: 'local', apiKey: '' };
 
@@ -129,6 +130,7 @@ export default function SettingsScreen() {
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceReply, setVoiceReply] = useState(false);
   const [wakeWord, setWakeWord] = useState(false);
   const [floatingAssistant, setFloatingAssistant] = useState(true);
 
@@ -155,6 +157,12 @@ export default function SettingsScreen() {
         if (p.city) setProfileCity(p.city);
         const t = localStorage.getItem('riuka_theme_v1');
         if (t) setAccentColor(t);
+        const vr = localStorage.getItem('riuka_voice_reply') === 'true';
+        setVoiceReply(vr);
+        setVoiceReplyEnabled(vr);
+        const ww = localStorage.getItem('riuka_wake_v1') === 'true';
+        setWakeWord(ww);
+        setWakeWordActive(ww);
       } catch {}
     }
   }, []);
@@ -297,8 +305,8 @@ export default function SettingsScreen() {
             <View style={styles.settingsGap}>
               <SettingRow
                 icon={<Mic color={voiceEnabled ? Colors.primary : Colors.textTertiary} size={20} />}
-                title="Voice Assistant"
-                subtitle="Enable spoken commands"
+                title="Voice Input"
+                subtitle="Tap mic to speak commands"
                 value={voiceEnabled}
                 onValueChange={setVoiceEnabled}
                 color={Colors.primary}
@@ -306,11 +314,35 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.settingsGap}>
               <SettingRow
+                icon={<Volume2 color={voiceReply ? Colors.secondary : Colors.textTertiary} size={20} />}
+                title="Voice Reply"
+                subtitle="Riuka speaks her responses aloud"
+                value={voiceReply}
+                onValueChange={(v) => {
+                  setVoiceReply(v);
+                  setVoiceReplyEnabled(v);
+                  if (Platform.OS === 'web') {
+                    try { localStorage.setItem('riuka_voice_reply', String(v)); } catch {}
+                    if (!v) { try { (window as any).speechSynthesis?.cancel(); } catch {} }
+                  }
+                }}
+                color={Colors.secondary}
+              />
+            </View>
+            <View style={styles.settingsGap}>
+              <SettingRow
                 icon={<Zap color={wakeWord ? Colors.primary : Colors.textTertiary} size={20} />}
-                title='Wake Word Detection'
-                subtitle='"Hey Riuka" always-on activation'
+                title='Wake Word — "Hey Riuka"'
+                subtitle='Say "Hey Riuka" to activate (Chrome)'
                 value={wakeWord}
-                onValueChange={setWakeWord}
+                onValueChange={(v) => {
+                  setWakeWord(v);
+                  setWakeWordActive(v);
+                  if (Platform.OS === 'web') {
+                    try { localStorage.setItem('riuka_wake_v1', String(v)); } catch {}
+                  }
+                  if (v) Alert.alert('Wake Word Active', '"Hey Riuka" is now listening. Works in Chrome on web.');
+                }}
                 color={Colors.primary}
               />
             </View>

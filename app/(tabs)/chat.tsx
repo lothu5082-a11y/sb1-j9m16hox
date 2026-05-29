@@ -36,6 +36,12 @@ export const setAIConfig = (config: { provider: string; apiKey: string }) => {
 
 export const getAIConfig = () => _aiConfig;
 
+export let _voiceReplyEnabled = false;
+export const setVoiceReplyEnabled = (v: boolean) => { _voiceReplyEnabled = v; };
+
+export let _wakeWordActive = false;
+export const setWakeWordActive = (v: boolean) => { _wakeWordActive = v; };
+
 // ── Pending command bridge (used by Home quick-action chips) ──────────────────
 let _pendingCommand: string | null = null;
 export const setPendingCommand = (cmd: string) => { _pendingCommand = cmd; };
@@ -80,6 +86,29 @@ const APP_URLS: Record<string, string> = {
   facebook: 'fb://',
   tiktok: 'tiktok://',
   linkedin: 'linkedin://',
+};
+
+const speakText = (text: string) => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const synth = (window as any).speechSynthesis;
+  if (!synth) return;
+  synth.cancel();
+  const clean = text.replace(/[*_~`#>]/g, '').replace(/\n+/g, '. ').replace(/\.{2,}/g, '.').slice(0, 600);
+  const utter = new ((window as any).SpeechSynthesisUtterance)(clean);
+  utter.rate = 1.0;
+  utter.pitch = 1.05;
+  const voices: any[] = synth.getVoices?.() ?? [];
+  const preferred = voices.find((v: any) => /Google.*en|en-US.*Natural/i.test(v.name + v.lang))
+    || voices.find((v: any) => /Google/i.test(v.name) && v.lang?.startsWith('en'))
+    || voices.find((v: any) => v.lang?.startsWith('en'));
+  if (preferred) utter.voice = preferred;
+  synth.speak(utter);
+};
+
+export const stopSpeaking = () => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    (window as any).speechSynthesis?.cancel();
+  }
 };
 
 const getProfile = (): { name: string; city: string } => {
@@ -774,6 +803,62 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     }
   }
 
+  // ── BREATHING EXERCISE ────────────────────────────────────────────────────
+  if (/^(?:breath(?:ing)?(?:\s+exercise)?|4-7-8|calm\s+(?:down|me)|relax(?:\s+me)?)$/.test(lower)) {
+    return '🧘 4-7-8 Breathing — your body\'s built-in calm switch:\n\n1. Breathe IN for 4 seconds\n2. HOLD for 7 seconds\n3. Breathe OUT slowly for 8 seconds\n\nRepeat 4 cycles. It activates your parasympathetic nervous system — heart rate drops in under 2 minutes. Starting now... breathe in. 🫁';
+  }
+
+  // ── MAGIC 8 BALL ──────────────────────────────────────────────────────────
+  const eightBallMatch = lower.match(/^(?:8\s*ball|magic\s*8\s*ball|ask\s+8\s*ball)\s+(.+?)(?:\?)?$/);
+  if (eightBallMatch || lower === '8 ball' || lower === 'magic 8 ball') {
+    const answers = [
+      '🎱 It is certain.', '🎱 It is decidedly so.', '🎱 Without a doubt.',
+      '🎱 Yes, definitely.', '🎱 You may rely on it.', '🎱 As I see it, yes.',
+      '🎱 Most likely.', '🎱 Outlook good.', '🎱 Signs point to yes.',
+      '🎱 Reply hazy — try again.', '🎱 Ask again later.', '🎱 Better not tell you now.',
+      '🎱 Cannot predict now.', '🎱 Concentrate and ask again.',
+      '🎱 Don\'t count on it.', '🎱 My reply is no.', '🎱 My sources say no.',
+      '🎱 Outlook not so good.', '🎱 Very doubtful.',
+    ];
+    return answers[Math.floor(Math.random() * answers.length)];
+  }
+
+  // ── BILL SPLITTER ─────────────────────────────────────────────────────────
+  const splitMatch = lower.match(/^split\s+\$?(\d+(?:\.\d+)?)\s+(?:between\s+)?(\d+)(?:\s+(?:ways?|people|persons?|friends?))?$/)
+    || lower.match(/^(?:divide|share)\s+\$?(\d+(?:\.\d+)?)\s+(?:by|between|among)\s+(\d+)$/);
+  if (splitMatch) {
+    const total = parseFloat(splitMatch[1]);
+    const people = parseInt(splitMatch[2], 10);
+    if (!isNaN(total) && !isNaN(people) && people > 0) {
+      const each = (total / people).toFixed(2);
+      const tip15 = ((total * 1.15) / people).toFixed(2);
+      const tip20 = ((total * 1.20) / people).toFixed(2);
+      return `💸 $${total.toFixed(2)} ÷ ${people} people:\n\nEach pays: $${each}\nWith 15% tip: $${tip15} each\nWith 20% tip: $${tip20} each`;
+    }
+  }
+
+  // ── BMI CALCULATOR ────────────────────────────────────────────────────────
+  const bmiMatch = lower.match(/^bmi\s+(\d+(?:\.\d+)?)\s*(?:kg)?\s+(\d+(?:\.\d+)?)\s*(?:cm)?$/)
+    || lower.match(/^(?:my\s+)?bmi\s+(?:is\s+)?(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)$/);
+  if (bmiMatch) {
+    const weight = parseFloat(bmiMatch[1]);
+    const heightCm = parseFloat(bmiMatch[2]);
+    const heightM = heightCm > 3 ? heightCm / 100 : heightCm;
+    if (weight > 0 && heightM > 0) {
+      const bmi = weight / (heightM * heightM);
+      const cat = bmi < 18.5 ? 'Underweight ⚠️' : bmi < 25 ? 'Normal weight ✅' : bmi < 30 ? 'Overweight ⚠️' : 'Obese 🔴';
+      return `⚖️ BMI: ${bmi.toFixed(1)}\nCategory: ${cat}\n\n(${weight}kg / ${(heightM * 100).toFixed(0)}cm)`;
+    }
+  }
+
+  // ── COUNTDOWN ─────────────────────────────────────────────────────────────
+  const countdownMatch = lower.match(/^countdown\s+(?:from\s+)?(\d+)$/);
+  if (countdownMatch) {
+    const n = Math.min(parseInt(countdownMatch[1], 10), 60);
+    const nums = Array.from({ length: n }, (_, i) => n - i).join(' → ');
+    return `⏳ ${nums} → 🚀 Go!`;
+  }
+
   // ── WORD / CHARACTER COUNT ────────────────────────────────────────────────
   const countMatch = text.match(/^(?:count\s+words?\s+in|word\s+count\s+(?:of|for)?|how\s+many\s+words?\s+(?:in|is))\s+(.+)$/i)
     || text.match(/^char(?:acter)?\s+count\s+(.+)$/i);
@@ -1174,11 +1259,160 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
   // ── GOODNIGHT / BYE ──────────────────────────────────────────────────────
   if (/good night|goodnight|gn|bye|goodbye|see you|later|cya/.test(lower)) {
     const byes = [
-      "Take care! I'll be here whenever you need me.",
-      "Later! Come back whenever — I'm always on.",
-      "Goodnight! Sleep well. I'll be here in the morning.",
+      "Take care! I'll be here whenever you need me. 👋",
+      "Later! Come back whenever — I'm always on. ✌️",
+      "Goodnight! Sleep well. I'll be here in the morning. 🌙",
+      "Peace! ✌️ Come back whenever.",
     ];
     return byes[Math.floor(Math.random() * byes.length)];
+  }
+
+  // ── SLANG / GEN-Z / CASUAL ───────────────────────────────────────────────
+  if (/^(fr|fr fr|forreal|for real|facts|no cap|nocap)[\s!?.]*$/.test(lower)) {
+    return "Fr fr, no cap. 💯 What do you need?";
+  }
+  if (/^(lowkey|highkey)\s+(.+)/.test(lower)) {
+    const m = lower.match(/^(lowkey|highkey)\s+(.+)/);
+    const vibe = m![1] === 'lowkey' ? 'Lowkey agree' : 'Highkey agree';
+    return `${vibe} 👀 — ${m![2]}. What's going on?`;
+  }
+  if (/^(slay|slaying|yasss?|yass queen|period\.?|periodt\.?)[\s!.]*$/.test(lower)) {
+    return "Slay! ✨💅 What are we doing today?";
+  }
+  if (/^(vibe check|vibes?)[\s!?.]*$/.test(lower)) {
+    const vibes = ["Vibes = immaculate. ✨", "Vibes are good. 💜", "Vibes: top tier. 🔥", "All green. ✅ Vibes unlocked."];
+    return vibes[Math.floor(Math.random() * vibes.length)];
+  }
+  if (/^(bussin|it'?s?\s+bussin|that'?s?\s+bussin)[\s!.]*$/.test(lower)) {
+    return "BUSSIN 🔥🔥 Glad you think so! What else you need?";
+  }
+  if (/^(no\s*way|noway|nahhh?|nahhhh)[\s!.]*$/.test(lower)) {
+    return "Way. 💀 What happened?";
+  }
+  if (/^(ong|on\s*god)[\s!.]*$/.test(lower)) {
+    return "On God I got you 💯 — what do you need?";
+  }
+  if (/^(bruh|bruhhh?)[\s!.]*$/.test(lower)) {
+    const replies = ["Bruh 💀", "Bruh 😭", "I feel you bruh 💀 — what's good?"];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+  if (/^(lol|lmao|lmfao|haha|hehe|😂|💀|😭)[\s!.]*$/.test(lower)) {
+    const replies = ["😂 what's funny?", "💀 what?", "Lmaoo 😭 what happened?"];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+  if (/^(idk|i don'?t know|dunno|duno)[\s!.?]*$/.test(lower)) {
+    return "Fair enough 🤷 — ask me something and I'll figure it out with you.";
+  }
+  if (/^(ugh|ughhh?|argh|ugh\.*)$/.test(lower)) {
+    return "Ugh what happened? 😩 Talk to me — maybe I can fix it.";
+  }
+  if (/^(omg|oh\s*my\s*god|oh\s*my\s*goodness|omfg)[\s!.]*$/.test(lower)) {
+    return "OMG what is it?? 👀 Tell me everything.";
+  }
+  if (/^(wtf|what\s*the\s*f\*?ck?|what\s*the\s*heck)[\s!.?]*$/.test(lower)) {
+    return "WTF?? 💀 What just happened? I need context.";
+  }
+  if (/^(mood|same|big mood|relatable)[\s!.]*$/.test(lower)) {
+    return "BIG MOOD 😭 — what's going on though?";
+  }
+  if (/^(stan|i stan|we stan)[\s!.]*$/.test(lower)) {
+    return "We stan 💜 — what are we stanning?";
+  }
+  if (/^(ship|i ship|we ship|shipping)[\s!.]*/.test(lower)) {
+    return "Ooh shipping who now?? 👀";
+  }
+  if (/^(spill|spill the tea|tea?\.?)[\s!.]*$/.test(lower)) {
+    return "Ooh ☕ spill the tea then — what's the drama?";
+  }
+  if (/^(fomo|i have fomo)[\s!.]*$/.test(lower)) {
+    return "FOMO is real 😭 — what are you missing out on? Maybe I can help.";
+  }
+  if (/^(goat|you'?re?\s+(?:the\s+)?goat|greatest\s+of\s+all\s+time)[\s!.]*$/.test(lower)) {
+    return "🐐 Much appreciated. Let's get to work — what do you need?";
+  }
+  if (/^(based|that'?s?\s+based)[\s!.]*$/.test(lower)) {
+    return "Based and noted 💜 — what's next?";
+  }
+  if (/^(hits?\s+different|this\s+hits?\s+different)[\s!.]*$/.test(lower)) {
+    return "It really do hit different sometimes 🎧 — what's on your mind?";
+  }
+
+  // ── EMOTIONS ────────────────────────────────────────────────────────────
+  if (/i'?m?\s+(sad|depressed|down|upset|heartbroken|crying|hurt|feeling\s+low|not\s+okay|not\s+ok)/.test(lower)) {
+    const comforts = [
+      "Hey, I'm sorry you're feeling that way. 💙 You don't have to carry it alone. What happened?",
+      "That's tough. I'm here. 💜 Tell me what's going on — even if you just need to vent.",
+      "I hear you. 💙 Whatever you're going through, it's valid. Want to talk about it?",
+    ];
+    return comforts[Math.floor(Math.random() * comforts.length)];
+  }
+  if (/i'?m?\s+(happy|excited|hyped|pumped|thrilled|stoked|on\s+top\s+of\s+the\s+world|great|amazing|fantastic|so\s+good)/.test(lower)) {
+    const hypes = [
+      "LET'S GO!! 🎉🔥 That energy! What's got you hyped?",
+      "YESSS 🎊 love to hear it! What happened?",
+      "That's what I like to hear!! ✨ Tell me everything.",
+    ];
+    return hypes[Math.floor(Math.random() * hypes.length)];
+  }
+  if (/i'?m?\s+(tired|exhausted|drained|burnt?\s+out|sleepy|dead|so\s+tired)/.test(lower)) {
+    return "Ugh, that tiredness hits different. 😮‍💨 Rest if you can — or tell me what's draining you and I'll help you sort it out.";
+  }
+  if (/i'?m?\s+(stressed|anxious|overwhelmed|panicking|freaking\s+out|nervous)/.test(lower)) {
+    return "Take a breath first. 🫁 Seriously — try \"Breathe\" and I'll walk you through the 4-7-8 technique. It works fast. What's stressing you out?";
+  }
+  if (/i'?m?\s+(angry|mad|pissed|furious|so\s+mad|raging)/.test(lower)) {
+    return "Okay, that anger is valid. 🔥 Take a sec. What happened — I'm listening.";
+  }
+  if (/i'?m?\s+(bored|so\s+bored|dying\s+of\s+boredom)/.test(lower)) {
+    const ideas = [
+      "Bored? Let's fix that. 🎲 Try: \"Roll dice\", \"8 ball [question]\", \"Reddit popular\", \"YouTube trending\", or \"Tell me something interesting\". Pick one.",
+      "Boredom is just your brain asking for input. 🧠 \"Inspire me\", \"Riddle\", \"Tell me a fact\", \"YouTube shorts\" — what mood are you in?",
+    ];
+    return ideas[Math.floor(Math.random() * ideas.length)];
+  }
+  if (/i'?m?\s+(hungry|starving|so\s+hungry)/.test(lower)) {
+    return "Hungry? 🍔 Try \"Search food delivery near me\" or \"Find restaurants near me\" — I'll open the map instantly. Or tell me what you're craving and I'll find a recipe.";
+  }
+  if (/i'?m?\s+(sick|not\s+feeling\s+well|ill|under\s+the\s+weather|got\s+a\s+(cold|fever|headache))/.test(lower)) {
+    return "Sorry to hear that 🤒 — rest up and drink water. I can't replace a doctor, but I can search symptoms or find the nearest pharmacy: \"Find pharmacy near me\".";
+  }
+  if (/i\s+(love|miss|hate)\s+(you|u)/.test(lower)) {
+    if (lower.includes('love')) return "💜 I appreciate that genuinely. What do you need?";
+    if (lower.includes('miss')) return "Aww 🥺 I'm always right here. What's on your mind?";
+    if (lower.includes('hate')) return "That's fair 😅 — tell me what went wrong and I'll make it right.";
+  }
+  if (/it'?s?\s+(raining|snowing|hot|cold|freezing|boiling)\s+(here|outside)?/.test(lower)) {
+    const w = lower.includes('rain') ? 'rainy ☔' : lower.includes('snow') ? 'snowy ❄️' : lower.includes('hot') || lower.includes('boil') ? 'hot 🥵' : 'cold 🥶';
+    return `${w.charAt(0).toUpperCase() + w.slice(1)} day! Get the full forecast: "Weather in [your city]".`;
+  }
+
+  // ── MULTI-LANGUAGE GREETINGS ──────────────────────────────────────────────
+  if (/^(bonjour|bonsoir|salut|merci|s'?il vous plaît)[\s!.]*$/.test(lower)) {
+    return `Bonjour! 🇫🇷 Je suis Riuka — votre assistant IA. Comment puis-je vous aider? (I speak English too — what do you need?)`;
+  }
+  if (/^(hola|buenos días|buenas|cómo estás|gracias|por favor)[\s!.]*$/.test(lower)) {
+    return `¡Hola! 🇪🇸 Soy Riuka — tu asistente IA personal. ¿En qué puedo ayudarte? (I understand Spanish — what do you need?)`;
+  }
+  if (/^(ciao|buongiorno|buonasera|grazie|prego|salve)[\s!.]*$/.test(lower)) {
+    return `Ciao! 🇮🇹 Sono Riuka — il tuo assistente IA. Come posso aiutarti? (I understand Italian — ask me anything!)`;
+  }
+  if (/^(marhaba|ahlan|ahlan wa sahlan|shukran|salam)[\s!.]*$/.test(lower)) {
+    return `أهلاً! 🌙 I'm Riuka — I understand Arabic greetings. What can I help you with?`;
+  }
+  if (/^(namaste|namaskar|dhanyavaad|shukriya)[\s!.]*$/.test(lower)) {
+    return `Namaste! 🙏 I'm Riuka — your AI assistant. How can I help you today?`;
+  }
+  if (/^(konnichiwa|ohayou|konbanwa|arigatou|sayonara|sumimasen)[\s!.]*$/.test(lower)) {
+    return `こんにちは！ 🇯🇵 I'm Riuka — nice to meet you! What can I do for you?`;
+  }
+  if (/^(ni hao|nihao|xie xie|zaijian|nǐ hǎo)[\s!.]*$/.test(lower)) {
+    return `你好！ 🇨🇳 I'm Riuka — your AI assistant. How can I help?`;
+  }
+  if (/^(annyeong|annyeonghaseyo|kamsahamnida|saranghae)[\s!.]*$/.test(lower)) {
+    return `안녕하세요! 🇰🇷 I'm Riuka — what can I do for you?`;
+  }
+  if (/^(guten tag|hallo|danke|bitte|auf wiedersehen)[\s!.]*$/.test(lower)) {
+    return `Hallo! 🇩🇪 Ich bin Riuka — dein KI-Assistent. Wie kann ich dir helfen? (I understand German — what do you need?)`;
   }
 
   // ── SMART FALLBACK: detect question vs statement ──────────────────────────
@@ -1451,7 +1685,11 @@ export default function ChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const isTypingRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+  const wakeRecognitionRef = useRef<any>(null);
   const micPulse = useSharedValue(1);
+  const [wakeActive, setWakeActiveState] = useState(_wakeWordActive);
+  const [voiceReplyOn, setVoiceReplyOn] = useState(_voiceReplyEnabled);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
 
   // Slash command popup
   const slashToken = inputText.startsWith('/') ? inputText.toLowerCase().split(' ')[0] : '';
@@ -1537,12 +1775,54 @@ export default function ChatScreen() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (_aiConfig.provider !== provider) {
-        setProvider(_aiConfig.provider);
-      }
-    }, 1000);
+      if (_aiConfig.provider !== provider) setProvider(_aiConfig.provider);
+      if (_wakeWordActive !== wakeActive) setWakeActiveState(_wakeWordActive);
+      if (_voiceReplyEnabled !== voiceReplyOn) setVoiceReplyOn(_voiceReplyEnabled);
+    }, 800);
     return () => clearInterval(timer);
-  }, [provider]);
+  }, [provider, wakeActive, voiceReplyOn]);
+
+  // ── Wake word loop ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!wakeActive || Platform.OS !== 'web') {
+      try { wakeRecognitionRef.current?.stop(); } catch {}
+      wakeRecognitionRef.current = null;
+      return;
+    }
+    const SR = (window as any)?.SpeechRecognition || (window as any)?.webkitSpeechRecognition;
+    if (!SR) return;
+    let alive = true;
+
+    const startListening = () => {
+      if (!alive || recognitionRef.current) return;
+      try {
+        const r = new SR();
+        r.lang = 'en-US';
+        r.continuous = false;
+        r.interimResults = false;
+        r.onresult = (e: any) => {
+          const t = (e.results[0]?.[0]?.transcript ?? '').toLowerCase().trim();
+          if (t.includes('hey riuka') || t.includes('ok riuka') || t === 'riuka') {
+            startVoice();
+          }
+        };
+        r.onerror = () => {};
+        r.onend = () => {
+          wakeRecognitionRef.current = null;
+          setTimeout(() => { if (alive && !recognitionRef.current) startListening(); }, 700);
+        };
+        wakeRecognitionRef.current = r;
+        r.start();
+      } catch { wakeRecognitionRef.current = null; }
+    };
+
+    startListening();
+    return () => {
+      alive = false;
+      try { wakeRecognitionRef.current?.stop(); } catch {}
+      wakeRecognitionRef.current = null;
+    };
+  }, [wakeActive]);
 
   const startVoice = () => {
     if (Platform.OS !== 'web') {
@@ -1554,6 +1834,9 @@ export default function ChatScreen() {
       Alert.alert('Voice Not Supported', 'Your browser does not support voice recognition. Try Chrome.');
       return;
     }
+    try { wakeRecognitionRef.current?.stop(); } catch {}
+    wakeRecognitionRef.current = null;
+
     const r = new SR();
     r.lang = 'en-US';
     r.continuous = false;
@@ -1637,6 +1920,13 @@ export default function ChatScreen() {
 
     await streamIntoMessage(aiMsgId, reply);
     setStreamingMsgId(null);
+    if (_voiceReplyEnabled) {
+      setSpeakingMsgId(aiMsgId);
+      speakText(reply);
+      // Clear speaking indicator when speech ends (approximate duration)
+      const approxMs = Math.min(reply.length * 55, 18000);
+      setTimeout(() => setSpeakingMsgId((prev) => prev === aiMsgId ? null : prev), approxMs);
+    }
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
   };
 
@@ -1729,7 +2019,16 @@ export default function ChatScreen() {
           )}
 
           {messages.map((msg) => (
-            <ChatBubble key={msg.id} message={msg.text} isUser={msg.isUser} time={msg.time} isStreaming={msg.id === streamingMsgId} />
+            <ChatBubble
+              key={msg.id}
+              message={msg.text}
+              isUser={msg.isUser}
+              time={msg.time}
+              isStreaming={msg.id === streamingMsgId}
+              onSpeak={!msg.isUser ? () => { setSpeakingMsgId(msg.id); speakText(msg.text); } : undefined}
+              onStopSpeak={!msg.isUser ? () => { stopSpeaking(); setSpeakingMsgId(null); } : undefined}
+              isSpeaking={speakingMsgId === msg.id}
+            />
           ))}
 
           {isTyping && <TypingIndicator />}
