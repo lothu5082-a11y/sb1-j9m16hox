@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   Switch,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -26,6 +28,8 @@ import {
   Eye,
   Zap,
   Radio,
+  Smartphone,
+  ExternalLink,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import StatusBadge from '../../components/StatusBadge';
@@ -308,6 +312,77 @@ export default function SensorsScreen() {
             )}
           </Animated.View>
 
+          {/* Cross-App Control */}
+          <Animated.View entering={FadeInUp.duration(600).delay(350)} style={styles.section}>
+            <Text style={styles.sectionTitle}>Cross-App Control</Text>
+            <View style={styles.crossAppCard}>
+              <View style={styles.crossAppHeader}>
+                <Smartphone color={Colors.primary} size={16} />
+                <Text style={styles.crossAppTitle}>App Deep-Links  — Active Now</Text>
+                <View style={styles.activeBadge}>
+                  <Text style={styles.activeBadgeText}>LIVE</Text>
+                </View>
+              </View>
+              <Text style={styles.crossAppDesc}>
+                These commands work right now — just type them in Chat:
+              </Text>
+              <View style={styles.deepLinkGrid}>
+                {[
+                  { label: 'YouTube Trending', url: 'https://youtube.com/feed/trending', color: '#FF0000' },
+                  { label: 'YouTube Shorts', url: 'https://youtube.com/shorts', color: '#FF0000' },
+                  { label: 'Reddit Popular', url: 'https://reddit.com/r/popular', color: '#FF4500' },
+                  { label: 'Instagram Explore', url: 'https://instagram.com/explore', color: '#E1306C' },
+                  { label: 'Google News', url: 'https://news.google.com', color: Colors.primary },
+                  { label: 'Spotify New Releases', url: 'https://open.spotify.com/genre/new-releases-page', color: '#1DB954' },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.label}
+                    style={[styles.deepLinkChip, { borderColor: item.color + '40', backgroundColor: item.color + '10' }]}
+                    onPress={() => Linking.openURL(item.url)}
+                    activeOpacity={0.7}
+                  >
+                    <ExternalLink color={item.color} size={11} />
+                    <Text style={[styles.deepLinkText, { color: item.color }]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.accessibilityCard}>
+              <View style={styles.accessibilityHeader}>
+                <View style={[styles.accessibilityDot, { backgroundColor: Colors.textTertiary }]} />
+                <Text style={styles.accessibilityTitle}>Accessibility Service — Full Control Mode</Text>
+              </View>
+              <Text style={styles.accessibilityDesc}>
+                Enable Riuka's Accessibility Service to scroll, tap, and control ANY app with voice or chat commands:
+              </Text>
+              <View style={styles.accessibilityFeatures}>
+                {[
+                  'Scroll up/down inside YouTube, TikTok, Instagram',
+                  '"Next video" while watching YouTube',
+                  '"Like this" to like without touching screen',
+                  '"Back" or "Home" from any app',
+                  'Read screen content aloud from any app',
+                ].map((f, i) => (
+                  <View key={i} style={styles.accessibilityFeatureRow}>
+                    <View style={styles.accessibilityBullet} />
+                    <Text style={styles.accessibilityFeatureText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={styles.accessibilityButton}
+                onPress={() => {
+                  try { Linking.openURL('android.settings.ACCESSIBILITY_SETTINGS'); } catch {}
+                }}
+                activeOpacity={0.8}
+              >
+                <Smartphone color={Colors.primary} size={14} />
+                <Text style={styles.accessibilityButtonText}>Enable in Android Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+
           {/* Environment Context Matrix */}
           <Animated.View entering={FadeInUp.duration(600).delay(400)} style={styles.section}>
             <Text style={styles.sectionTitle}>Environment Matrix</Text>
@@ -481,4 +556,130 @@ const styles = StyleSheet.create({
   envValue: { fontSize: FontSizes.lg, fontWeight: '700' },
   envLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary },
   envGauges: {},
+
+  crossAppCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    marginBottom: Spacing.md,
+  },
+  crossAppHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  crossAppTitle: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  activeBadge: {
+    backgroundColor: Colors.secondary + '20',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.secondary + '50',
+  },
+  activeBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.secondary,
+    letterSpacing: 0.5,
+  },
+  crossAppDesc: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    marginBottom: Spacing.md,
+  },
+  deepLinkGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  deepLinkChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+  },
+  deepLinkText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+  },
+
+  accessibilityCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.textTertiary,
+  },
+  accessibilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  accessibilityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  accessibilityTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  accessibilityDesc: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    lineHeight: 18,
+    marginBottom: Spacing.md,
+  },
+  accessibilityFeatures: {
+    gap: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  accessibilityFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  accessibilityBullet: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textTertiary,
+  },
+  accessibilityFeatureText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  accessibilityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary + '15',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    alignSelf: 'flex-start',
+  },
+  accessibilityButtonText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 });

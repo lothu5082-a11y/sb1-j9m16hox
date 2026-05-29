@@ -391,6 +391,138 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return `Looking up the definition of "${defMatch[1]}"...`;
   }
 
+  // ── YOUTUBE SECTIONS ──────────────────────────────────────────────────────
+  if (/^(?:youtube|yt)\s+trending$/.test(lower)) {
+    await Linking.openURL('https://www.youtube.com/feed/trending');
+    return 'Opening YouTube Trending...';
+  }
+  if (/^(?:youtube|yt)\s+shorts$/.test(lower)) {
+    await Linking.openURL('https://www.youtube.com/shorts');
+    return 'Opening YouTube Shorts...';
+  }
+  if (/^(?:youtube|yt)\s+(?:subs|subscriptions?)$/.test(lower)) {
+    await Linking.openURL('https://www.youtube.com/feed/subscriptions');
+    return 'Opening YouTube Subscriptions...';
+  }
+  if (/^(?:youtube|yt)\s+history$/.test(lower)) {
+    await Linking.openURL('https://www.youtube.com/feed/history');
+    return 'Opening YouTube History...';
+  }
+  if (/^(?:youtube|yt)\s+liked$/.test(lower)) {
+    await Linking.openURL('https://www.youtube.com/playlist?list=LL');
+    return 'Opening YouTube Liked Videos...';
+  }
+
+  // ── INSTAGRAM PROFILE / SECTION ───────────────────────────────────────────
+  const instaProfile = lower.match(/^(?:instagram|insta)\s+@?(\w+)$/);
+  if (instaProfile) {
+    const h = instaProfile[1];
+    try {
+      const can = await Linking.canOpenURL(`instagram://user?username=${h}`);
+      if (can) { await Linking.openURL(`instagram://user?username=${h}`); }
+      else { await Linking.openURL(`https://instagram.com/${h}`); }
+    } catch { await Linking.openURL(`https://instagram.com/${h}`); }
+    return `Opening Instagram profile @${h}...`;
+  }
+  if (/^(?:instagram|insta)\s+(?:explore|reels|stories?)$/.test(lower)) {
+    await Linking.openURL('https://instagram.com/explore');
+    return 'Opening Instagram Explore...';
+  }
+
+  // ── REDDIT SUBREDDIT ──────────────────────────────────────────────────────
+  const redditSub = lower.match(/^(?:reddit\s+r?\/?)(\w+)$/) || lower.match(/^r\/(\w+)$/);
+  if (redditSub) {
+    await Linking.openURL(`https://reddit.com/r/${redditSub[1]}`);
+    return `Opening r/${redditSub[1]}...`;
+  }
+  if (lower === 'reddit hot' || lower === 'reddit trending') {
+    await Linking.openURL('https://reddit.com/r/popular');
+    return 'Opening Reddit popular posts...';
+  }
+
+  // ── GMAIL ACTIONS ─────────────────────────────────────────────────────────
+  if (/^(?:gmail\s+)?compose|new\s+email|write\s+email$/.test(lower)) {
+    await Linking.openURL('https://mail.google.com/mail/u/0/#compose');
+    return 'Opening Gmail composer...';
+  }
+  if (lower === 'gmail inbox' || lower === 'inbox' || lower === 'check email') {
+    await Linking.openURL('https://mail.google.com');
+    return 'Opening Gmail inbox...';
+  }
+
+  // ── TWITTER/X PROFILE ─────────────────────────────────────────────────────
+  const xProfile = lower.match(/^(?:twitter|x)\s+@?(\w+)$/);
+  if (xProfile) {
+    const h = xProfile[1];
+    try {
+      const can = await Linking.canOpenURL(`twitter://user?screen_name=${h}`);
+      if (can) { await Linking.openURL(`twitter://user?screen_name=${h}`); }
+      else { await Linking.openURL(`https://x.com/${h}`); }
+    } catch { await Linking.openURL(`https://x.com/${h}`); }
+    return `Opening @${h} on X...`;
+  }
+
+  // ── WHATSAPP SPECIFIC ─────────────────────────────────────────────────────
+  const waMatch = lower.match(/^(?:whatsapp|wa|message)\s+(\+?[\d\s]+)$/);
+  if (waMatch) {
+    const num = waMatch[1].replace(/\s/g, '');
+    await Linking.openURL(`https://wa.me/${num}`);
+    return `Opening WhatsApp chat with ${num}...`;
+  }
+  if (lower === 'whatsapp status' || lower === 'wa status') {
+    try {
+      const can = await Linking.canOpenURL('whatsapp://status');
+      if (can) { await Linking.openURL('whatsapp://status'); }
+      else { await Linking.openURL('https://web.whatsapp.com'); }
+    } catch { await Linking.openURL('https://web.whatsapp.com'); }
+    return 'Opening WhatsApp Status...';
+  }
+
+  // ── TIKTOK SEARCH ─────────────────────────────────────────────────────────
+  const tiktokMatch = lower.match(/^(?:tiktok)\s+(.+)$/);
+  if (tiktokMatch) {
+    const q = encodeURIComponent(tiktokMatch[1]);
+    await Linking.openURL(`https://www.tiktok.com/search?q=${q}`);
+    return `Searching TikTok for "${tiktokMatch[1]}"...`;
+  }
+
+  // ── MAPS NEARBY ───────────────────────────────────────────────────────────
+  const nearbyMatch = lower.match(/^(?:find\s+)?(?:nearby\s+|nearest\s+)(.+)$/)
+    || lower.match(/^(.+)\s+near(?:\s+me)?$/);
+  if (nearbyMatch) {
+    const q = encodeURIComponent(`${nearbyMatch[1]} near me`);
+    await Linking.openURL(`https://maps.google.com/maps?q=${q}`);
+    return `Finding ${nearbyMatch[1]} near you...`;
+  }
+
+  // ── SCROLL (within this app / web page) ───────────────────────────────────
+  if (/^scroll\s*(up|top)$/.test(lower) || lower === 'go to top') {
+    if (Platform.OS === 'web') { (window as any).scrollTo({ top: 0, behavior: 'smooth' }); }
+    return 'Scrolled to the top.';
+  }
+  if (/^scroll\s*(down|bottom)$/.test(lower) || lower === 'go to bottom' || lower === 'scroll') {
+    if (Platform.OS === 'web') { (window as any).scrollTo({ top: 99999, behavior: 'smooth' }); }
+    return 'Scrolled to the bottom.';
+  }
+
+  // ── CAMERA ────────────────────────────────────────────────────────────────
+  if (/^(?:open\s+)?camera|take\s+(?:a\s+)?photo|take\s+pic$/.test(lower)) {
+    if (Platform.OS === 'android') {
+      try { await Linking.openURL('android.media.action.IMAGE_CAPTURE'); return 'Opening camera...'; }
+      catch {}
+    }
+    return 'Camera control is available in the Android app.';
+  }
+
+  // ── SYSTEM SETTINGS ───────────────────────────────────────────────────────
+  if (/^(?:open\s+)?(?:system\s+)?settings?$/.test(lower)) {
+    if (Platform.OS === 'android') {
+      try { await Linking.openURL('android.settings.SETTINGS'); return 'Opening system settings...'; }
+      catch { try { await Linking.openURL('app-settings:'); return 'Opening settings...'; } catch {} }
+    }
+    return 'Settings command works in the Android app.';
+  }
+
   return null;
 };
 
@@ -468,7 +600,21 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return `${greeting} to you too. Systems are live. Anything you need handled today?`;
   }
   if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do') || lower.includes('commands') || lower.includes('list commands')) {
-    return "Everything I can do right now:\n\n🚀 Open apps — \"Open YouTube / Spotify / Gmail\"\n🔍 Search — \"Search best laptops 2025\"\n▶️ YouTube — \"YouTube lo-fi music\"\n🗺 Navigate — \"Navigate to Times Square\"\n🌍 Translate — \"Translate hello to Spanish\"\n🎵 Play — \"Play Eminem\"\n📰 News — \"News\"\n📖 Wikipedia — \"Wiki quantum computing\"\n🌦 Weather — \"Weather in Tokyo\"\n🔢 Calculate — \"5 * 8 + 12\" or \"calc 15% of 200\"\n🔄 Convert — \"Convert 5 km to miles\"\n🪙 Coin flip — \"Flip a coin\"\n🎲 Dice — \"Roll dice\"\n🔋 Battery — \"Battery\"\n⏱ Timer — \"Timer 10 minutes\"\n⏰ Alarm — \"Alarm\"\n📝 Note — \"Note buy milk\"\n📞 Call — \"Call 0123456789\"\n\nWhat do you need?";
+    return "Everything I can do:\n\n📱 APP CONTROL\n• Open apps: YouTube, WhatsApp, Telegram, Instagram, Spotify, Netflix, Reddit, TikTok, Gmail, Maps...\n• YouTube sections: \"YouTube trending\", \"YouTube shorts\", \"YouTube history\"\n• Instagram: \"Instagram @username\"\n• Reddit: \"Reddit gaming\" or \"r/gaming\"\n• WhatsApp: \"WhatsApp +1234567890\"\n• Twitter: \"Twitter @elonmusk\"\n• Nearby: \"Nearby restaurants\" or \"Nearest pharmacy\"\n\n🔍 SEARCH & INFO\n• \"Search [anything]\" — Google\n• \"YouTube [query]\" — YouTube search\n• \"Wiki [topic]\" — Wikipedia\n• \"News\" — Google News\n• \"Translate [text] to [language]\"\n• \"Navigate to [place]\" — Google Maps\n• \"Define [word]\"\n\n🔢 TOOLS\n• Math: \"5 * 8 + 12\", \"15% of 200\"\n• Units: \"Convert 5 km to miles\"\n• Timer: \"Timer 10 minutes\"\n• Flip coin, Roll dice\n\nWhat do you need?";
+  }
+  if (lower.includes('scroll') || lower.includes('control') && (lower.includes('youtube') || lower.includes('app') || lower.includes('phone'))) {
+    return "I can control apps by opening them directly at specific sections:\n\n▶️ \"YouTube trending\" — jump straight to Trending\n▶️ \"YouTube shorts\" — open Shorts\n▶️ \"Instagram explore\" — open Explore\n▶️ \"Reddit gaming\" — open any subreddit\n▶️ \"Nearby restaurants\" — Maps local search\n\nFor physical scroll/swipe control of other apps (like scrolling YouTube while watching), that requires the Accessibility Service on Android. Check the Sensors tab to enable it. Once active, commands like \"Scroll down\", \"Next video\", \"Like\" will work in any app.\n\nFor now: type \"Scroll up\" or \"Scroll down\" to navigate within Riuka.";
+  }
+  if (lower.includes('can you') && (lower.includes('youtube') || lower.includes('instagram') || lower.includes('tiktok') || lower.includes('whatsapp'))) {
+    const apps: Record<string, string> = {
+      youtube: "YouTube: I can open YouTube, search it (\"YouTube lo-fi\"), jump to Trending, Shorts, Subscriptions, or History. Say \"YouTube [anything]\".",
+      instagram: "Instagram: I can open it, go to Explore, or jump to a specific profile. Try: \"Instagram @username\" or \"Instagram explore\".",
+      tiktok: "TikTok: I can search TikTok content. Try: \"TikTok funny cats\".",
+      whatsapp: "WhatsApp: I can open it or message a contact directly. Try: \"WhatsApp +1234567890\".",
+    };
+    for (const [key, msg] of Object.entries(apps)) {
+      if (lower.includes(key)) return msg;
+    }
   }
   if (lower.includes('time')) {
     return `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} right now.`;
@@ -495,7 +641,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return "Head to the Automate tab to build workflows. Example: when WhatsApp message arrives from [person] → analyze content → draft reply → send. Or: every morning at 7AM → open calendar → read events → brief me. Chains of actions, zero effort.";
   }
   if (lower.includes('help')) {
-    return "I'm ready. Try:\n\n• \"Open Spotify\" — launches any app\n• \"Search best restaurants near me\" — Google search\n• \"Weather in Tokyo\" — live weather\n• \"Timer 10 minutes\" — countdown + alert\n• \"Battery\" — check battery level (web)\n• \"Note call dentist\" — save to Google Keep\n• \"What time is it?\" — instant answer\n\nOr just tell me what you want done in plain English.";
+    return "Quick commands to try:\n\n• \"YouTube trending\" — jump to trending videos\n• \"Reddit gaming\" — open any subreddit\n• \"Instagram @username\" — open profile\n• \"Nearby coffee\" — find places near you\n• \"Navigate to JFK airport\" — Google Maps\n• \"Translate good morning to French\"\n• \"Convert 100 fahrenheit to celsius\"\n• \"Weather in Dubai\" — live conditions\n• \"Timer 5 minutes\" — countdown alert\n• \"Flip a coin\" / \"Roll dice\"\n\nSay \"What can you do?\" for the full list.";
   }
   if (lower.includes('joke') || lower.includes('funny') || lower.includes('laugh')) {
     const jokes = [
@@ -763,7 +909,7 @@ const typingStyles = StyleSheet.create({
   },
 });
 
-const SUGGESTIONS = ['Weather in London', 'YouTube lo-fi beats', 'Convert 5 km to miles'];
+const SUGGESTIONS = ['YouTube trending', 'Nearby restaurants', 'Translate hello to Spanish'];
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
