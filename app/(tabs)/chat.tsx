@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -51,6 +52,76 @@ const getProviderLabel = (provider: string): string => {
   }
 };
 
+const APP_URLS: Record<string, string> = {
+  youtube: 'https://youtube.com',
+  whatsapp: 'whatsapp://',
+  telegram: 'tg://',
+  instagram: 'instagram://',
+  twitter: 'https://x.com',
+  'x': 'https://x.com',
+  google: 'https://google.com',
+  gmail: 'https://mail.google.com',
+  maps: 'https://maps.google.com',
+  spotify: 'spotify://',
+  netflix: 'nflx://',
+  chrome: 'https://google.com',
+  settings: 'app-settings:',
+  camera: 'https://google.com',
+  facebook: 'fb://',
+  tiktok: 'tiktok://',
+  linkedin: 'linkedin://',
+};
+
+const tryExecuteCommand = async (text: string): Promise<string | null> => {
+  const lower = text.toLowerCase().trim();
+
+  // "open [app]" or "launch [app]"
+  const openMatch = lower.match(/^(?:open|launch|start)\s+(.+)$/);
+  if (openMatch) {
+    const appName = openMatch[1].trim();
+    const url = APP_URLS[appName];
+    if (url) {
+      try {
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          // fallback to web URL
+          const webUrl = `https://${appName}.com`;
+          await Linking.openURL(webUrl);
+        }
+        return `Opening ${appName.charAt(0).toUpperCase() + appName.slice(1)}...`;
+      } catch {
+        return `Could not open ${appName}. Try installing the app first.`;
+      }
+    }
+    // unknown app — try best guess
+    try {
+      await Linking.openURL(`https://${appName}.com`);
+      return `Opening ${appName}...`;
+    } catch {
+      return `Unknown app: "${appName}". Try: youtube, whatsapp, telegram, instagram, spotify, gmail, maps.`;
+    }
+  }
+
+  // "search [query]"
+  const searchMatch = lower.match(/^(?:search|google|find)\s+(.+)$/);
+  if (searchMatch) {
+    const query = encodeURIComponent(searchMatch[1]);
+    await Linking.openURL(`https://google.com/search?q=${query}`);
+    return `Searching for "${searchMatch[1]}"...`;
+  }
+
+  // "call [number/name]" — just show intent
+  if (lower.match(/^call\s+(.+)$/)) {
+    const target = lower.match(/^call\s+(.+)$/)![1];
+    await Linking.openURL(`tel:${target.replace(/\s/g, '')}`);
+    return `Dialling ${target}...`;
+  }
+
+  return null;
+};
+
 const getLocalResponse = (text: string): string => {
   const lower = text.toLowerCase();
   if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
@@ -88,6 +159,10 @@ const getLocalResponse = (text: string): string => {
 
 const sendToAI = async (userMessage: string, history: Message[]): Promise<string> => {
   const config = _aiConfig;
+
+  // Try to execute device commands regardless of provider
+  const commandResult = await tryExecuteCommand(userMessage);
+  if (commandResult) return commandResult;
 
   if (config.provider === 'local' || !config.apiKey) {
     await new Promise((resolve) => setTimeout(resolve, 500));
