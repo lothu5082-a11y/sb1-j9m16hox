@@ -21,7 +21,7 @@
       "package": "com.riuka.ai",
       "versionCode": 3,
       "minSdkVersion": 26,
-      "targetSdkVersion": 34,
+      "targetSdkVersion": 35,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -54,10 +54,10 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 34,
-            "targetSdkVersion": 34,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "minSdkVersion": 26,
-            "buildToolsVersion": "34.0.0",
+            "buildToolsVersion": "35.0.0",
             "packagingOptions": {
               "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
             }
