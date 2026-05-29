@@ -14,18 +14,23 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
+  FadeInRight,
+  FadeInLeft,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
   Easing,
+  interpolateColor,
 } from 'react-native-reanimated';
 import { useFocusEffect } from 'expo-router';
 import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import ChatBubble from '../../components/ChatBubble';
 import SiriModal from '../../components/SiriModal';
+import GestureController from '../../components/GestureController';
 
 export let _aiConfig: { provider: 'openai' | 'gemini' | 'claude' | 'groq' | 'local'; apiKey: string } = {
   provider: 'local',
@@ -124,6 +129,9 @@ export const stopSpeaking = () => {
     (window as any).speechSynthesis?.cancel();
   }
 };
+
+// Torch stream (kept alive while torch is on)
+let _torchStream: MediaStream | null = null;
 
 // ── LANGUAGE SYSTEM ─────────────────────────────────────────────────────────
 let _userLang = 'en';
@@ -279,6 +287,62 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
   // list languages
   if (/^(?:what languages|list languages|languages|\/languages)$/.test(lower)) {
     return `🌐 I know ${Object.keys(LANGS).length} languages:\n\n${Object.values(LANGS).map(l => `${l.flag} ${l.name}`).join(' · ')}\n\nSay "speak [language]" to switch!`;
+  }
+
+  // ── TORCH / FLASHLIGHT ───────────────────────────────────────────────────
+  if (/^(torch|flashlight|flash|light)\s*(on|off)$/.test(lower)) {
+    if (Platform.OS !== 'web') return '⚠️ Torch only works in the browser.';
+    const wantOn = lower.endsWith('on');
+    try {
+      if (wantOn) {
+        if (_torchStream) { _torchStream.getTracks().forEach(t => t.stop()); _torchStream = null; }
+        const stream = await (navigator.mediaDevices as any).getUserMedia({
+          video: { facingMode: { exact: 'environment' } },
+        });
+        const [track] = stream.getVideoTracks();
+        const caps: any = (track as any).getCapabilities?.() ?? {};
+        if (!caps.torch) {
+          stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+          return '⚠️ Your device/browser does not support torch control.';
+        }
+        await (track as any).applyConstraints({ advanced: [{ torch: true }] });
+        _torchStream = stream;
+        return '🔦 Flashlight ON! Say "torch off" to turn it off.';
+      } else {
+        if (_torchStream) {
+          _torchStream.getTracks().forEach(t => t.stop());
+          _torchStream = null;
+        }
+        return '🔦 Flashlight OFF.';
+      }
+    } catch {
+      return '⚠️ Cannot access camera/torch. Make sure you\'ve allowed camera permission.';
+    }
+  }
+
+  // ── GESTURE MODE ─────────────────────────────────────────────────────────
+  if (/^gesture\s*(mode)?\s*(on|off)$/.test(lower)) {
+    const wantOn = lower.endsWith('on');
+    if (Platform.OS === 'web') {
+      try { localStorage.setItem('riuka_gesture_v1', wantOn ? '1' : '0'); } catch {}
+    }
+    return wantOn
+      ? '🤚 Gesture mode ON! Wave your hand in front of the camera to activate voice. Allow camera permission when prompted.'
+      : '🤚 Gesture mode OFF.';
+  }
+
+  // ── SCREEN WAKE LOCK ──────────────────────────────────────────────────────
+  if (/^(screen|keep screen|wake lock|stay on|keep awake)\s*(on|off|awake|asleep)?$/.test(lower)) {
+    const wantOn = !lower.includes('off') && !lower.includes('asleep');
+    if (Platform.OS === 'web' && 'wakeLock' in navigator) {
+      try {
+        if (wantOn) {
+          await (navigator as any).wakeLock.request('screen');
+          return '📱 Screen will stay on while Riuka is open.';
+        }
+      } catch {}
+    }
+    return wantOn ? '📱 Screen wake lock requested (device permitting).' : '📱 Screen can now turn off normally.';
   }
 
   // ── WEATHER ──────────────────────────────────────────────────────────────
@@ -2339,6 +2403,94 @@ HONESTY RULES:
   return getLocalResponse(userMessage, history);
 };
 
+// ── Gemini-style rotating gradient orb ────────────────────────────────────────
+function RiukaOrb() {
+  const SIZE = 130;
+  const rot1  = useSharedValue(0);
+  const rot2  = useSharedValue(0);
+  const rot3  = useSharedValue(0);
+  const pulse = useSharedValue(1);
+  const glow  = useSharedValue(0.5);
+
+  useEffect(() => {
+    rot1.value  = withRepeat(withTiming(360,  { duration: 4500, easing: Easing.linear }), -1, false);
+    rot2.value  = withRepeat(withTiming(-360, { duration: 6200, easing: Easing.linear }), -1, false);
+    rot3.value  = withRepeat(withTiming(360,  { duration: 8500, easing: Easing.linear }), -1, false);
+    pulse.value = withRepeat(withSequence(withTiming(1.06, { duration: 2400 }), withTiming(0.96, { duration: 2400 })), -1, false);
+    glow.value  = withRepeat(withSequence(withTiming(1, { duration: 1800 }), withTiming(0.4, { duration: 1800 })), -1, false);
+  }, []);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    shadowOpacity: glow.value,
+  }));
+  const r1Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot1.value}deg` }] }));
+  const r2Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot2.value}deg` }] }));
+  const r3Style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot3.value}deg` }] }));
+
+  return (
+    <Animated.View style={[{
+      width: SIZE, height: SIZE, borderRadius: SIZE / 2, overflow: 'hidden',
+      marginBottom: 28, shadowColor: Colors.primary, shadowRadius: 32, elevation: 14,
+    }, containerStyle]}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#07070E' }]} />
+      {/* Blue-purple arc */}
+      <Animated.View style={[StyleSheet.absoluteFill, r1Style]}>
+        <LinearGradient
+          colors={['#4338CA', '#7C3AED', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)']}
+          start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.65 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      {/* Teal-emerald arc */}
+      <Animated.View style={[StyleSheet.absoluteFill, r2Style]}>
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0)', '#0891B2', '#059669']}
+          start={{ x: 0, y: 0.4 }} end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      {/* Rose-violet arc */}
+      <Animated.View style={[StyleSheet.absoluteFill, r3Style]}>
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', '#BE185D', '#9333EA', 'rgba(0,0,0,0)']}
+          start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      {/* Inner dark circle */}
+      <View style={[StyleSheet.absoluteFill, {
+        margin: SIZE * 0.19, borderRadius: SIZE / 2,
+        backgroundColor: '#0d0d1a',
+        alignItems: 'center', justifyContent: 'center',
+      }]}>
+        <Text style={{ color: '#fff', fontSize: SIZE * 0.2, fontWeight: '900', letterSpacing: 1 }}>R</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── Animated gradient input wrapper ───────────────────────────────────────────
+function AnimatedInputBorder({ children, focused }: { children: React.ReactNode; focused: boolean }) {
+  const gradPos = useSharedValue(0);
+  useEffect(() => {
+    gradPos.value = withRepeat(withTiming(1, { duration: 3200, easing: Easing.linear }), -1, false);
+  }, []);
+  const borderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      gradPos.value,
+      [0, 0.25, 0.5, 0.75, 1],
+      ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'],
+    ),
+    borderWidth: focused ? 1.5 : 1,
+  }));
+  return (
+    <Animated.View style={[styles.inputWrapper, borderStyle]}>
+      {children}
+    </Animated.View>
+  );
+}
+
 function TypingIndicator() {
   const dot1 = useSharedValue(0.3);
   const dot2 = useSharedValue(0.3);
@@ -2470,6 +2622,8 @@ const SLASH_CMDS = [
   { cmd: '/challenge',  desc: 'Random daily challenge' },
   { cmd: '/lang',       desc: 'Switch language (e.g. /lang spanish)' },
   { cmd: '/languages',  desc: 'List all 35+ supported languages' },
+  { cmd: '/torch',      desc: 'Toggle flashlight (e.g. /torch on)' },
+  { cmd: '/gesture',    desc: 'Camera gesture control (e.g. /gesture on)' },
 ];
 
 const SUGGESTIONS = [
@@ -2499,6 +2653,8 @@ export default function ChatScreen() {
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [showSiriModal, setShowSiriModal] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [cameraGestureEnabled, setCameraGestureEnabled] = useState(false);
 
   // Slash command popup
   const slashToken = inputText.startsWith('/') ? inputText.toLowerCase().split(' ')[0] : '';
@@ -2585,6 +2741,7 @@ export default function ChatScreen() {
         }
         const savedLang = localStorage.getItem('riuka_lang_v1');
         if (savedLang && LANGS[savedLang]) _userLang = savedLang;
+        if (localStorage.getItem('riuka_gesture_v1') === '1') setCameraGestureEnabled(true);
       } catch {}
     }
   }, []);
@@ -2847,19 +3004,19 @@ export default function ChatScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {messages.length === 0 && (
-            <Animated.View entering={FadeInUp.duration(600)} style={styles.emptyState}>
-              <LinearGradient
-                colors={['rgba(168,85,247,0.18)', 'rgba(168,85,247,0.06)']}
-                style={styles.emptyAvatarRing}
-              >
-                <Text style={styles.emptyAvatarLetter}>R</Text>
-              </LinearGradient>
-              <Text style={styles.emptyTitle}>Riuka AI</Text>
-              <Text style={styles.emptySubtitle}>Your personal AI — type a command or tap the mic to speak.</Text>
-              <View style={styles.emptyFeatures}>
+            <Animated.View entering={FadeInUp.duration(700)} style={styles.emptyState}>
+              <RiukaOrb />
+              <Animated.Text entering={FadeInUp.duration(600).delay(150)} style={styles.emptyTitle}>
+                Riuka AI
+              </Animated.Text>
+              <Animated.Text entering={FadeInUp.duration(600).delay(280)} style={styles.emptySubtitle}>
+                Your personal AI — type a command or tap the mic to speak.
+              </Animated.Text>
+              <Animated.View entering={FadeInUp.duration(600).delay(400)} style={styles.emptyFeatures}>
                 {[
                   { icon: '🎤', label: 'Voice' },
-                  { icon: '🌐', label: '50+ Commands' },
+                  { icon: '🌐', label: '60+ Commands' },
+                  { icon: '🤚', label: 'Gesture' },
                   { icon: '🔒', label: 'Private' },
                 ].map((f) => (
                   <View key={f.label} style={styles.emptyFeatureChip}>
@@ -2867,7 +3024,7 @@ export default function ChatScreen() {
                     <Text style={styles.emptyFeatureText}>{f.label}</Text>
                   </View>
                 ))}
-              </View>
+              </Animated.View>
             </Animated.View>
           )}
 
@@ -2879,17 +3036,23 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {messages.map((msg) => (
-            <ChatBubble
+          {messages.map((msg, idx) => (
+            <Animated.View
               key={msg.id}
-              message={msg.text}
-              isUser={msg.isUser}
-              time={msg.time}
-              isStreaming={msg.id === streamingMsgId}
-              onSpeak={!msg.isUser ? () => { setSpeakingMsgId(msg.id); speakText(msg.text); } : undefined}
-              onStopSpeak={!msg.isUser ? () => { stopSpeaking(); setSpeakingMsgId(null); } : undefined}
-              isSpeaking={speakingMsgId === msg.id}
-            />
+              entering={msg.isUser
+                ? FadeInRight.duration(320).springify().damping(18)
+                : FadeInLeft.duration(320).springify().damping(18)}
+            >
+              <ChatBubble
+                message={msg.text}
+                isUser={msg.isUser}
+                time={msg.time}
+                isStreaming={msg.id === streamingMsgId}
+                onSpeak={!msg.isUser ? () => { setSpeakingMsgId(msg.id); speakText(msg.text); } : undefined}
+                onStopSpeak={!msg.isUser ? () => { stopSpeaking(); setSpeakingMsgId(null); } : undefined}
+                isSpeaking={speakingMsgId === msg.id}
+              />
+            </Animated.View>
           ))}
 
           {isTyping && <TypingIndicator />}
@@ -2921,19 +3084,21 @@ export default function ChatScreen() {
             </View>
           )}
           <View style={styles.inputRow}>
-            <View style={styles.inputWrapper}>
+            <AnimatedInputBorder focused={inputFocused}>
               <TextInput
                 style={styles.input}
-                placeholder="Command Riuka..."
+                placeholder="Command Riuka…"
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
                 multiline
                 maxLength={2000}
                 onSubmitEditing={() => sendMessage()}
                 blurOnSubmit={false}
               />
-            </View>
+            </AnimatedInputBorder>
             <Animated.View style={micPulseStyle}>
               <TouchableOpacity
                 style={[styles.micInputButton, isVoiceListening && styles.micListening]}
@@ -2952,6 +3117,18 @@ export default function ChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </LinearGradient>
+
+      {/* Gesture & sensor controller */}
+      <GestureController
+        onShake={startVoice}
+        onVolumeUp={() => { if (inputText.trim()) sendMessage(); else startVoice(); }}
+        onVolumeDown={() => {
+          if (inputText) setInputText('');
+          else clearChat();
+        }}
+        onCameraWave={startVoice}
+        cameraGestureEnabled={cameraGestureEnabled}
+      />
 
       {/* Siri-like voice modal */}
       <SiriModal
@@ -3198,10 +3375,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     maxHeight: 100,
+    // border is drawn by AnimatedInputBorder
   },
   input: {
     fontSize: FontSizes.md,
