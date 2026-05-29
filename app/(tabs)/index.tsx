@@ -53,10 +53,10 @@ const quickCommands = [
 
 // Quick action chips — navigate to chat with a pre-filled command
 const quickActions = [
-  { label: 'YouTube', icon: Youtube, command: 'Open YouTube', color: '#FF0000' },
+  { label: 'YouTube', icon: Youtube, command: 'YouTube trending music', color: '#FF0000' },
   { label: 'Weather', icon: CloudSun, command: 'Weather in London', color: Colors.primary },
-  { label: 'Battery', icon: BatteryMedium, command: 'Battery', color: Colors.secondary },
-  { label: 'Help', icon: HelpCircle, command: 'What can you do?', color: Colors.accent },
+  { label: 'News', icon: BatteryMedium, command: 'News', color: Colors.secondary },
+  { label: 'Commands', icon: HelpCircle, command: 'What can you do?', color: Colors.accent },
 ];
 
 const capabilityCards = [

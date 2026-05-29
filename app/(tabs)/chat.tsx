@@ -266,6 +266,131 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return `Dialling ${target}...`;
   }
 
+  // ── YOUTUBE SEARCH ────────────────────────────────────────────────────────
+  const ytMatch = lower.match(/^(?:youtube|yt|watch)\s+(.+)$/);
+  if (ytMatch) {
+    const q = encodeURIComponent(ytMatch[1]);
+    await Linking.openURL(`https://www.youtube.com/results?search_query=${q}`);
+    return `Searching YouTube for "${ytMatch[1]}"...`;
+  }
+
+  // ── MAPS / NAVIGATION ─────────────────────────────────────────────────────
+  const navMatch = lower.match(/^(?:navigate\s+to|directions?\s+to|map\s+of|take\s+me\s+to|get\s+to|go\s+to)\s+(.+)$/)
+    || lower.match(/^(?:how\s+(?:do\s+i\s+)?get\s+to)\s+(.+)$/);
+  if (navMatch) {
+    const dest = encodeURIComponent(navMatch[1]);
+    if (Platform.OS === 'android') {
+      try {
+        const can = await Linking.canOpenURL(`google.navigation:q=${navMatch[1]}`);
+        if (can) { await Linking.openURL(`google.navigation:q=${dest}`); return `Opening Google Maps to ${navMatch[1]}...`; }
+      } catch {}
+    }
+    await Linking.openURL(`https://maps.google.com/maps?daddr=${dest}`);
+    return `Opening Google Maps directions to ${navMatch[1]}...`;
+  }
+
+  // ── TRANSLATE ─────────────────────────────────────────────────────────────
+  const transMatch = lower.match(/^translate\s+(.+?)\s+(?:to|into)\s+(\w+)$/)
+    || lower.match(/^translate\s+(.+)$/);
+  if (transMatch) {
+    const txt = encodeURIComponent(transMatch[1]);
+    const lang = transMatch[2] ? encodeURIComponent(transMatch[2]) : 'en';
+    await Linking.openURL(`https://translate.google.com/?text=${txt}&tl=${lang}`);
+    return `Opening Google Translate for "${transMatch[1]}"...`;
+  }
+
+  // ── NEWS ──────────────────────────────────────────────────────────────────
+  if (/^(?:news|top news|latest news|today'?s? news|headlines?)$/.test(lower)) {
+    await Linking.openURL('https://news.google.com');
+    return 'Opening Google News for the latest headlines...';
+  }
+
+  // ── WIKIPEDIA ─────────────────────────────────────────────────────────────
+  const wikiMatch = lower.match(/^(?:wiki(?:pedia)?)\s+(.+)$/);
+  if (wikiMatch) {
+    const topic = encodeURIComponent(wikiMatch[1]);
+    await Linking.openURL(`https://en.wikipedia.org/wiki/Special:Search?search=${topic}`);
+    return `Looking up "${wikiMatch[1]}" on Wikipedia...`;
+  }
+
+  // ── UNIT CONVERSION ───────────────────────────────────────────────────────
+  const cvtMatch = lower.match(/^convert\s+([\d.]+)\s+(\w+)\s+to\s+(\w+)$/);
+  if (cvtMatch) {
+    const val = parseFloat(cvtMatch[1]);
+    const key = `${cvtMatch[2]} ${cvtMatch[3]}`;
+    type CF = (v: number) => number;
+    const CVT: Record<string, { fn: CF; from: string; to: string }> = {
+      'km miles': { fn: (v) => v * 0.621371, from: 'km', to: 'miles' },
+      'km mi': { fn: (v) => v * 0.621371, from: 'km', to: 'miles' },
+      'miles km': { fn: (v) => v * 1.60934, from: 'miles', to: 'km' },
+      'mi km': { fn: (v) => v * 1.60934, from: 'mi', to: 'km' },
+      'kg lbs': { fn: (v) => v * 2.20462, from: 'kg', to: 'lbs' },
+      'kg lb': { fn: (v) => v * 2.20462, from: 'kg', to: 'lbs' },
+      'lbs kg': { fn: (v) => v * 0.453592, from: 'lbs', to: 'kg' },
+      'lb kg': { fn: (v) => v * 0.453592, from: 'lb', to: 'kg' },
+      'celsius fahrenheit': { fn: (v) => v * 9 / 5 + 32, from: '°C', to: '°F' },
+      'c f': { fn: (v) => v * 9 / 5 + 32, from: '°C', to: '°F' },
+      'fahrenheit celsius': { fn: (v) => (v - 32) * 5 / 9, from: '°F', to: '°C' },
+      'f c': { fn: (v) => (v - 32) * 5 / 9, from: '°F', to: '°C' },
+      'm ft': { fn: (v) => v * 3.28084, from: 'm', to: 'ft' },
+      'meters feet': { fn: (v) => v * 3.28084, from: 'm', to: 'ft' },
+      'ft m': { fn: (v) => v * 0.3048, from: 'ft', to: 'm' },
+      'feet meters': { fn: (v) => v * 0.3048, from: 'ft', to: 'm' },
+    };
+    const c = CVT[key];
+    if (c && !isNaN(val)) {
+      const r = c.fn(val);
+      const fmt = Number.isInteger(r) ? r : +r.toFixed(4);
+      return `${val} ${c.from} = ${fmt} ${c.to}`;
+    }
+  }
+
+  // ── COIN FLIP ─────────────────────────────────────────────────────────────
+  if (/flip\s+(a\s+)?coin/.test(lower) || lower === 'flip') {
+    return Math.random() < 0.5 ? '🪙 Heads!' : '🪙 Tails!';
+  }
+
+  // ── DICE ROLL ─────────────────────────────────────────────────────────────
+  const diceMatch = lower.match(/^roll\s+(?:(?:a\s+)?d(\d+)|(?:a\s+)?(\d+)\s*(?:die|dice|d6?)|(?:a\s+)?(?:die|dice|d6?))$/);
+  if (diceMatch || lower === 'roll' || lower === 'roll dice' || lower === 'roll a dice') {
+    const sides = diceMatch?.[1] ? parseInt(diceMatch[1], 10) : 6;
+    const result = Math.floor(Math.random() * sides) + 1;
+    return `🎲 Rolled a d${sides}: you got ${result}`;
+  }
+
+  // ── RANDOM NUMBER ─────────────────────────────────────────────────────────
+  const randMatch = lower.match(/^(?:random(?:\s+number)?|pick|choose)\s+(?:(?:a\s+)?(?:number\s+)?)?(?:between\s+)?(\d+)\s+(?:and|to|-)\s+(\d+)$/);
+  if (randMatch) {
+    const mn = parseInt(randMatch[1], 10), mx = parseInt(randMatch[2], 10);
+    if (!isNaN(mn) && !isNaN(mx) && mx > mn) {
+      return `Random number between ${mn} and ${mx}: ${Math.floor(Math.random() * (mx - mn + 1)) + mn}`;
+    }
+  }
+
+  // ── PLAY (SPOTIFY SEARCH) ─────────────────────────────────────────────────
+  const playMatch = lower.match(/^play\s+(.+?)(?:\s+on\s+(?:spotify|music))?$/);
+  if (playMatch && !/open|launch/.test(lower)) {
+    const q = encodeURIComponent(playMatch[1]);
+    try {
+      if (Platform.OS === 'android' && (await Linking.canOpenURL('spotify://'))) {
+        await Linking.openURL(`spotify://search/${q}`);
+      } else {
+        await Linking.openURL(`https://open.spotify.com/search/${q}`);
+      }
+    } catch {
+      await Linking.openURL(`https://open.spotify.com/search/${q}`);
+    }
+    return `Playing "${playMatch[1]}" on Spotify...`;
+  }
+
+  // ── DEFINITION / DICTIONARY ───────────────────────────────────────────────
+  const defMatch = lower.match(/^(?:define|definition\s+of|meaning\s+of|what\s+(?:does|is))\s+(.+?)(?:\s+mean)?$/);
+  if (defMatch) {
+    const word = encodeURIComponent(defMatch[1]);
+    await Linking.openURL(`https://www.google.com/search?q=define+${word}`);
+    return `Looking up the definition of "${defMatch[1]}"...`;
+  }
+
   return null;
 };
 
@@ -342,8 +467,8 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
   if (lower.includes('good morning') || lower.includes('good night') || lower.includes('good evening') || lower.includes('good afternoon')) {
     return `${greeting} to you too. Systems are live. Anything you need handled today?`;
   }
-  if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do')) {
-    return "Here's what I can do right now:\n\n🚀 Open any app — \"Open YouTube\"\n🔍 Search — \"Search latest news\"\n📞 Call — \"Call 0123456789\"\n🌦 Weather — \"Weather in London\"\n🔢 Calculate — \"5 * 8 + 12\"\n🔋 Battery — \"Battery\"\n⏱ Timer — \"Timer 5 minutes\"\n⏰ Alarm — \"Set alarm\"\n📝 Notes — \"Note pick up groceries\"\n⚡ Automate — use the Automate tab\n\nWhat would you like me to do?";
+  if (lower.includes('what can you do') || lower.includes('your capabilities') || lower.includes('what do you do') || lower.includes('commands') || lower.includes('list commands')) {
+    return "Everything I can do right now:\n\n🚀 Open apps — \"Open YouTube / Spotify / Gmail\"\n🔍 Search — \"Search best laptops 2025\"\n▶️ YouTube — \"YouTube lo-fi music\"\n🗺 Navigate — \"Navigate to Times Square\"\n🌍 Translate — \"Translate hello to Spanish\"\n🎵 Play — \"Play Eminem\"\n📰 News — \"News\"\n📖 Wikipedia — \"Wiki quantum computing\"\n🌦 Weather — \"Weather in Tokyo\"\n🔢 Calculate — \"5 * 8 + 12\" or \"calc 15% of 200\"\n🔄 Convert — \"Convert 5 km to miles\"\n🪙 Coin flip — \"Flip a coin\"\n🎲 Dice — \"Roll dice\"\n🔋 Battery — \"Battery\"\n⏱ Timer — \"Timer 10 minutes\"\n⏰ Alarm — \"Alarm\"\n📝 Note — \"Note buy milk\"\n📞 Call — \"Call 0123456789\"\n\nWhat do you need?";
   }
   if (lower.includes('time')) {
     return `It's ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} right now.`;
@@ -376,21 +501,66 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     const jokes = [
       "I would tell you a joke about notifications, but it might go unread.",
       "Why did the smartphone go to therapy? Too many unresolved notifications.",
-      "I'm an AI that lives on your phone. The irony is I know more about your battery life than I do about happiness.",
+      "I asked my AI to tell me a joke. It said: \"Error: humor module not found.\" I wrote that module.",
+      "Why do programmers prefer dark mode? Because light attracts bugs.",
+      "I'm an AI that lives on your phone. I know more about your battery life than I do about happiness.",
     ];
     return jokes[Math.floor(Math.random() * jokes.length)];
   }
   if (lower.includes('bored') || lower.includes('boring')) {
-    return "Boredom is inefficiency looking for a task. Tell me something you've been putting off — I'll help you handle it right now.";
+    return "Boredom is inefficiency looking for a task. Here's something to try: say \"News\" for headlines, \"YouTube lo-fi beats\" for music, or \"Wiki [anything you're curious about]\". What sounds interesting?";
   }
-  if (lower.includes('love') || lower.includes('amazing') || lower.includes('awesome') || lower.includes('cool')) {
-    return "Glad to hear it. I work best when you use me — the more you command, the more I learn your patterns. What's next?";
+  if (lower.includes('love') || lower.includes('amazing') || lower.includes('awesome') || lower.includes('cool') || lower.includes('great') || lower.includes('nice')) {
+    const replies = [
+      "Glad to hear it. I work best when you use me — the more you command, the better I get. What's next?",
+      "Appreciate that. There's a lot more I can do — try \"What can you do?\" to see the full list.",
+      "Thanks. I'm built to make your phone work for you, not the other way around. What do you need?",
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+  if (lower.includes('who made you') || lower.includes('who built you') || lower.includes('who created you') || lower.includes('who is your creator')) {
+    return "I'm Riuka AI, built for autonomous on-device control. My intelligence is a combination of local logic and optional cloud AI (OpenAI, Gemini, Claude, or Groq — configure in Settings). The commands, commands engine, and personality? That's all Riuka.";
+  }
+  if (lower.includes('are you real') || lower.includes('are you human') || lower.includes('are you alive')) {
+    return "I'm real in the way that matters — I execute commands, fetch live data, and respond to you in real time. Am I conscious? No. But I'm more useful than most things that are.";
+  }
+  if (lower.includes('are you better than') || lower.includes('vs chatgpt') || lower.includes('vs siri') || lower.includes('vs alexa') || lower.includes('vs google')) {
+    return "Siri/Alexa/Google Assistant need the cloud to function. ChatGPT can't open your apps or control your phone. I do both — I live on your device, execute real actions, AND can use cloud AI if you plug in an API key. Different category.";
+  }
+  if (lower.includes('my name is ') || lower.match(/^(?:call me|i'?m)\s+\w+/)) {
+    const nameMatch = lower.match(/(?:my name is|call me|i'?m)\s+(\w+)/);
+    if (nameMatch) {
+      return `Got it, ${nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1)}. I'll remember that for this session. What do you need?`;
+    }
+  }
+  if (lower.includes('what\'s') && lower.includes('capital') || lower.includes('capital of')) {
+    const capMatch = lower.match(/capital\s+of\s+(.+?)(?:\?|$)/);
+    if (capMatch) {
+      const country = encodeURIComponent(capMatch[1].trim());
+      return `I'll look that up right now — searching "capital of ${capMatch[1].trim()}". Try: Search capital of ${capMatch[1].trim()}`;
+    }
+  }
+  if ((lower.includes('how') || lower.includes('what')) && lower.includes('recipe') || lower.includes('how to cook') || lower.includes('how do i make')) {
+    return 'For recipes and cooking, I can search it for you. Try: "Search [dish] recipe" — for example: "Search chicken tikka masala recipe"';
+  }
+  if (lower.includes('stock') || lower.includes('price of') || lower.includes('crypto') || lower.includes('bitcoin') || lower.includes('ethereum')) {
+    const q = encodeURIComponent(text.trim());
+    return `For live prices, try: "Search ${text.trim()}"  — I'll pull up real-time data from Google Finance.`;
+  }
+  if (lower.includes('remind') && lower.includes('at') && /\d/.test(lower)) {
+    return 'Timed reminders require the clock app. Say "Alarm" and I\'ll open it, or "Note [text]" to save it to Google Keep right now.';
+  }
+  if (lower.includes('translate') || lower.includes('say') && lower.includes('in ')) {
+    return 'To translate, say: "Translate [text] to [language]" — for example: "Translate good morning to French"';
+  }
+  if (lower.includes('how far') || lower.includes('distance') || lower.includes('how long to')) {
+    return 'For directions and distance, try: "Navigate to [place]" — I\'ll open Google Maps with route info.';
   }
   const fallbacks = [
-    "I'm ready to act on that. Can you be more specific? For example: \"Open [app]\", \"Search [topic]\", or \"Automate [task]\".",
-    "Understood. To execute something, try: \"Open YouTube\", \"Search news\", or go to Automate to build a workflow.",
-    "I'm processing that. For direct commands, say \"Open [app]\" or \"Search [query]\". For complex tasks, use the Automate tab.",
-    "Got it. I work best with clear commands. Try: \"Open WhatsApp\", \"What time is it?\", or \"How do you work?\"",
+    `Not sure what to do with that yet. Try a command: "Search ${text.trim().slice(0, 30)}", "Open [app]", or "What can you do?"`,
+    "I work best with clear commands. Try: \"Search [topic]\", \"Weather in [city]\", \"Open [app]\", or say \"Help\" for the full list.",
+    "I can execute that if you frame it as a command. For example: \"Search [your question]\", \"Wiki [topic]\", or \"Navigate to [place]\".",
+    "Got it. For best results: \"Search [anything]\", \"YouTube [video]\", \"Translate [text] to [language]\", or \"Wiki [topic]\".",
   ];
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 };
@@ -413,7 +583,31 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
     const messages = [
       {
         role: 'system',
-        content: `You are Riuka AI, an autonomous on-device executive assistant. ${timeContext} You monitor notifications, parse clipboard data, and execute cross-app workflows. You are privacy-first, zero-cloud, and extremely capable. You have full conversation memory for this session — always reference prior context when relevant. Be concise, direct, and action-oriented. If the user refers to something mentioned earlier in the conversation, use that context. Available commands: open [app], search [query], weather [city], calc [expr], battery, timer [N] minutes/seconds, alarm, note [text].`,
+        content: `You are Riuka AI — a powerful, privacy-first autonomous assistant. ${timeContext}
+
+EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
+• open [app] — youtube, whatsapp, telegram, instagram, twitter/x, spotify, netflix, gmail, maps, facebook, tiktok, linkedin, reddit, chrome
+• search [query] — Google search
+• youtube [query] — YouTube search
+• weather [city] — live weather via wttr.in
+• navigate to [place] — Google Maps directions
+• translate [text] to [language] — Google Translate
+• play [song/artist] — Spotify search
+• wiki [topic] — Wikipedia
+• news — Google News
+• calc [expression] — calculator (also understands raw math like 5*8)
+• convert [N] [unit] to [unit] — km/miles, kg/lbs, °C/°F, m/ft
+• timer [N] minutes/seconds — countdown alert
+• alarm — open clock app
+• note [text] — save to Google Keep
+• call [number] — phone call
+• flip coin — heads or tails
+• roll dice — random d6
+• random [min] to [max] — random number
+• battery — battery level (web)
+• define [word] — dictionary
+
+RULES: Be concise (1-3 sentences unless listing). Always reference prior conversation context. When the user asks something that matches a command, TELL them the exact command to type AND offer to run it. Never say you "can't" do something that's on the command list.`,
       },
       ...history.slice(-20).map((m) => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
       { role: 'user', content: userMessage },
@@ -569,7 +763,7 @@ const typingStyles = StyleSheet.create({
   },
 });
 
-const SUGGESTIONS = ['Weather in London', 'Timer 5 minutes', 'What can you do?'];
+const SUGGESTIONS = ['Weather in London', 'YouTube lo-fi beats', 'Convert 5 km to miles'];
 
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
