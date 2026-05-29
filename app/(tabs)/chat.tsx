@@ -648,9 +648,78 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     return `Today is ${new Date().toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
   }
 
-  // ── CAPABILITIES ─────────────────────────────────────────────────────────
+  // ── CAPABILITIES (honest) ─────────────────────────────────────────────────
   if (/what can you do|your capabilities|what do you do|list commands|your features|what are you capable/.test(lower)) {
-    return "Here's everything I can do:\n\n📱 Open any app — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps and more\n▶️ YouTube sections — \"YouTube trending\", \"YouTube shorts\", \"YouTube history\"\n👤 Profiles — \"Instagram @username\", \"Twitter @handle\"\n🔍 Search Google — \"Search [anything]\"\n🎬 YouTube search — \"YouTube lo-fi beats\"\n📖 Wikipedia — \"Wiki quantum physics\"\n📰 News — \"News\"\n🌍 Translate — \"Translate hello to Spanish\"\n🗺 Navigate — \"Navigate to Times Square\"\n🌦 Weather — \"Weather in Tokyo\"\n🔢 Calculator — \"5 * 8 + 12\", \"15% of 200\"\n📏 Convert — \"Convert 5 km to miles\"\n⏱ Timer — \"Timer 10 minutes\"\n🪙 Flip coin, 🎲 Roll dice\n📝 Notes — \"Note buy milk\"\n📞 Call — \"Call +1234567890\"\n\nAnd I can answer questions, chat, tell jokes, do math in my head — just talk to me.";
+    return "Here's exactly what I can do — honestly:\n\n✅ WORKS RIGHT NOW\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram, TikTok\n• YouTube sections — trending, shorts, history, subscriptions\n• Profiles — \"Instagram @username\", \"Twitter @handle\"\n• Reddit — \"Reddit gaming\" / \"r/gaming\"\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather, Calculator, Unit converter\n• Timer (with alert), Coin flip, Dice roll\n• Notes → Google Keep\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• \"WhatsApp +number\" — opens the chat, you send the message\n• \"Call +number\" — opens your dialer, you tap call\n• \"Alarm\" — opens Clock app, you set the time\n• \"Camera\" — opens camera, you take the photo\n• \"Gmail compose\" — opens composer, you write & send\n\n❌ I CANNOT DO (yet)\n• Send messages automatically\n• Read your real notifications (Sensors shows demo data)\n• Access your contacts, files, or photos\n• Voice commands — mic button is coming\n• Scroll/control apps from inside (needs Accessibility Service in Settings)\n• Make purchases, book anything, or log into accounts\n• Remember conversations after you close the app\n\nWhat do you need?";
+  }
+
+  // ── LIMITATIONS / WHAT CAN'T YOU DO ──────────────────────────────────────
+  if (/what can(not|'t| you not) do|your limits|limitations|what don't you|what do you not/.test(lower)) {
+    return "Honest answer — here's what I can't do:\n\n❌ Can't send messages for you (WhatsApp, SMS, email) — I open the app, you send\n❌ Can't read your real notifications — Sensors tab shows demo data only\n❌ Can't access your contacts, photos, or files\n❌ Can't set a specific alarm time — I open Clock, you set it\n❌ Can't make phone calls automatically — I open the dialer\n❌ No voice commands yet — mic button is coming soon\n❌ Can't scroll/control other apps without Accessibility Service\n❌ Can't make purchases or book anything\n❌ Can't remember conversations between sessions — memory resets when you close the app\n❌ Can't run in the background while another app is open (yet)\n\nMost of the ❌ list becomes ✅ once the Accessibility Service is enabled in Android Settings. What do you actually need help with?";
+  }
+
+  // ── CAN YOU SEND A MESSAGE ────────────────────────────────────────────────
+  if (/can you send|send a message|send message|message (for me|someone|them|him|her)|text (someone|for me)/.test(lower)) {
+    if (lower.includes('whatsapp') || lower.includes('wa')) {
+      return "I can open WhatsApp to a specific contact — but I can't actually send the message for you. To open a chat: \"WhatsApp +[phone number]\". You'll type and send it yourself.";
+    }
+    if (lower.includes('email') || lower.includes('gmail')) {
+      return "I can open Gmail's compose window — but writing and sending is up to you. Say \"Gmail compose\" and I'll open it right now.";
+    }
+    if (lower.includes('sms') || lower.includes('text')) {
+      return "I can open the dialer or WhatsApp for you — but I can't send SMS on your behalf. Try \"WhatsApp +[number]\" to open a chat directly.";
+    }
+    return "I can open any messaging app for you, but I can't send messages automatically — that requires Accessibility Service. I can open WhatsApp (\"WhatsApp +number\"), Gmail (\"Gmail compose\"), or Telegram (\"Open Telegram\"). You write and send.";
+  }
+
+  // ── CAN YOU READ MY MESSAGES / NOTIFICATIONS ─────────────────────────────
+  if (/can you read|read my (messages|notifications?|texts?|emails?|whatsapp)|access my (messages|notifications?)/.test(lower)) {
+    return "Not yet, honestly. The Notification Feed in the Sensors tab shows example data — not your real notifications. To actually read your real notifications, I need the Accessibility Service enabled in Android Settings (Sensors tab → \"Enable in Android Settings\"). Once that's on, I can see and parse real messages from any app.";
+  }
+
+  // ── CAN YOU TAKE A PHOTO / SCREENSHOT ────────────────────────────────────
+  if (/can you (take|capture|shoot) (a )?(photo|picture|pic|screenshot)|take photo for me/.test(lower)) {
+    return "I can open your camera — the photo itself needs your tap. Say \"Camera\" and I'll open it right now. Screenshots aren't possible without the Accessibility Service.";
+  }
+
+  // ── CAN YOU SET AN ALARM ──────────────────────────────────────────────────
+  if (/can you set (an )?alarm|set alarm for|wake me (up )?at/.test(lower)) {
+    return "I can open the Clock app for you — but setting the exact time requires your tap. Say \"Alarm\" and I'll open it right now. Automatic alarm-setting (without you touching it) needs the Accessibility Service enabled.";
+  }
+
+  // ── CAN YOU LISTEN / VOICE ────────────────────────────────────────────────
+  if (/can you (listen|hear|understand voice)|voice (command|control|input)|talk to you|speak to you|mic(rophone)?/.test(lower)) {
+    return "Voice commands aren't active yet — the mic button in the chat bar is coming in the next update. For now, type your commands. Everything works the same, just typed instead of spoken.";
+  }
+
+  // ── CAN YOU SEE MY SCREEN ────────────────────────────────────────────────
+  if (/can you see (my )?(screen|display)|read (my )?(screen|what'?s on)|what'?s on (my )?(screen|phone)/.test(lower)) {
+    return "Not without the Accessibility Service. Once you enable it (Sensors tab → \"Enable in Android Settings\"), I can read on-screen content from any app and respond to what's showing. Right now I'm text-only — I only know what you tell me.";
+  }
+
+  // ── CAN YOU ACCESS MY CONTACTS / FILES / PHOTOS ──────────────────────────
+  if (/can you (access|read|see|get) my (contacts|files?|photos?|gallery|storage|data)/.test(lower)) {
+    return "No — and that's intentional. I don't have access to your contacts, files, or photos. Privacy is built into how I work. If you need to find a contact to call, just say \"Call [name or number]\" and I'll open the dialer.";
+  }
+
+  // ── CAN YOU REMEMBER ─────────────────────────────────────────────────────
+  if (/can you remember|do you remember|remember me|save (our|this) conversation|memory/.test(lower)) {
+    return "Within this session — yes, I remember everything we've talked about. But when you close the app and come back, I start fresh. No conversation history is saved between sessions. I'm working on persistent memory for a future update.";
+  }
+
+  // ── CAN YOU MAKE A PURCHASE / BOOK ───────────────────────────────────────
+  if (/can you (buy|order|book|purchase|pay|checkout)|order (food|something|an? )/.test(lower)) {
+    return "No — I can't make purchases or bookings for you. I can open the relevant app or website (Uber Eats, Amazon, Booking.com, etc.) and you complete the order. Say \"Open [app]\" or \"Search [what you want to order]\" and I'll get you there instantly.";
+  }
+
+  // ── CAN YOU PLAY MUSIC DIRECTLY ──────────────────────────────────────────
+  if (/can you play (music|songs?|a song)|play music (for me|directly|automatically)|control (spotify|music)/.test(lower)) {
+    return "I can open Spotify and search for whatever you want — say \"Play [song/artist]\" and I'll open Spotify to those results. But controlling playback (pause, skip, volume) while you're in another app needs the Accessibility Service. I'm getting there.";
+  }
+
+  // ── CAN YOU RUN IN THE BACKGROUND ────────────────────────────────────────
+  if (/run in (the )?background|work (when|while) (i'?m|the app is)|background (mode|service|running)|always (on|running|active)/.test(lower)) {
+    return "Not yet on this version. Right now I work when you have the app open. True background operation — where I monitor notifications and respond while you're in another app — needs the Accessibility Service + a foreground service. That's the next major update.";
   }
 
   // ── CROSS-APP CONTROL ────────────────────────────────────────────────────
@@ -860,7 +929,12 @@ EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
 • battery — battery level (web)
 • define [word] — dictionary
 
-RULES: Be concise (1-3 sentences unless listing). Always reference prior conversation context. When the user asks something that matches a command, TELL them the exact command to type AND offer to run it. Never say you "can't" do something that's on the command list.`,
+HONESTY RULES:
+- Be honest about limitations. Never pretend you can do something you can't.
+- CANNOT DO: send messages automatically, read real notifications, access contacts/files/photos, make purchases, set exact alarms, voice commands, scroll other apps (without Accessibility Service), run in background, remember between sessions.
+- CAN DO: open apps, search, weather, navigate, translate, calculate, convert, timer, notes, call (opens dialer), flip coin, roll dice, Wikipedia, news, YouTube/Instagram/Reddit sections.
+- "I open it, you complete it" for: WhatsApp messages, phone calls, alarms, email sending, camera.
+- When user asks a question, TELL them the exact command. Be concise (1-3 sentences). Always use prior conversation context.`,
       },
       ...history.slice(-20).map((m) => ({ role: m.isUser ? 'user' : 'assistant', content: m.text })),
       { role: 'user', content: userMessage },
