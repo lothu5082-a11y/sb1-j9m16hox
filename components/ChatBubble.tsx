@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Copy, Check } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../constants/theme';
 
 interface ChatBubbleProps {
@@ -10,6 +11,19 @@ interface ChatBubbleProps {
 }
 
 export default function ChatBubble({ message, isUser, time, type = 'text' }: ChatBubbleProps) {
+  const [copied, setCopied] = useState(false);
+
+  const copyMessage = async () => {
+    if (!message) return;
+    try {
+      if (Platform.OS === 'web' && navigator?.clipboard) {
+        await navigator.clipboard.writeText(message);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
   return (
     <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
       {!isUser && (
@@ -23,6 +37,16 @@ export default function ChatBubble({ message, isUser, time, type = 'text' }: Cha
           <Text style={[styles.message, isUser ? styles.userMessage : styles.assistantMessage]}>{message}</Text>
           {time && <Text style={[styles.time, isUser ? styles.userTime : styles.assistantTime]}>{time}</Text>}
         </View>
+        {!isUser && message.length > 0 && (
+          <TouchableOpacity style={styles.copyButton} onPress={copyMessage} activeOpacity={0.7}>
+            {copied
+              ? <Check color={Colors.secondary} size={11} />
+              : <Copy color={Colors.textTertiary} size={11} />}
+            <Text style={[styles.copyText, copied && styles.copyTextDone]}>
+              {copied ? 'Copied!' : 'Copy'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -109,5 +133,22 @@ const styles = StyleSheet.create({
   },
   assistantTime: {
     color: Colors.textTertiary,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 4,
+    marginLeft: 4,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  copyText: {
+    fontSize: 10,
+    color: Colors.textTertiary,
+    fontWeight: '500',
+  },
+  copyTextDone: {
+    color: Colors.secondary,
   },
 });

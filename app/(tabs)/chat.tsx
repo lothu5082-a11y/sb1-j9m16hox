@@ -551,6 +551,167 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     return 'Clipboard reading works in the web version. On Android, open the Sensors tab and enable the Clipboard Engine.';
   }
 
+  // ── WORLD CLOCK ───────────────────────────────────────────────────────────
+  const timeInMatch = lower.match(/^(?:time\s+in|what(?:'?s|\s+is)\s+(?:the\s+)?time\s+(?:in|at))\s+(.+)$/)
+    || lower.match(/^(?:current\s+time\s+in)\s+(.+)$/);
+  if (timeInMatch) {
+    const cityRaw = timeInMatch[1].trim().replace(/\?+$/, '');
+    const ZONES: Record<string, string> = {
+      'new york': 'America/New_York', 'nyc': 'America/New_York', 'new york city': 'America/New_York',
+      'los angeles': 'America/Los_Angeles', 'la': 'America/Los_Angeles',
+      'chicago': 'America/Chicago', 'dallas': 'America/Chicago',
+      'denver': 'America/Denver', 'phoenix': 'America/Phoenix',
+      'seattle': 'America/Los_Angeles', 'san francisco': 'America/Los_Angeles', 'sf': 'America/Los_Angeles',
+      'toronto': 'America/Toronto', 'vancouver': 'America/Vancouver',
+      'mexico city': 'America/Mexico_City',
+      'london': 'Europe/London', 'uk': 'Europe/London',
+      'paris': 'Europe/Paris', 'france': 'Europe/Paris',
+      'berlin': 'Europe/Berlin', 'germany': 'Europe/Berlin',
+      'madrid': 'Europe/Madrid', 'spain': 'Europe/Madrid',
+      'rome': 'Europe/Rome', 'italy': 'Europe/Rome',
+      'amsterdam': 'Europe/Amsterdam', 'brussels': 'Europe/Brussels',
+      'vienna': 'Europe/Vienna', 'zurich': 'Europe/Zurich',
+      'stockholm': 'Europe/Stockholm', 'oslo': 'Europe/Oslo',
+      'moscow': 'Europe/Moscow', 'russia': 'Europe/Moscow',
+      'istanbul': 'Europe/Istanbul', 'turkey': 'Europe/Istanbul',
+      'cairo': 'Africa/Cairo', 'egypt': 'Africa/Cairo',
+      'lagos': 'Africa/Lagos', 'nigeria': 'Africa/Lagos',
+      'nairobi': 'Africa/Nairobi', 'kenya': 'Africa/Nairobi',
+      'johannesburg': 'Africa/Johannesburg', 'south africa': 'Africa/Johannesburg',
+      'dubai': 'Asia/Dubai', 'uae': 'Asia/Dubai',
+      'riyadh': 'Asia/Riyadh', 'saudi arabia': 'Asia/Riyadh',
+      'tehran': 'Asia/Tehran', 'iran': 'Asia/Tehran',
+      'karachi': 'Asia/Karachi', 'pakistan': 'Asia/Karachi',
+      'mumbai': 'Asia/Kolkata', 'india': 'Asia/Kolkata', 'delhi': 'Asia/Kolkata',
+      'kolkata': 'Asia/Kolkata', 'bangalore': 'Asia/Kolkata',
+      'dhaka': 'Asia/Dhaka', 'bangladesh': 'Asia/Dhaka',
+      'colombo': 'Asia/Colombo', 'sri lanka': 'Asia/Colombo',
+      'bangkok': 'Asia/Bangkok', 'thailand': 'Asia/Bangkok',
+      'singapore': 'Asia/Singapore', 'kuala lumpur': 'Asia/Kuala_Lumpur',
+      'jakarta': 'Asia/Jakarta', 'indonesia': 'Asia/Jakarta',
+      'hong kong': 'Asia/Hong_Kong', 'shanghai': 'Asia/Shanghai',
+      'beijing': 'Asia/Shanghai', 'china': 'Asia/Shanghai',
+      'tokyo': 'Asia/Tokyo', 'japan': 'Asia/Tokyo',
+      'seoul': 'Asia/Seoul', 'south korea': 'Asia/Seoul',
+      'sydney': 'Australia/Sydney', 'melbourne': 'Australia/Melbourne',
+      'australia': 'Australia/Sydney', 'brisbane': 'Australia/Brisbane',
+      'auckland': 'Pacific/Auckland', 'new zealand': 'Pacific/Auckland',
+      'sao paulo': 'America/Sao_Paulo', 'brazil': 'America/Sao_Paulo',
+      'buenos aires': 'America/Argentina/Buenos_Aires', 'argentina': 'America/Argentina/Buenos_Aires',
+    };
+    const zone = ZONES[cityRaw.toLowerCase()];
+    if (zone) {
+      const t = new Date().toLocaleTimeString('en-US', {
+        timeZone: zone, hour: 'numeric', minute: '2-digit', hour12: true, weekday: 'short',
+      });
+      return `🕐 It's ${t} in ${cityRaw.charAt(0).toUpperCase() + cityRaw.slice(1)}.`;
+    }
+    return `I don't have ${cityRaw} in my timezone list yet. Try: "Search time in ${cityRaw}"`;
+  }
+
+  // ── CURRENCY CONVERSION (live rates) ─────────────────────────────────────
+  const fxMatch = lower.match(/^(\d+(?:\.\d+)?)\s+([a-z]{3})\s+(?:to|in)\s+([a-z]{3})$/)
+    || lower.match(/^convert\s+(\d+(?:\.\d+)?)\s+([a-z]{3})\s+to\s+([a-z]{3})$/);
+  if (fxMatch) {
+    const amount = parseFloat(fxMatch[1]);
+    const from = fxMatch[2].toUpperCase();
+    const to = fxMatch[3].toUpperCase();
+    try {
+      const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      const rate = data.rates?.[to];
+      if (rate) {
+        const result = (amount * rate).toFixed(2);
+        return `💱 ${amount} ${from} = ${result} ${to}\n(1 ${from} = ${rate.toFixed(4)} ${to} — live rate)`;
+      }
+      return `Unknown currency code "${to}". Use standard 3-letter codes: USD, EUR, GBP, JPY, INR, AUD, CAD, etc.`;
+    } catch {
+      return `Couldn't fetch live rates right now. Try "Search ${amount} ${from} to ${to}" and Google will show the current rate.`;
+    }
+  }
+
+  // ── PASSWORD GENERATOR ────────────────────────────────────────────────────
+  const passMatch = lower.match(/^(?:(?:generate\s+(?:a\s+)?|random\s+|strong\s+)?password)\s*(\d*)$/)
+    || lower.match(/^gen\s+(?:a\s+)?pass(?:word)?\s*(\d*)$/);
+  if (passMatch) {
+    const len = Math.min(Math.max(parseInt(passMatch[1] || '16', 10) || 16, 8), 64);
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+    let pw = '';
+    for (let i = 0; i < len; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+    return `🔐 Password (${len} chars):\n\n${pw}\n\nCopy it now — I won't store it.`;
+  }
+
+  // ── QR CODE GENERATOR ─────────────────────────────────────────────────────
+  const qrMatch = lower.match(/^qr(?:\s+code)?\s+(.+)$/);
+  if (qrMatch) {
+    const content = encodeURIComponent(qrMatch[1].trim());
+    await Linking.openURL(`https://qr.io/?text=${content}`);
+    return `Opening QR code generator for: "${decodeURIComponent(content).slice(0, 60)}${decodeURIComponent(content).length > 60 ? '…' : ''}"`;
+  }
+
+  // ── POMODORO ──────────────────────────────────────────────────────────────
+  if (/^pomodoro$|^focus\s+(?:mode|timer|time)$|^25\s*min(?:utes?)?$/.test(lower)) {
+    const ms = 25 * 60 * 1000;
+    setTimeout(() => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
+        const perm = (window as any).Notification.permission;
+        if (perm === 'granted') {
+          new (window as any).Notification('Riuka — Focus Complete! 🍅', {
+            body: '25 minutes done. Take a 5-minute break — you earned it.',
+            icon: '/favicon.ico',
+          });
+        } else {
+          Alert.alert('Focus Complete! 🍅', '25 minutes done. Take a 5-minute break!', [{ text: 'OK' }]);
+        }
+      } else {
+        Alert.alert('Focus Complete! 🍅', '25 minutes done. Take a 5-minute break!', [{ text: 'OK' }]);
+      }
+    }, ms);
+    return '🍅 Pomodoro started — 25 minutes of focused work. I\'ll notify you when it\'s time to break. Head down!';
+  }
+
+  // ── TO-DO LIST (localStorage) ─────────────────────────────────────────────
+  const TODO_KEY = 'riuka_todos_v1';
+  const loadTodos = (): string[] => {
+    if (Platform.OS !== 'web') return [];
+    try { return JSON.parse(localStorage.getItem(TODO_KEY) || '[]'); } catch { return []; }
+  };
+  const saveTodos = (items: string[]) => {
+    if (Platform.OS === 'web') { try { localStorage.setItem(TODO_KEY, JSON.stringify(items)); } catch {} }
+  };
+
+  const addTodoMatch = lower.match(/^(?:(?:add\s+(?:a?\s+)?)?todo\s+)(.+)$/);
+  if (addTodoMatch) {
+    const item = addTodoMatch[1].trim();
+    const todos = loadTodos();
+    todos.push(item);
+    saveTodos(todos);
+    return `✅ Added: "${item}"\nYou have ${todos.length} item${todos.length !== 1 ? 's' : ''} on your list. Say "My todos" to see them all.`;
+  }
+
+  if (/^(?:my\s+)?todos?$|^(?:list|show)\s+(?:my\s+)?todos?$|^what(?:'?s|\s+is)\s+on\s+my\s+(?:todo|list)/.test(lower)) {
+    const todos = loadTodos();
+    if (todos.length === 0) return "Your to-do list is empty. Add something: \"Todo buy groceries\"";
+    const list = todos.map((t, i) => `${i + 1}. ${t}`).join('\n');
+    return `📋 Your to-do list (${todos.length} item${todos.length !== 1 ? 's' : ''}):\n\n${list}\n\nSay "Done [number]" to check one off.`;
+  }
+
+  const doneMatch = lower.match(/^(?:done|complete|finish|remove\s+todo)\s+(\d+)$/);
+  if (doneMatch) {
+    const idx = parseInt(doneMatch[1], 10) - 1;
+    const todos = loadTodos();
+    if (idx < 0 || idx >= todos.length) return `No item #${idx + 1}. You have ${todos.length} item${todos.length !== 1 ? 's' : ''}. Say "My todos" to see the list.`;
+    const [removed] = todos.splice(idx, 1);
+    saveTodos(todos);
+    return `✅ Done: "${removed}"\n${todos.length > 0 ? `${todos.length} item${todos.length !== 1 ? 's' : ''} remaining.` : "List is empty now — great work! 🎉"}`;
+  }
+
+  if (/^clear\s+(?:all\s+)?todos?$|^(?:delete|remove)\s+all\s+todos?$/.test(lower)) {
+    saveTodos([]);
+    return 'To-do list cleared. Fresh start! ✨';
+  }
+
   return null;
 };
 
@@ -678,7 +839,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── CAPABILITIES (honest) ─────────────────────────────────────────────────
   if (/what can you do|your capabilities|what do you do|list commands|your features|what are you capable/.test(lower)) {
-    return "Here's exactly what I can do — honestly:\n\n✅ WORKS RIGHT NOW\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram\n• YouTube sections — trending, shorts, history, subscriptions\n• Profiles — \"Instagram @username\", \"Twitter @handle\"\n• Reddit — \"Reddit gaming\" / \"r/gaming\"\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather, Calculator, Unit converter\n• Timer (with browser notification, even if you switch tabs)\n• Coin flip, Dice roll, Notes → Google Keep\n• Voice commands — tap the mic and speak (web/Chrome)\n• Read clipboard — \"Read clipboard\"\n• Chat memory — your last 60 messages are saved between sessions (web)\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• \"WhatsApp +number\" — opens the chat, you send the message\n• \"Call +number\" — opens your dialer, you tap call\n• \"Alarm\" — opens Clock app, you set the time\n• \"Camera\" — opens camera, you take the photo\n• \"Gmail compose\" — opens composer, you write & send\n\n❌ I CANNOT DO\n• Send messages automatically\n• Read your real notifications (Sensors shows demo data)\n• Access your contacts, files, or photos\n• Scroll/control apps from inside (needs Accessibility Service in Settings)\n• Make purchases, book anything, or log into accounts\n\nWhat do you need?";
+    return "Here's what I can do:\n\n✅ COMMANDS\n• Open apps — YouTube, WhatsApp, Instagram, Spotify, Reddit, TikTok, Gmail, Maps, Netflix, Twitter, Telegram\n• YouTube sections — \"YT trending\", \"YT shorts\", \"YT history\"\n• Instagram, Reddit, Twitter profiles/subs\n• Search Google, YouTube, Wikipedia, News\n• Translate, Navigate (Google Maps), Nearby places\n• Live Weather — \"Weather in Tokyo\"\n• Live Currency — \"100 USD to EUR\"\n• World clock — \"Time in London\"\n• Calculator, Unit converter\n• Timer + browser notification, Pomodoro (25 min)\n• Coin flip, Dice roll, Random number\n• Notes → Google Keep\n• Password generator — \"Password 20\"\n• QR code — \"QR code [text]\"\n• To-do list — \"Todo buy milk\" / \"My todos\" / \"Done 1\"\n\n✅ SMART FEATURES\n• Voice commands — tap mic, speak (Chrome/web)\n• Read clipboard — \"Read clipboard\"\n• Copy any reply — tap Copy under my messages\n• Chat memory — last 60 messages saved between sessions\n\n🔧 I OPEN IT, YOU COMPLETE IT\n• WhatsApp messages, calls, alarms, camera, email sending\n\n❌ CANNOT DO\n• Send messages automatically\n• Read real notifications\n• Access contacts, files, or photos\n• Scroll/control other apps (needs Accessibility Service)\n\nWhat do you need?";
   }
 
   // ── LIMITATIONS / WHAT CAN'T YOU DO ──────────────────────────────────────
@@ -769,6 +930,26 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
   // ── PRIVACY ───────────────────────────────────────────────────────────────
   if (/privacy|my data|secure|safe|spy|track|send my/.test(lower)) {
     return "Your data stays on your device — period. I don't send anything anywhere unless YOU ask me to (like fetching weather or opening a website). No analytics, no logs, no cloud sync. Even if someone intercepted your traffic, they'd find nothing from me. That's not a policy, that's how I'm built.";
+  }
+
+  // ── NEW FEATURES AWARENESS ────────────────────────────────────────────────
+  if (/todo|to-do|task(?:s)?|my list/.test(lower) && !/automat/.test(lower)) {
+    return "I have a built-in to-do list. Try:\n• \"Todo buy milk\" — adds it\n• \"My todos\" — shows everything\n• \"Done 1\" — checks off #1\n• \"Clear todos\" — fresh start\nAll saved in your browser.";
+  }
+  if (/currency|exchange rate|convert\s+\w+\s+to\s+\w+|usd|eur|gbp|crypto/.test(lower) && !/bitcoin|eth/.test(lower)) {
+    return "Live currency conversion is built in. Try: \"100 USD to EUR\" or \"50 GBP to JPY\". I fetch live rates every time.";
+  }
+  if (/what time.*in|time zone|timezone/.test(lower)) {
+    return "World clock is built in. Try: \"Time in Tokyo\", \"Time in London\", \"Time in New York\". I know 60+ cities.";
+  }
+  if (/pomodoro|focus.*timer|25.*min.*focus|work.*timer/.test(lower)) {
+    return "Pomodoro is built in. Say \"Pomodoro\" and I'll start a 25-minute focus session with a browser notification when it's done. Classic Pomodoro Technique.";
+  }
+  if (/password|generate.*pass|secure.*pass/.test(lower)) {
+    return "Built-in password generator. Say \"Password\" for a 16-char password, or \"Password 24\" for a custom length. Uses letters, numbers, symbols — secure by default.";
+  }
+  if (/qr.*code|generate.*qr|make.*qr/.test(lower)) {
+    return "I can make QR codes! Say \"QR code [your text or URL]\" and I'll open a QR generator with it instantly.";
   }
 
   // ── AUTOMATION / WORKFLOW ────────────────────────────────────────────────
@@ -956,6 +1137,14 @@ EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
 • random [min] to [max] — random number
 • battery — battery level (web)
 • define [word] — dictionary
+• time in [city] — world clock (Tokyo, London, NYC, Dubai, etc.)
+• [amount] [from] to [to] — live currency (100 USD to EUR)
+• password [length] — generate secure password
+• qr [text] — QR code generator
+• pomodoro — 25 min focus timer
+• todo [item] — add to to-do list
+• my todos — list saved todos
+• done [n] — check off todo #n
 
 HONESTY RULES:
 - Be honest about limitations. Never pretend you can do something you can't.
@@ -1213,6 +1402,20 @@ export default function ChatScreen() {
     }, [])
   );
 
+  const streamIntoMessage = async (msgId: string, fullText: string) => {
+    let built = '';
+    for (let i = 0; i < fullText.length; i++) {
+      built += fullText[i];
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, text: built } : m));
+      // Pace: pause at sentence endings, small delay every few chars
+      if ('.!?\n'.includes(fullText[i])) {
+        await new Promise((r) => setTimeout(r, 30));
+      } else if (i % 5 === 0) {
+        await new Promise((r) => setTimeout(r, 6));
+      }
+    }
+  };
+
   const sendMessage = async (text?: string) => {
     const msgText = (text ?? inputText).trim();
     if (!msgText || isTypingRef.current) return;
@@ -1235,9 +1438,10 @@ export default function ChatScreen() {
     const currentMessages = messages;
     const reply = await sendToAI(msgText, currentMessages);
 
+    const aiMsgId = (Date.now() + 1).toString();
     const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      text: reply,
+      id: aiMsgId,
+      text: '',
       isUser: false,
       time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
     };
@@ -1245,6 +1449,9 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, aiMsg]);
     isTypingRef.current = false;
     setIsTyping(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
+
+    await streamIntoMessage(aiMsgId, reply);
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
   };
 
