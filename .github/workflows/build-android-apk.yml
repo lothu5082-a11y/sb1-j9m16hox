@@ -13,6 +13,7 @@ on:
       - 'android/**'
       - 'package.json'
       - 'app.json'
+      - '.github/workflows/build-android-apk.yml'
 
 jobs:
   build:
@@ -41,33 +42,166 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Expo Prebuild (generates android/ scaffold)
+      # ── Stash custom native modules BEFORE prebuild wipes android/ ──────────
+      - name: Stash Vexsora native modules
+        run: |
+          SRC=/tmp/vexsora-native
+          mkdir -p "$SRC/modules" "$SRC/services" "$SRC/receivers" "$SRC/res/xml"
+
+          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwareModule.kt  "$SRC/modules/"
+          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwarePackage.kt "$SRC/modules/"
+          cp android/app/src/main/java/com/vexsora/modules/SensorModule.kt           "$SRC/modules/"
+          cp android/app/src/main/java/com/vexsora/services/WakeWordService.kt       "$SRC/services/"
+          cp android/app/src/main/java/com/vexsora/services/WakeWordServiceRestartReceiver.kt "$SRC/services/"
+          cp android/app/src/main/java/com/vexsora/services/VexsoraAccessibilityService.kt   "$SRC/services/"
+          cp android/app/src/main/java/com/vexsora/services/VexsoraNotificationListener.kt   "$SRC/services/"
+          cp android/app/src/main/java/com/vexsora/receivers/BootReceiver.kt         "$SRC/receivers/"
+          cp android/app/src/main/res/xml/accessibility_service_config.xml           "$SRC/res/xml/"
+          echo "Stashed to $SRC — OK"
+
+      # ── Expo prebuild generates a clean android/ scaffold ───────────────────
+      - name: Expo Prebuild
         run: npx expo prebuild --platform android --clean
         env:
           EXPO_NO_TELEMETRY: 1
 
-      # ── Merge custom Kotlin native modules ──────────────────────────────────
-      - name: Copy Vexsora native modules into generated android/
+      # ── Restore custom Kotlin sources into generated android/ ───────────────
+      - name: Restore Vexsora native modules
         run: |
+          SRC=/tmp/vexsora-native
           DEST=android/app/src/main/java/com/vexsora
           mkdir -p "$DEST/modules" "$DEST/services" "$DEST/receivers"
 
-          # Kotlin sources committed under android/ in the repo
-          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwareModule.kt   "$DEST/modules/"
-          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwarePackage.kt  "$DEST/modules/"
-          cp android/app/src/main/java/com/vexsora/modules/SensorModule.kt            "$DEST/modules/"
-          cp android/app/src/main/java/com/vexsora/services/WakeWordService.kt        "$DEST/services/"
-          cp android/app/src/main/java/com/vexsora/services/WakeWordServiceRestartReceiver.kt "$DEST/services/"
-          cp android/app/src/main/java/com/vexsora/services/VexsoraAccessibilityService.kt    "$DEST/services/"
-          cp android/app/src/main/java/com/vexsora/services/VexsoraNotificationListener.kt    "$DEST/services/"
-          cp android/app/src/main/java/com/vexsora/receivers/BootReceiver.kt          "$DEST/receivers/"
+          cp "$SRC/modules/VexsoraHardwareModule.kt"          "$DEST/modules/"
+          cp "$SRC/modules/VexsoraHardwarePackage.kt"         "$DEST/modules/"
+          cp "$SRC/modules/SensorModule.kt"                   "$DEST/modules/"
+          cp "$SRC/services/WakeWordService.kt"               "$DEST/services/"
+          cp "$SRC/services/WakeWordServiceRestartReceiver.kt" "$DEST/services/"
+          cp "$SRC/services/VexsoraAccessibilityService.kt"   "$DEST/services/"
+          cp "$SRC/services/VexsoraNotificationListener.kt"   "$DEST/services/"
+          cp "$SRC/receivers/BootReceiver.kt"                 "$DEST/receivers/"
 
-          # XML resources
-          mkdir -p android/app/src/main/res/xml android/app/src/main/res/values
-          cp android/app/src/main/res/xml/accessibility_service_config.xml android/app/src/main/res/xml/ || true
-          cp android/app/src/main/res/values/strings.xml android/app/src/main/res/values/ || true
+          mkdir -p android/app/src/main/res/xml
+          cp "$SRC/res/xml/accessibility_service_config.xml"  android/app/src/main/res/xml/
 
-          echo "Custom Kotlin sources copied successfully."
+          echo "Native modules restored — OK"
+
+      # ── Inject Vexsora service/receiver declarations into manifest ──────────
+      - name: Patch AndroidManifest
+        run: |
+          python3 - <<'PYEOF'
+manifest_path = 'android/app/src/main/AndroidManifest.xml'
+
+with open(manifest_path, 'r') as f:
+    content = f.read()
+
+# Enable cleartext traffic + legacy storage on the <application> element
+if 'usesCleartextTraffic' not in content:
+    content = content.replace(
+        'android:name=".MainApplication"',
+        'android:name=".MainApplication"\n        android:usesCleartextTraffic="true"\n        android:requestLegacyExternalStorage="true"'
+    )
+
+# Service/receiver declarations to inject before </application>
+vexsora_decls = '''
+        <!-- ── Vexsora native services ────────────────────────────────── -->
+        <service
+            android:name="com.vexsora.services.WakeWordService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <receiver
+            android:name="com.vexsora.services.WakeWordServiceRestartReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.vexsora.receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.vexsora.services.VexsoraAccessibilityService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Vexsora Accessibility"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <service
+            android:name="com.vexsora.services.VexsoraNotificationListener"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Vexsora Notifications"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+'''
+
+if 'com.vexsora.services.WakeWordService' not in content:
+    content = content.replace('</application>', vexsora_decls + '    </application>')
+
+with open(manifest_path, 'w') as f:
+    f.write(content)
+
+print("AndroidManifest patched — OK")
+PYEOF
+
+      # ── Add accessibility labels to strings.xml ─────────────────────────────
+      - name: Patch strings.xml
+        run: |
+          python3 - <<'PYEOF'
+import os
+
+strings_path = 'android/app/src/main/res/values/strings.xml'
+if not os.path.exists(strings_path):
+    print("strings.xml not found — skipping")
+    exit(0)
+
+with open(strings_path, 'r') as f:
+    content = f.read()
+
+for name, value in [
+    ('accessibility_service_label', 'Vexsora Accessibility'),
+    ('notification_listener_label', 'Vexsora Notifications'),
+]:
+    if f'name="{name}"' not in content:
+        content = content.replace(
+            '</resources>',
+            f'    <string name="{name}">{value}</string>\n</resources>'
+        )
+
+with open(strings_path, 'w') as f:
+    f.write(content)
+
+print("strings.xml patched — OK")
+PYEOF
+
+      # ── Add localbroadcastmanager to app/build.gradle ───────────────────────
+      - name: Patch app/build.gradle
+        run: |
+          GRADLE=android/app/build.gradle
+          if ! grep -q "localbroadcastmanager" "$GRADLE"; then
+            sed -i '/^dependencies {/a\    implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"' "$GRADLE"
+            echo "Added localbroadcastmanager — OK"
+          else
+            echo "localbroadcastmanager already present"
+          fi
 
       # ── Register VexsoraHardwarePackage in MainApplication ──────────────────
       - name: Register VexsoraHardwarePackage
@@ -79,17 +213,20 @@ jobs:
           echo "Found: $MAIN_APP"
 
           if [[ "$MAIN_APP" == *.kt ]]; then
-            # Add import
-            sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage' "$MAIN_APP"
-            # Add package registration before closing of getPackages()
-            sed -i '/PackageList(this).packages/a \          packages.add(VexsoraHardwarePackage())' "$MAIN_APP"
+            # Insert import after the package declaration (only once)
+            if ! grep -q "VexsoraHardwarePackage" "$MAIN_APP"; then
+              sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage' "$MAIN_APP"
+              # Insert package registration after PackageList(this).packages line
+              sed -i '/PackageList(this).packages/a \          packages.add(VexsoraHardwarePackage())' "$MAIN_APP"
+            fi
           else
-            # Java MainApplication
-            sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage;' "$MAIN_APP"
-            sed -i '/PackageList(this).packages()/a \        packages.add(new VexsoraHardwarePackage());' "$MAIN_APP"
+            if ! grep -q "VexsoraHardwarePackage" "$MAIN_APP"; then
+              sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage;' "$MAIN_APP"
+              sed -i '/PackageList(this).packages()/a \        packages.add(new VexsoraHardwarePackage());' "$MAIN_APP"
+            fi
           fi
 
-          echo "VexsoraHardwarePackage registered."
+          echo "VexsoraHardwarePackage registered — OK"
           cat "$MAIN_APP"
 
       # ── Generate release keystore ────────────────────────────────────────────
@@ -131,7 +268,7 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           if [ -f "$APK" ]; then
             SIZE=$(du -sh "$APK" | cut -f1)
-            echo "✅ Vexsora APK built successfully — $SIZE"
+            echo "✅ Vexsora APK built — $SIZE"
           else
             echo "❌ APK not found"
             exit 1
