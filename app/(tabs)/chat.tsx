@@ -422,19 +422,32 @@ export default function ChatScreen() {
       {/* Model banner */}
       {showModelBanner && (
         <Animated.View entering={FadeInUp.duration(300)} style={st.modelBanner}>
-          <Text style={st.bannerTitle}>Local LLM not loaded</Text>
-          <TextInput
-            style={st.pathInput}
-            value={modelPath}
-            onChangeText={setModelPath}
-            placeholder="GGUF file path..."
-            placeholderTextColor={Colors.textTertiary}
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={st.loadBtn} onPress={loadModel} disabled={isLoading}>
-            <Text style={st.loadBtnText}>{isLoading ? 'Loading...' : 'Load Model'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowModelBanner(false)} style={{ alignSelf: 'flex-end' }}>
+          {llamaService.isAvailable() ? (
+            <>
+              <Text style={st.bannerTitle}>Load an AI model for full chat</Text>
+              <TextInput
+                style={st.pathInput}
+                value={modelPath}
+                onChangeText={setModelPath}
+                placeholder="GGUF file path..."
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity style={st.loadBtn} onPress={loadModel} disabled={isLoading}>
+                <Text style={st.loadBtnText}>{isLoading ? 'Loading...' : 'Load Model'}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={st.bannerTitle}>Command mode active ⚡</Text>
+              <Text style={[st.bannerHint, { marginBottom: 4 }]}>
+                50+ built-in commands work now. Try:
+              </Text>
+              <Text style={st.bannerHint}>"torch on" · "timer 5 min" · "weather in London"</Text>
+              <Text style={st.bannerHint}>"youtube lofi" · "text Mom saying hi" · "100 usd to eur"</Text>
+            </>
+          )}
+          <TouchableOpacity onPress={() => setShowModelBanner(false)} style={{ alignSelf: 'flex-end', marginTop: 6 }}>
             <Text style={{ color: Colors.textMuted, fontSize: FontSizes.xs }}>Dismiss</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -527,6 +540,7 @@ const st = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.primary, gap: Spacing.sm,
   },
   bannerTitle: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.primary },
+  bannerHint: { fontSize: FontSizes.xs, color: Colors.textSecondary, lineHeight: 18 },
   pathInput: {
     backgroundColor: Colors.surfaceLight, borderRadius: BorderRadius.sm,
     padding: Spacing.sm, color: Colors.text, fontSize: FontSizes.xs,

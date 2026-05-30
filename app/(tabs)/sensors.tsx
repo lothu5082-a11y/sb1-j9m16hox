@@ -7,7 +7,11 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
+  NativeModules,
 } from 'react-native';
+
+// Native hardware module — graceful fallback when not available
+const HW: any = NativeModules.VexsoraHardware ?? null;
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
@@ -132,23 +136,24 @@ function BatteryBar({ level }: { level: number }) {
 function VolumeControl() {
   const [volume, setVolume] = useState(70);
   const fillWidth = `${volume}%` as const;
+
+  const changeVolume = useCallback(async (dir: 1 | -1) => {
+    const next = Math.max(0, Math.min(100, volume + dir * 10));
+    setVolume(next);
+    if (Platform.OS === 'android' && HW) {
+      try { await HW.adjustVolume(dir); } catch {}
+    }
+  }, [volume]);
+
   return (
     <View style={styles.volumeRow}>
-      <TouchableOpacity
-        style={styles.volBtn}
-        onPress={() => setVolume((v) => Math.max(0, v - 10))}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.volBtn} onPress={() => changeVolume(-1)} activeOpacity={0.7}>
         <Text style={styles.volBtnText}>−</Text>
       </TouchableOpacity>
       <View style={styles.volTrack}>
         <View style={[styles.volFill, { width: fillWidth }]} />
       </View>
-      <TouchableOpacity
-        style={styles.volBtn}
-        onPress={() => setVolume((v) => Math.min(100, v + 10))}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.volBtn} onPress={() => changeVolume(1)} activeOpacity={0.7}>
         <Text style={styles.volBtnText}>+</Text>
       </TouchableOpacity>
       <Text style={styles.volLabel}>{volume}%</Text>
@@ -168,10 +173,18 @@ export default function SensorsScreen() {
   const [batteryCharging, setBatteryCharging] = useState(false);
   const torchStreamRef = useRef<MediaStream | null>(null);
 
-  // Poll battery
+  // Poll battery — native on Android, Web API on web
   useEffect(() => {
     const fetchBattery = async () => {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (Platform.OS === 'android' && HW) {
+        try {
+          const result = await HW.getBatteryLevel();
+          if (result && typeof result.level === 'number') {
+            setBatteryLevel(Math.round(result.level * 100));
+            setBatteryCharging(!!result.isCharging);
+          }
+        } catch {}
+      } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
         try {
           const nav = navigator as any;
           if (nav.getBattery) {
@@ -185,6 +198,9 @@ export default function SensorsScreen() {
       }
     };
     fetchBattery();
+    // Refresh every 60 seconds
+    const id = setInterval(fetchBattery, 60_000);
+    return () => clearInterval(id);
   }, []);
 
   const batteryProfile = batteryLevel > 50 ? 'Normal' : batteryLevel > 15 ? 'Low Power' : 'Critical';
@@ -192,13 +208,19 @@ export default function SensorsScreen() {
 
   // Torch toggle
   const handleTorch = useCallback(async () => {
-    if (Platform.OS !== 'web') {
-      setTorchOn((v) => !v);
-      // On Android native: CameraModule.setTorchMode(enable)
+    const next = !torchOn;
+    if (Platform.OS === 'android' && HW) {
+      try { await HW.toggleFlashlight(next); } catch {}
+      setTorchOn(next);
       return;
     }
+    if (Platform.OS !== 'web') {
+      setTorchOn(next);
+      return;
+    }
+    // Web: use MediaDevices torch API
     try {
-      if (!torchOn) {
+      if (next) {
         const stream = await (navigator.mediaDevices as any).getUserMedia({ video: { facingMode: { exact: 'environment' } } });
         const [track] = stream.getVideoTracks();
         const caps: any = (track as any).getCapabilities?.() ?? {};

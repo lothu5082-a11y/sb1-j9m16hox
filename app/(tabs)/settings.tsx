@@ -9,7 +9,10 @@ import {
   TextInput,
   Alert,
   Platform,
+  NativeModules,
 } from 'react-native';
+
+const HW: any = NativeModules.VexsoraHardware ?? null;
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
@@ -189,10 +192,17 @@ export default function SettingsScreen() {
     llamaService.getDownloadedModels().then(setDownloadedModels);
   }, []);
 
-  // Fetch battery level
+  // Fetch battery level — native on Android, Web API on web
   useEffect(() => {
     const fetchBattery = async () => {
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (Platform.OS === 'android' && HW) {
+        try {
+          const result = await HW.getBatteryLevel();
+          if (result && typeof result.level === 'number') {
+            setBatteryLevel(Math.round(result.level * 100));
+          }
+        } catch {}
+      } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
         try {
           const nav = navigator as any;
           if (nav.getBattery) {
@@ -310,11 +320,21 @@ export default function SettingsScreen() {
         {/* MODEL */}
         <Section label="Model" icon={Cpu} delay={0}>
           <RowItem
-            label="Status"
+            label="AI Engine"
             right={
               <StatusBadge
-                status={modelStatus === 'loaded' ? 'good' : modelStatus === 'loading' ? 'warning' : 'error'}
-                label={modelStatus === 'loaded' ? 'Loaded' : modelStatus === 'loading' ? 'Loading...' : 'Not loaded'}
+                status={llamaService.isAvailable() ? 'good' : 'warning'}
+                label={llamaService.isAvailable() ? 'Available' : 'Command mode'}
+              />
+            }
+          />
+          <Divider />
+          <RowItem
+            label="Inference"
+            right={
+              <StatusBadge
+                status={modelStatus === 'loaded' ? 'good' : modelStatus === 'loading' ? 'warning' : (llamaService.isAvailable() ? 'error' : 'info')}
+                label={modelStatus === 'loaded' ? 'Loaded' : modelStatus === 'loading' ? 'Loading...' : (llamaService.isAvailable() ? 'Not loaded' : 'Download ready')}
               />
             }
           />
