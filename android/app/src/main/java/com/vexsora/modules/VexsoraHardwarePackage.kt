@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class VexsoraHardwarePackage : ReactPackage {
     override fun createNativeModules(ctx: ReactApplicationContext): List<NativeModule> =
-        listOf(VexsoraHardwareModule(ctx))
+        listOf(VexsoraHardwareModule(ctx), SensorModule(ctx))
 
     override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<in Nothing, in Nothing>> =
         emptyList()
