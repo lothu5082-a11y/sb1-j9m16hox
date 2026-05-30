@@ -10,7 +10,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { Colors } from '../constants/theme';
 import { memoryService } from '../lib/memoryService';
 import { knowledgeBase } from '../lib/knowledgeBase';
@@ -18,6 +18,21 @@ import { batteryMonitor } from '../lib/batteryMonitor';
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  // Catch any unhandled JS crash and show it on-screen so we can read the error
+  useEffect(() => {
+    const prev = ErrorUtils.getGlobalHandler();
+    ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+      if (isFatal) {
+        Alert.alert(
+          'Crash — copy this',
+          (error?.message ?? 'unknown') + '\n\n' + (error?.stack ?? '').slice(0, 600),
+          [{ text: 'OK' }]
+        );
+      }
+      prev?.(error, isFatal);
+    });
+  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
