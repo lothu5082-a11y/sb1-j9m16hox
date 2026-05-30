@@ -26,7 +26,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { memoryService } from '../../lib/memoryService';
-import { llamaService, MODELS } from '../../lib/llamaService';
+import { llamaService, MODELS, type ModelMeta } from '../../lib/llamaService';
 import {
   setAIConfig, getAIConfig,
   setVoiceReplyEnabled, setWakeWordActive, setUserLang, getUserLang,
@@ -179,6 +179,16 @@ export default function SettingsScreen() {
   // Memory / KB
   const [memoryCount, setMemoryCount] = useState(0);
 
+  // Download tracking
+  const [downloadState, setDownloadState] = useState<{
+    modelId: string; progress: number; downloadedMB: number; totalMB: number;
+  } | null>(null);
+  const [downloadedModels, setDownloadedModels] = useState<string[]>([]);
+
+  useEffect(() => {
+    llamaService.getDownloadedModels().then(setDownloadedModels);
+  }, []);
+
   // Fetch battery level
   useEffect(() => {
     const fetchBattery = async () => {
@@ -241,6 +251,32 @@ export default function SettingsScreen() {
       Alert.alert('Failed', err?.message ?? 'Could not load model.');
     }
   }, [customModelInput, modelPath]);
+
+  const handleDownloadModel = useCallback(async (model: ModelMeta) => {
+    if (downloadState) {
+      Alert.alert('Download in progress', 'Please wait for the current download to finish.');
+      return;
+    }
+    await llamaService.downloadModel(
+      model,
+      (state) => setDownloadState({ ...state }),
+      () => {
+        setDownloadState(null);
+        setDownloadedModels((prev) => [...new Set([...prev, model.id])]);
+        setCustomModelInput(llamaService.getModelPath(model));
+        Alert.alert('Downloaded!', `${model.name} is ready.\nTap "Load Model" to start.`);
+      },
+      (err) => {
+        setDownloadState(null);
+        Alert.alert('Download failed', err);
+      }
+    );
+  }, [downloadState]);
+
+  const handleCancelDownload = useCallback(() => {
+    llamaService.cancelDownload();
+    setDownloadState(null);
+  }, []);
 
   const handleClearMemories = useCallback(() => {
     Alert.alert('Clear Memories', 'This will delete all saved memories. Continue?', [
@@ -307,17 +343,58 @@ export default function SettingsScreen() {
             <Text style={styles.actionBtnText}>{modelStatus === 'loading' ? 'Loading...' : 'Load Model'}</Text>
           </TouchableOpacity>
           <Divider />
-          <View style={styles.row}>
-            <View>
-              <Text style={styles.rowLabel}>Supported GGUF models</Text>
-              <Text style={styles.rowDescription}>
-                {MODELS.map((m) => `${m.name} (${m.sizeMB}MB)`).join(' · ')}
-              </Text>
-              <Text style={[styles.rowDescription, { marginTop: 4 }]}>
-                Download to /storage/emulated/0/Download/ then enter path above.
-              </Text>
-            </View>
+          <View style={[styles.row, { paddingBottom: 4 }]}>
+            <Text style={styles.rowLabel}>Download Model</Text>
           </View>
+          {MODELS.map((model, i) => (
+            <React.Fragment key={model.id}>
+              {i > 0 && <Divider />}
+              <View style={styles.modelDownloadRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={styles.rowLabel}>{model.name}</Text>
+                    <View style={[styles.tierBadge, { borderColor: `${model.tierColor}55`, backgroundColor: `${model.tierColor}22` }]}>
+                      <Text style={[styles.tierText, { color: model.tierColor }]}>{model.tier}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.rowDescription}>{model.subtitle} · {model.sizeMB} MB</Text>
+                  {downloadState?.modelId === model.id && (
+                    <>
+                      <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${Math.round(downloadState.progress * 100)}%` }]} />
+                      </View>
+                      <Text style={[styles.rowDescription, { marginTop: 2 }]}>
+                        {downloadState.downloadedMB} / {downloadState.totalMB} MB · {Math.round(downloadState.progress * 100)}%
+                      </Text>
+                    </>
+                  )}
+                </View>
+                {downloadState?.modelId === model.id ? (
+                  <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelDownload} activeOpacity={0.8}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                ) : downloadedModels.includes(model.id) ? (
+                  <TouchableOpacity
+                    style={styles.useBtn}
+                    onPress={() => setCustomModelInput(llamaService.getModelPath(model))}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.useBtnText}>Use</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.downloadBtn, downloadState ? { opacity: 0.4 } : null]}
+                    onPress={() => handleDownloadModel(model)}
+                    activeOpacity={0.8}
+                    disabled={!!downloadState}
+                  >
+                    <Download size={12} color="#fff" />
+                    <Text style={styles.downloadBtnText}>Get</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </React.Fragment>
+          ))}
         </Section>
 
         {/* PROFILE */}
@@ -583,4 +660,58 @@ const styles = StyleSheet.create({
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  modelDownloadRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm,
+  },
+  tierBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  tierText: { fontSize: FontSizes.xs, fontWeight: '700' },
+  progressBarBg: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  downloadBtnText: { color: '#fff', fontSize: FontSizes.xs, fontWeight: '700' },
+  useBtn: {
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.4)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  useBtnText: { color: '#10B981', fontSize: FontSizes.xs, fontWeight: '700' },
+  cancelBtn: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  cancelBtnText: { color: '#EF4444', fontSize: FontSizes.xs, fontWeight: '700' },
 });
