@@ -9,6 +9,6 @@ class VexsoraHardwarePackage : ReactPackage {
     override fun createNativeModules(ctx: ReactApplicationContext): List<NativeModule> =
         listOf(VexsoraHardwareModule(ctx))
 
-    override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> =
+    override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<in Nothing, in Nothing>> =
         emptyList()
 }

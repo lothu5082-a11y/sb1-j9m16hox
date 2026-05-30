@@ -32,8 +32,8 @@ class SensorModule(private val reactContext: ReactApplicationContext) :
 
     override fun getName(): String = NAME
 
-    override fun onCatalystInstanceDestroy() {
-        super.onCatalystInstanceDestroy()
+    override fun invalidate() {
+        super.invalidate()
         unregisterListener()
     }
 
