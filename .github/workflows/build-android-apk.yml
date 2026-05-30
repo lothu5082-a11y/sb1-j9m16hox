@@ -1,14 +1,16 @@
-name: Build Riuka AI APK
+name: Build Vexsora APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - claude/vexsora-offline-ai-app-Up0OV
     paths:
       - 'app/**'
       - 'lib/**'
       - 'components/**'
       - 'constants/**'
+      - 'android/**'
       - 'package.json'
       - 'app.json'
 
@@ -16,6 +18,7 @@ jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,42 +29,110 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Expo prebuild
+      - name: Expo Prebuild (generates android/ scaffold)
         run: npx expo prebuild --platform android --clean
         env:
           EXPO_NO_TELEMETRY: 1
 
+      # ── Merge custom Kotlin native modules ──────────────────────────────────
+      - name: Copy Vexsora native modules into generated android/
+        run: |
+          DEST=android/app/src/main/java/com/vexsora
+          mkdir -p "$DEST/modules" "$DEST/services" "$DEST/receivers"
+
+          # Kotlin sources committed under android/ in the repo
+          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwareModule.kt   "$DEST/modules/"
+          cp android/app/src/main/java/com/vexsora/modules/VexsoraHardwarePackage.kt  "$DEST/modules/"
+          cp android/app/src/main/java/com/vexsora/modules/SensorModule.kt            "$DEST/modules/"
+          cp android/app/src/main/java/com/vexsora/services/WakeWordService.kt        "$DEST/services/"
+          cp android/app/src/main/java/com/vexsora/services/WakeWordServiceRestartReceiver.kt "$DEST/services/"
+          cp android/app/src/main/java/com/vexsora/services/VexsoraAccessibilityService.kt    "$DEST/services/"
+          cp android/app/src/main/java/com/vexsora/services/VexsoraNotificationListener.kt    "$DEST/services/"
+          cp android/app/src/main/java/com/vexsora/receivers/BootReceiver.kt          "$DEST/receivers/"
+
+          # XML resources
+          mkdir -p android/app/src/main/res/xml android/app/src/main/res/values
+          cp android/app/src/main/res/xml/accessibility_service_config.xml android/app/src/main/res/xml/ || true
+          cp android/app/src/main/res/values/strings.xml android/app/src/main/res/values/ || true
+
+          echo "Custom Kotlin sources copied successfully."
+
+      # ── Register VexsoraHardwarePackage in MainApplication ──────────────────
+      - name: Register VexsoraHardwarePackage
+        run: |
+          MAIN_APP=$(find android/app/src/main/java -name "MainApplication.kt" | head -1)
+          if [ -z "$MAIN_APP" ]; then
+            MAIN_APP=$(find android/app/src/main/java -name "MainApplication.java" | head -1)
+          fi
+          echo "Found: $MAIN_APP"
+
+          if [[ "$MAIN_APP" == *.kt ]]; then
+            # Add import
+            sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage' "$MAIN_APP"
+            # Add package registration before closing of getPackages()
+            sed -i '/PackageList(this).packages/a \          packages.add(VexsoraHardwarePackage())' "$MAIN_APP"
+          else
+            # Java MainApplication
+            sed -i '/^package /a import com.vexsora.modules.VexsoraHardwarePackage;' "$MAIN_APP"
+            sed -i '/PackageList(this).packages()/a \        packages.add(new VexsoraHardwarePackage());' "$MAIN_APP"
+          fi
+
+          echo "VexsoraHardwarePackage registered."
+          cat "$MAIN_APP"
+
+      # ── Generate release keystore ────────────────────────────────────────────
       - name: Generate signing keystore
         run: |
           mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/release.keystore \
-            -storepass riukaai -alias riukaai -keypass riukaai \
+          keytool -genkey -v \
+            -keystore ~/.android/vexsora-release.keystore \
+            -storepass vexsora2024 \
+            -alias vexsora \
+            -keypass vexsora2024 \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Riuka AI,O=Riuka,C=US"
+            -dname "CN=Vexsora AI,O=Vexsora,C=US"
 
+      # ── Build release APK ────────────────────────────────────────────────────
       - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=512m" \
-            -Pandroid.injected.signing.store.file=$HOME/.android/release.keystore \
-            -Pandroid.injected.signing.store.password=riukaai \
-            -Pandroid.injected.signing.key.alias=riukaai \
-            -Pandroid.injected.signing.key.password=riukaai
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m" \
+            -Pandroid.injected.signing.store.file=$HOME/.android/vexsora-release.keystore \
+            -Pandroid.injected.signing.store.password=vexsora2024 \
+            -Pandroid.injected.signing.key.alias=vexsora \
+            -Pandroid.injected.signing.key.password=vexsora2024
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
 
-      - name: Upload APK
+      # ── Upload APK artifact ──────────────────────────────────────────────────
+      - name: Upload Vexsora APK
         uses: actions/upload-artifact@v4
         with:
-          name: riuka-ai-v${{ github.run_number }}.apk
+          name: Vexsora-v${{ github.run_number }}.apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
+
+      - name: APK build summary
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          if [ -f "$APK" ]; then
+            SIZE=$(du -sh "$APK" | cut -f1)
+            echo "✅ Vexsora APK built successfully — $SIZE"
+          else
+            echo "❌ APK not found"
+            exit 1
+          fi
