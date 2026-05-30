@@ -138,16 +138,16 @@ function PulsingIconCircle({ slide }: { slide: typeof SLIDES[0] }) {
   useEffect(() => {
     scale.value = withRepeat(
       withSequence(
-        withTiming(1.12, { duration: 1800, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.94, { duration: 1800, easing: Easing.inOut(Easing.sine) })
+        withTiming(1.12, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.94, { duration: 1800, easing: Easing.inOut(Easing.sin) })
       ),
       -1,
       false
     );
     glow.value = withRepeat(
       withSequence(
-        withTiming(0.7, { duration: 1800, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.15, { duration: 1800, easing: Easing.inOut(Easing.sine) })
+        withTiming(0.7, { duration: 1800, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.15, { duration: 1800, easing: Easing.inOut(Easing.sin) })
       ),
       -1,
       false

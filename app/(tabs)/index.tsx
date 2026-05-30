@@ -69,16 +69,16 @@ function VexsoraStar({ size = 80 }: { size?: number }) {
   useEffect(() => {
     scale.value = withRepeat(
       withSequence(
-        withTiming(1.1, { duration: 2500, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.93, { duration: 2500, easing: Easing.inOut(Easing.sine) })
+        withTiming(1.1, { duration: 2500, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.93, { duration: 2500, easing: Easing.inOut(Easing.sin) })
       ),
       -1,
       false
     );
     glowOpacity.value = withRepeat(
       withSequence(
-        withTiming(0.65, { duration: 2500, easing: Easing.inOut(Easing.sine) }),
-        withTiming(0.15, { duration: 2500, easing: Easing.inOut(Easing.sine) })
+        withTiming(0.65, { duration: 2500, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.15, { duration: 2500, easing: Easing.inOut(Easing.sin) })
       ),
       -1,
       false
@@ -241,8 +241,8 @@ function WaveformBars() {
     bars.forEach((b, i) => {
       b.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 300 + i * 80, easing: Easing.inOut(Easing.sine) }),
-          withTiming(0.2, { duration: 300 + i * 80, easing: Easing.inOut(Easing.sine) })
+          withTiming(1, { duration: 300 + i * 80, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.2, { duration: 300 + i * 80, easing: Easing.inOut(Easing.sin) })
         ),
         -1,
         false
