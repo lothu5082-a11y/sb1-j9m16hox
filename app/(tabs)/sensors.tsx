@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,36 +20,12 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import {
-  Bell, ClipboardList, Battery, Wifi, Clock,
-  Eye, Zap, Radio, Smartphone, ExternalLink,
-  Activity, MapPin, Navigation, CheckCircle, XCircle,
+  Flashlight, Volume2, Bell, Battery, Zap, Activity,
+  CheckCircle, XCircle, PhoneCall, PhoneOff, ChevronRight, Radio,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 
-const GEMINI = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'];
-
-interface ClipEntry {
-  id: string;
-  type: 'code' | 'text' | 'url' | 'tracking';
-  preview: string;
-  analysis: string;
-  time: string;
-}
-
-const analyzeClipType = (text: string): ClipEntry['type'] => {
-  if (/^https?:\/\//i.test(text)) return 'url';
-  if (/\b1Z[A-Z0-9]{16}\b|\b\d{12,22}\b/.test(text)) return 'tracking';
-  if (/function|const |let |var |def |class |import |export |<\//.test(text)) return 'code';
-  return 'text';
-};
-
-const analyzeClip = (type: ClipEntry['type'], text: string): string => {
-  if (type === 'url') return `URL detected. Say "open this link" or "summarize this URL" in chat.`;
-  if (type === 'tracking') return `Tracking number detected — likely a shipment ID. Say "track this" in chat.`;
-  if (type === 'code') return `Code detected. Say "explain this code" or "find bugs" in chat.`;
-  const words = text.trim().split(/\s+/).length;
-  return `${words} words. Say "summarize this" or "improve this text" in chat.`;
-};
+const GEMINI = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'] as const;
 
 // ── Gemini color-cycling title ────────────────────────────────────────────────
 function GeminiTitle({ text }: { text: string }) {
@@ -58,486 +34,499 @@ function GeminiTitle({ text }: { text: string }) {
     phase.value = withRepeat(withTiming(1, { duration: 4500, easing: Easing.linear }), -1, false);
   }, []);
   const aStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1], GEMINI),
+    color: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI]),
   }));
-  return <Animated.Text style={[styles.headerTitle, aStyle]}>{text}</Animated.Text>;
+  return <Animated.Text style={[styles.screenTitle, aStyle]}>{text}</Animated.Text>;
 }
 
-// ── Animated gauge bar ────────────────────────────────────────────────────────
-function AnimatedGauge({ value, max, label, color }: { value: number; max: number; label: string; color: string }) {
-  const animWidth = useSharedValue(0);
-  useEffect(() => {
-    animWidth.value = withTiming(value / max, { duration: 800 });
-  }, [value]);
-  const barStyle = useAnimatedStyle(() => ({ width: `${animWidth.value * 100}%` as any }));
+// ── Section header ────────────────────────────────────────────────────────────
+function SectionHeader({ label, icon: Icon }: { label: string; icon: React.ComponentType<any> }) {
   return (
-    <View style={gaugeStyles.container}>
-      <View style={gaugeStyles.header}>
-        <Text style={gaugeStyles.label}>{label}</Text>
-        <Text style={[gaugeStyles.value, { color }]}>{value}%</Text>
-      </View>
-      <View style={gaugeStyles.track}>
-        <Animated.View style={[gaugeStyles.fill, { backgroundColor: color }, barStyle]} />
-      </View>
+    <View style={styles.sectionHeader}>
+      <Icon size={14} color={Colors.primary} />
+      <Text style={styles.sectionLabel}>{label.toUpperCase()}</Text>
     </View>
   );
 }
 
-const gaugeStyles = StyleSheet.create({
-  container: { marginBottom: Spacing.md },
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs + 2 },
-  label: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '500' },
-  value: { fontSize: FontSizes.sm, fontWeight: '700' },
-  track: { height: 6, borderRadius: 3, backgroundColor: Colors.backgroundTertiary, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3 },
-});
-
-// ── Pulsing dot ───────────────────────────────────────────────────────────────
-function PulsingDot({ color }: { color: string }) {
-  const opacity = useSharedValue(1);
-  useEffect(() => {
-    opacity.value = withRepeat(withSequence(withTiming(0.3, { duration: 700 }), withTiming(1, { duration: 700 })), -1, false);
-  }, []);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  return <Animated.View style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }, style]} />;
-}
-
-// ── Color-cycling section accent ──────────────────────────────────────────────
-function GeminiAccent() {
-  const phase = useSharedValue(0);
-  useEffect(() => {
-    phase.value = withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1, false);
-  }, []);
-  const aStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1], GEMINI),
-  }));
-  return <Animated.View style={[styles.accent, aStyle]} />;
-}
-
-// ── Permission badge ──────────────────────────────────────────────────────────
-function PermBadge({ granted }: { granted: boolean }) {
+// ── Card wrapper ──────────────────────────────────────────────────────────────
+function Card({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
-    <View style={[styles.permBadge, { borderColor: granted ? Colors.secondary + '40' : Colors.error + '30', backgroundColor: granted ? Colors.secondary + '12' : Colors.error + '10' }]}>
-      {granted ? <CheckCircle color={Colors.secondary} size={11} /> : <XCircle color={Colors.error} size={11} />}
-      <Text style={[styles.permText, { color: granted ? Colors.secondary : Colors.error }]}>
-        {granted ? 'GRANTED' : 'DENIED'}
-      </Text>
+    <Animated.View entering={FadeInUp.delay(delay).duration(400)} style={styles.card}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// ── Pulsing status indicator ──────────────────────────────────────────────────
+function PulsingDot({ active, color = '#10B981' }: { active: boolean; color?: string }) {
+  const op = useSharedValue(active ? 1 : 0.3);
+  useEffect(() => {
+    if (active) {
+      op.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 700 }),
+          withTiming(0.3, { duration: 700 })
+        ),
+        -1,
+        false
+      );
+    } else {
+      op.value = withTiming(0.3, { duration: 300 });
+    }
+  }, [active]);
+  const s = useAnimatedStyle(() => ({ opacity: op.value }));
+  return (
+    <Animated.View
+      style={[s, { width: 10, height: 10, borderRadius: 5, backgroundColor: active ? color : Colors.textTertiary }]}
+    />
+  );
+}
+
+// ── Glow toggle button ────────────────────────────────────────────────────────
+function GlowToggle({ on, label, onLabel, offLabel, onPress }: {
+  on: boolean; label?: string; onLabel: string; offLabel: string; onPress: () => void;
+}) {
+  const glow = useSharedValue(on ? 0.5 : 0);
+  useEffect(() => {
+    if (on) {
+      glow.value = withRepeat(
+        withSequence(withTiming(0.8, { duration: 1000 }), withTiming(0.3, { duration: 1000 })),
+        -1,
+        false
+      );
+    } else {
+      glow.value = withTiming(0, { duration: 300 });
+    }
+  }, [on]);
+  const glowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: glow.value,
+  }));
+  return (
+    <Animated.View style={[glowStyle, { shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 }, shadowRadius: 16, elevation: on ? 8 : 0 }]}>
+      <TouchableOpacity
+        style={[styles.glowBtn, on && styles.glowBtnActive]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.glowBtnText, on && styles.glowBtnTextActive]}>{on ? onLabel : offLabel}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+// ── Battery level bar ─────────────────────────────────────────────────────────
+function BatteryBar({ level }: { level: number }) {
+  const fillColor = level > 50 ? '#10B981' : level > 15 ? '#F59E0B' : '#EF4444';
+  return (
+    <View style={styles.batteryBarWrap}>
+      <View style={styles.batteryBarOuter}>
+        <View style={[styles.batteryBarFill, { width: `${level}%`, backgroundColor: fillColor }]} />
+      </View>
+      <Text style={[styles.batteryPct, { color: fillColor }]}>{level}%</Text>
     </View>
   );
 }
 
+// ── Volume slider (+ / - buttons) ─────────────────────────────────────────────
+function VolumeControl() {
+  const [volume, setVolume] = useState(70);
+  const fillWidth = `${volume}%` as const;
+  return (
+    <View style={styles.volumeRow}>
+      <TouchableOpacity
+        style={styles.volBtn}
+        onPress={() => setVolume((v) => Math.max(0, v - 10))}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.volBtnText}>−</Text>
+      </TouchableOpacity>
+      <View style={styles.volTrack}>
+        <View style={[styles.volFill, { width: fillWidth }]} />
+      </View>
+      <TouchableOpacity
+        style={styles.volBtn}
+        onPress={() => setVolume((v) => Math.min(100, v + 10))}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.volBtnText}>+</Text>
+      </TouchableOpacity>
+      <Text style={styles.volLabel}>{volume}%</Text>
+    </View>
+  );
+}
+
+// ── Main Sensors screen ───────────────────────────────────────────────────────
 export default function SensorsScreen() {
-  // Real battery state
-  const [battery, setBattery] = useState({ level: 0, charging: false, available: false });
-  // Real network state
-  const [network, setNetwork] = useState({ type: 'unknown', speed: 0, available: false });
-  // Real device motion
-  const [motion, setMotion] = useState({ x: 0, y: 0, z: 0, shakes: 0, available: false });
-  const lastShake = useRef(0);
-  const lastAcc = useRef({ x: 0, y: 0, z: 0 });
-  // Real notification permission
-  const [notifPerm, setNotifPerm] = useState<'granted' | 'denied' | 'default'>('default');
-  // Real clipboard log (paste events)
-  const [clipLog, setClipLog] = useState<ClipEntry[]>([]);
-  // Real geolocation
-  const [location, setLocation] = useState<{ lat: number; lon: number; city: string } | null>(null);
-  // Env simulation (augmented with real data where available)
-  const [signal, setSignal] = useState(88);
+  const [torchOn, setTorchOn] = useState(false);
+  const [sensorActive, setSensorActive] = useState(false);
+  const [shakeActive, setShakeActive] = useState(false);
+  const [flipToMuteActive, setFlipToMuteActive] = useState(false);
+  const [notifListenerActive, setNotifListenerActive] = useState(false);
+  const [lastNotif, setLastNotif] = useState<string | null>(null);
+  const [batteryLevel, setBatteryLevel] = useState(82);
+  const [batteryCharging, setBatteryCharging] = useState(false);
+  const torchStreamRef = useRef<MediaStream | null>(null);
 
+  // Poll battery
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-
-    // Battery API
-    if ('getBattery' in navigator) {
-      (navigator as any).getBattery().then((bat: any) => {
-        const update = () => setBattery({ level: Math.round(bat.level * 100), charging: bat.charging, available: true });
-        update();
-        bat.addEventListener('levelchange', update);
-        bat.addEventListener('chargingchange', update);
-      }).catch(() => {});
-    }
-
-    // Network Information API
-    const conn = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
-    if (conn) {
-      const updateNet = () => setNetwork({ type: conn.effectiveType || 'wifi', speed: Math.round(conn.downlink || 0), available: true });
-      updateNet();
-      conn.addEventListener('change', updateNet);
-    }
-
-    // Notification permission
-    if ('Notification' in window) {
-      setNotifPerm((window as any).Notification.permission);
-    }
-
-    // Load saved location
-    try {
-      const loc = JSON.parse(localStorage.getItem('riuka_location_v1') || 'null');
-      if (loc?.lat) setLocation({ lat: loc.lat, lon: loc.lon, city: 'Saved location' });
-    } catch {}
-
-    // Paste event → clipboard log
-    const handlePaste = (e: Event) => {
-      const text = (e as ClipboardEvent).clipboardData?.getData('text') ?? '';
-      if (!text) return;
-      const type = analyzeClipType(text);
-      setClipLog(prev => [{
-        id: Date.now().toString(),
-        type,
-        preview: text.slice(0, 80),
-        analysis: analyzeClip(type, text),
-        time: 'just now',
-      }, ...prev.slice(0, 4)]);
+    const fetchBattery = async () => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        try {
+          const nav = navigator as any;
+          if (nav.getBattery) {
+            const b = await nav.getBattery();
+            setBatteryLevel(Math.round(b.level * 100));
+            setBatteryCharging(b.charging);
+            b.addEventListener('levelchange', () => setBatteryLevel(Math.round(b.level * 100)));
+            b.addEventListener('chargingchange', () => setBatteryCharging(b.charging));
+          }
+        } catch {}
+      }
     };
-    document.addEventListener('paste', handlePaste);
-
-    // Device motion — shake + live axes
-    const handleMotion = (e: any) => {
-      const a = e.acceleration || e.accelerationIncludingGravity;
-      if (!a) return;
-      const nx = a.x || 0, ny = a.y || 0, nz = a.z || 0;
-      const delta = Math.abs(nx - lastAcc.current.x) + Math.abs(ny - lastAcc.current.y) + Math.abs(nz - lastAcc.current.z);
-      lastAcc.current = { x: nx, y: ny, z: nz };
-      setMotion(m => {
-        const shakes = (delta > 18 && Date.now() - lastShake.current > 1200)
-          ? (() => { lastShake.current = Date.now(); return m.shakes + 1; })()
-          : m.shakes;
-        return { x: Math.round(nx * 10) / 10, y: Math.round(ny * 10) / 10, z: Math.round(nz * 10) / 10, shakes, available: true };
-      });
-    };
-    window.addEventListener('devicemotion', handleMotion);
-
-    // Signal simulation
-    const t = setInterval(() => setSignal(80 + Math.floor(Math.random() * 20)), 3000);
-
-    return () => {
-      document.removeEventListener('paste', handlePaste);
-      window.removeEventListener('devicemotion', handleMotion);
-      clearInterval(t);
-    };
+    fetchBattery();
   }, []);
 
-  const requestLocation = () => {
-    if (Platform.OS !== 'web' || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        let city = `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
-        try {
-          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-          const d = await r.json();
-          city = d.address?.city || d.address?.town || d.address?.village || city;
-        } catch {}
-        setLocation({ lat, lon, city });
-        try { localStorage.setItem('riuka_location_v1', JSON.stringify({ lat, lon })); } catch {}
-      },
-      () => {},
-      { timeout: 8000 }
-    );
-  };
+  const batteryProfile = batteryLevel > 50 ? 'Normal' : batteryLevel > 15 ? 'Low Power' : 'Critical';
+  const batteryProfileColor = batteryLevel > 50 ? '#10B981' : batteryLevel > 15 ? '#F59E0B' : '#EF4444';
 
-  const clipTypeColor = (t: ClipEntry['type']) => {
-    switch (t) {
-      case 'code': return Colors.primary;
-      case 'tracking': return Colors.accent;
-      case 'url': return '#2AABEE';
-      default: return Colors.secondary;
+  // Torch toggle
+  const handleTorch = useCallback(async () => {
+    if (Platform.OS !== 'web') {
+      setTorchOn((v) => !v);
+      // On Android native: CameraModule.setTorchMode(enable)
+      return;
     }
-  };
+    try {
+      if (!torchOn) {
+        const stream = await (navigator.mediaDevices as any).getUserMedia({ video: { facingMode: { exact: 'environment' } } });
+        const [track] = stream.getVideoTracks();
+        const caps: any = (track as any).getCapabilities?.() ?? {};
+        if (caps.torch) {
+          await (track as any).applyConstraints({ advanced: [{ torch: true }] });
+          torchStreamRef.current = stream;
+          setTorchOn(true);
+        } else {
+          stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        }
+      } else {
+        torchStreamRef.current?.getTracks().forEach((t) => t.stop());
+        torchStreamRef.current = null;
+        setTorchOn(false);
+      }
+    } catch {}
+  }, [torchOn]);
+
+  // Simulated last notification
+  const handleReadNotif = useCallback(() => {
+    setLastNotif('WhatsApp: "Hey, are you free tonight?"');
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={StyleSheet.absoluteFill} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <View style={styles.root}>
+      <LinearGradient colors={['#0B0B0A', '#0F0B18', '#0B0B0A']} style={StyleSheet.absoluteFill} />
 
-        {/* Header */}
-        <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
-          <View>
-            <GeminiTitle text="SENSORS" />
-            <Text style={styles.headerSubtitle}>Riuka AI · Web Native · Live Data</Text>
-          </View>
-          <View style={styles.liveBadge}>
-            <PulsingDot color={Colors.secondary} />
-            <Text style={styles.liveBadgeText}>LIVE</Text>
-          </View>
-        </Animated.View>
+      <View style={styles.header}>
+        <GeminiTitle text="Sensors" />
+      </View>
 
-        {/* ── Web Permissions Status ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(80)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Web Permissions</Text>
-          </View>
-          <View style={styles.permGrid}>
-            {[
-              { label: 'Notifications', granted: notifPerm === 'granted', icon: Bell },
-              { label: 'Motion', granted: motion.available, icon: Smartphone },
-              { label: 'Battery', granted: battery.available, icon: Battery },
-              { label: 'Network', granted: network.available, icon: Wifi },
-              { label: 'Location', granted: !!location, icon: MapPin },
-              { label: 'Clipboard', granted: clipLog.length > 0, icon: ClipboardList },
-            ].map(({ label, granted, icon: Icon }) => (
-              <View key={label} style={styles.permItem}>
-                <Icon color={granted ? Colors.secondary : Colors.textTertiary} size={16} />
-                <Text style={[styles.permLabel, { color: granted ? Colors.text : Colors.textTertiary }]}>{label}</Text>
-                <PermBadge granted={granted} />
-              </View>
-            ))}
-          </View>
-          <Text style={styles.permHint}>Enable sensors in Settings → Sensors & Awareness</Text>
-        </Animated.View>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HARDWARE CONTROLS */}
+        <SectionHeader label="Hardware Controls" icon={Zap} />
 
-        {/* ── Environment Matrix ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(140)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Environment Matrix</Text>
-            <Activity color={Colors.accent} size={14} />
-          </View>
-          <View style={styles.envCard}>
-            <View style={styles.envGrid}>
-              <View style={styles.envItem}>
-                <Battery color={battery.level > 30 ? Colors.secondary : Colors.error} size={16} />
-                <Text style={[styles.envValue, { color: battery.level > 30 ? Colors.secondary : Colors.error }]}>
-                  {battery.available ? `${battery.level}%` : 'N/A'}
-                </Text>
-                <Text style={styles.envLabel}>{battery.available && battery.charging ? 'Charging' : 'Battery'}</Text>
-              </View>
-              <View style={styles.envItem}>
-                <Radio color={Colors.primary} size={16} />
-                <Text style={[styles.envValue, { color: Colors.primary }]}>{signal}%</Text>
-                <Text style={styles.envLabel}>Signal</Text>
-              </View>
-              <View style={styles.envItem}>
-                <Wifi color={Colors.accent} size={16} />
-                <Text style={[styles.envValue, { color: Colors.accent }]}>
-                  {network.available ? network.type.toUpperCase() : 'Wi-Fi'}
-                </Text>
-                <Text style={styles.envLabel}>{network.available && network.speed > 0 ? `${network.speed} Mbps` : 'Network'}</Text>
-              </View>
-              <View style={styles.envItem}>
-                <Eye color={Colors.secondary} size={16} />
-                <Text style={[styles.envValue, { color: Colors.secondary }]}>
-                  {motion.available ? `${motion.shakes}` : 'N/A'}
-                </Text>
-                <Text style={styles.envLabel}>Shakes</Text>
+        <Card delay={0}>
+          {/* Flashlight */}
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <Flashlight size={20} color={torchOn ? '#F59E0B' : Colors.textSecondary} />
+              <View style={{ marginLeft: Spacing.sm }}>
+                <Text style={styles.hwLabel}>Flashlight</Text>
+                <Text style={styles.hwSub}>{torchOn ? 'ON' : 'OFF'}</Text>
               </View>
             </View>
-            {battery.available && (
-              <AnimatedGauge value={battery.level} max={100} label={`Battery${battery.charging ? ' (charging)' : ''}`} color={battery.level > 30 ? Colors.secondary : Colors.error} />
-            )}
-            <AnimatedGauge value={signal} max={100} label="Signal Strength" color={Colors.primary} />
-            {motion.available && (
-              <View style={styles.motionRow}>
-                <Text style={styles.motionLabel}>Device Motion (live)</Text>
-                <View style={styles.motionAxes}>
-                  {[['X', motion.x, Colors.primary], ['Y', motion.y, Colors.secondary], ['Z', motion.z, Colors.accent]].map(([ax, val, col]) => (
-                    <View key={ax as string} style={styles.axisItem}>
-                      <Text style={[styles.axisLabel, { color: col as string }]}>{ax}</Text>
-                      <Text style={[styles.axisVal, { color: col as string }]}>{(val as number).toFixed(1)}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
+            <GlowToggle
+              on={torchOn}
+              onLabel="Turn OFF"
+              offLabel="Turn ON"
+              onPress={handleTorch}
+            />
           </View>
-        </Animated.View>
 
-        {/* ── Location ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(200)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Location Context</Text>
-            {location && <PulsingDot color={Colors.secondary} />}
+          <View style={styles.divider} />
+
+          {/* Volume */}
+          <View style={styles.hwRowVertical}>
+            <View style={styles.hwRowLeft}>
+              <Volume2 size={20} color={Colors.textSecondary} />
+              <Text style={[styles.hwLabel, { marginLeft: Spacing.sm }]}>Volume</Text>
+            </View>
+            <VolumeControl />
           </View>
-          <View style={styles.locCard}>
-            {location ? (
-              <View style={styles.locRow}>
-                <MapPin color={Colors.secondary} size={18} />
-                <View style={styles.locInfo}>
-                  <Text style={styles.locCity}>{location.city}</Text>
-                  <Text style={styles.locCoords}>{location.lat.toFixed(4)}, {location.lon.toFixed(4)}</Text>
-                </View>
-                <TouchableOpacity style={styles.mapBtn} onPress={() => Linking.openURL(`https://maps.google.com/?q=${location.lat},${location.lon}`)}>
-                  <Navigation color={Colors.primary} size={14} />
-                  <Text style={styles.mapBtnText}>Map</Text>
-                </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* Phone call actions */}
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <PhoneCall size={20} color={Colors.textSecondary} />
+              <View style={{ marginLeft: Spacing.sm }}>
+                <Text style={styles.hwLabel}>Phone Call</Text>
+                <Text style={styles.hwSub}>Requires AccessibilityService</Text>
               </View>
-            ) : (
-              <TouchableOpacity style={styles.locRequest} onPress={requestLocation} activeOpacity={0.8}>
-                <MapPin color={Colors.primary} size={16} />
-                <Text style={styles.locRequestText}>Tap to get your current location</Text>
+            </View>
+            <View style={styles.callBtns}>
+              <TouchableOpacity style={styles.answerBtn} activeOpacity={0.8}>
+                <PhoneCall size={16} color="#fff" />
               </TouchableOpacity>
-            )}
-          </View>
-        </Animated.View>
-
-        {/* ── Clipboard Log (real paste events) ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(260)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Clipboard Log</Text>
-            {clipLog.length > 0 && <PulsingDot color={Colors.primary} />}
-          </View>
-          {clipLog.length > 0 ? (
-            <View style={styles.feedList}>
-              {clipLog.map((c) => (
-                <View key={c.id} style={[styles.clipCard, { borderLeftColor: clipTypeColor(c.type) }]}>
-                  <View style={styles.clipTop}>
-                    <View style={[styles.clipTypeBadge, { backgroundColor: clipTypeColor(c.type) + '20', borderColor: clipTypeColor(c.type) + '40' }]}>
-                      <Text style={[styles.clipTypeText, { color: clipTypeColor(c.type) }]}>{c.type.toUpperCase()}</Text>
-                    </View>
-                    <Clock color={Colors.textTertiary} size={10} />
-                    <Text style={styles.clipTime}>{c.time}</Text>
-                  </View>
-                  <Text style={styles.clipPreview} numberOfLines={1}>{c.preview}</Text>
-                  <Text style={styles.clipAnalysis} numberOfLines={2}>{c.analysis}</Text>
-                </View>
-              ))}
+              <TouchableOpacity style={styles.hangupBtn} activeOpacity={0.8}>
+                <PhoneOff size={16} color="#fff" />
+              </TouchableOpacity>
             </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <ClipboardList color={Colors.textTertiary} size={24} />
-              <Text style={styles.emptyText}>Copy anything on this page — it will appear here instantly.</Text>
-              <Text style={styles.emptyHint}>Real paste event monitoring is active.</Text>
-            </View>
-          )}
-        </Animated.View>
-
-        {/* ── Notification Status ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(320)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Browser Notifications</Text>
           </View>
-          <View style={styles.notifCard}>
-            <View style={styles.notifRow}>
-              <Bell color={notifPerm === 'granted' ? Colors.secondary : Colors.textTertiary} size={18} />
-              <View style={styles.notifInfo}>
-                <Text style={styles.notifTitle}>Permission Status</Text>
-                <Text style={styles.notifSub}>
-                  {notifPerm === 'granted'
-                    ? 'Riuka will notify you when you get a response while in another tab.'
-                    : 'Enable notifications in Settings → Browser Notifications.'}
-                </Text>
+        </Card>
+
+        {/* GESTURE CONTROLS */}
+        <SectionHeader label="Gesture Controls" icon={Activity} />
+
+        <Card delay={80}>
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <View style={{ marginRight: Spacing.sm }}>
+                <PulsingDot active={shakeActive} color="#A855F7" />
               </View>
-              <PermBadge granted={notifPerm === 'granted'} />
+              <View>
+                <Text style={styles.hwLabel}>Double-shake to wake</Text>
+                <Text style={styles.hwSub}>{shakeActive ? 'Active — shake twice to open' : 'Inactive'}</Text>
+              </View>
+            </View>
+            <GlowToggle
+              on={shakeActive}
+              onLabel="Stop"
+              offLabel="Activate"
+              onPress={() => setShakeActive((v) => !v)}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <View style={{ marginRight: Spacing.sm }}>
+                <PulsingDot active={flipToMuteActive} color="#3B82F6" />
+              </View>
+              <View>
+                <Text style={styles.hwLabel}>Flip-to-mute</Text>
+                <Text style={styles.hwSub}>{flipToMuteActive ? 'Active — face-down = silent' : 'Inactive'}</Text>
+              </View>
+            </View>
+            <GlowToggle
+              on={flipToMuteActive}
+              onLabel="Stop"
+              offLabel="Activate"
+              onPress={() => setFlipToMuteActive((v) => !v)}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <Radio size={20} color={sensorActive ? Colors.primary : Colors.textSecondary} />
+              <View style={{ marginLeft: Spacing.sm }}>
+                <Text style={styles.hwLabel}>Sensor monitoring</Text>
+                <Text style={styles.hwSub}>{sensorActive ? 'Running' : 'Stopped'}</Text>
+              </View>
+            </View>
+            <GlowToggle
+              on={sensorActive}
+              onLabel="Stop"
+              offLabel="Start"
+              onPress={() => setSensorActive((v) => !v)}
+            />
+          </View>
+        </Card>
+
+        {/* NOTIFICATIONS */}
+        <SectionHeader label="Notifications" icon={Bell} />
+
+        <Card delay={160}>
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <PulsingDot active={notifListenerActive} color="#10B981" />
+              <View style={{ marginLeft: Spacing.sm }}>
+                <Text style={styles.hwLabel}>Notification Listener</Text>
+                <Text style={styles.hwSub}>{notifListenerActive ? 'Active' : 'Not granted'}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.smallBtn}
+              activeOpacity={0.8}
+              onPress={async () => {
+                if (Platform.OS === 'android') {
+                  try {
+                    await Linking.openURL('android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS');
+                  } catch {
+                    setNotifListenerActive((v) => !v);
+                  }
+                } else {
+                  setNotifListenerActive((v) => !v);
+                }
+              }}
+            >
+              <Text style={styles.smallBtnText}>Grant</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.notifPreview}>
+            <Text style={styles.notifLabel}>Last notification</Text>
+            <Text style={styles.notifText}>
+              {lastNotif ?? '— No notification captured yet —'}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.readAloudBtn} onPress={handleReadNotif} activeOpacity={0.8}>
+            <Bell size={16} color={Colors.primary} />
+            <Text style={styles.readAloudBtnText}>Read aloud</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* BATTERY & THERMAL */}
+        <SectionHeader label="Battery & Thermal" icon={Battery} />
+
+        <Card delay={240}>
+          <View style={styles.hwRowVertical}>
+            <View style={styles.hwRowLeft}>
+              <Battery size={20} color={batteryProfileColor} />
+              <Text style={[styles.hwLabel, { marginLeft: Spacing.sm }]}>Battery level</Text>
+            </View>
+            <BatteryBar level={batteryLevel} />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <Zap size={18} color={batteryCharging ? '#10B981' : Colors.textSecondary} />
+              <View style={{ marginLeft: Spacing.sm }}>
+                <Text style={styles.hwLabel}>Profile</Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.profileBadge,
+                { backgroundColor: `${batteryProfileColor}22`, borderColor: `${batteryProfileColor}55` },
+              ]}
+            >
+              <Text style={[styles.profileBadgeText, { color: batteryProfileColor }]}>{batteryProfile}</Text>
             </View>
           </View>
-        </Animated.View>
 
-        {/* ── Cross-App Links ── */}
-        <Animated.View entering={FadeInUp.duration(600).delay(380)} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <GeminiAccent />
-            <Text style={styles.sectionTitle}>Cross-App Links</Text>
-          </View>
-          <View style={styles.crossAppCard}>
-            <Text style={styles.crossAppDesc}>Tap to open · or type these in Chat:</Text>
-            <View style={styles.deepLinkGrid}>
-              {[
-                { label: 'YouTube Trending', url: 'https://youtube.com/feed/trending', color: '#FF0000' },
-                { label: 'YouTube Shorts', url: 'https://youtube.com/shorts', color: '#FF0000' },
-                { label: 'Reddit Popular', url: 'https://reddit.com/r/popular', color: '#FF4500' },
-                { label: 'Instagram Explore', url: 'https://instagram.com/explore', color: '#E1306C' },
-                { label: 'Google News', url: 'https://news.google.com', color: Colors.primary },
-                { label: 'Spotify New Releases', url: 'https://open.spotify.com/genre/new-releases-page', color: '#1DB954' },
-              ].map((item) => (
-                <TouchableOpacity key={item.label}
-                  style={[styles.deepLinkChip, { borderColor: item.color + '40', backgroundColor: item.color + '10' }]}
-                  onPress={() => Linking.openURL(item.url)} activeOpacity={0.7}>
-                  <ExternalLink color={item.color} size={11} />
-                  <Text style={[styles.deepLinkText, { color: item.color }]}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
+          <View style={styles.divider} />
+
+          <View style={styles.hwRow}>
+            <View style={styles.hwRowLeft}>
+              <Activity size={18} color={Colors.textSecondary} />
+              <Text style={[styles.hwLabel, { marginLeft: Spacing.sm }]}>Temperature</Text>
             </View>
+            <Text style={styles.hwSub}>Monitoring...</Text>
           </View>
-        </Animated.View>
 
+          {batteryCharging && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.hwRow}>
+                <View style={styles.hwRowLeft}>
+                  <Zap size={18} color="#10B981" />
+                  <Text style={[styles.hwLabel, { marginLeft: Spacing.sm, color: '#10B981' }]}>Charging</Text>
+                </View>
+              </View>
+            </>
+          )}
+        </Card>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingBottom: Spacing.xxxl },
-
+  root: { flex: 1, backgroundColor: '#0B0B0A' },
   header: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Platform.OS === 'android' ? 52 : 60,
+    paddingBottom: Spacing.md,
+  },
+  screenTitle: { fontSize: FontSizes.xxxl, fontWeight: '800', letterSpacing: 0.5 },
+  scroll: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xxl },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    marginTop: Spacing.lg, marginBottom: Spacing.sm, paddingHorizontal: Spacing.xs,
+  },
+  sectionLabel: { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 1.2 },
+  card: {
+    backgroundColor: '#1E1F20', borderRadius: BorderRadius.lg, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.08)',
+  },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginHorizontal: Spacing.md },
+  hwRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxxl + Spacing.md, marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
   },
-  headerTitle: { fontSize: FontSizes.xxl, fontWeight: '800', letterSpacing: 3 },
-  headerSubtitle: { fontSize: FontSizes.xs, color: Colors.secondary, fontWeight: '600', letterSpacing: 0.5, marginTop: 2 },
-  liveBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.secondary + '15', borderRadius: BorderRadius.full,
-    paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.secondary + '30',
+  hwRowVertical: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+  hwRowLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  hwLabel: { fontSize: FontSizes.md, color: Colors.text, fontWeight: '500' },
+  hwSub: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 1 },
+  glowBtn: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.full, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1, borderColor: Colors.border,
   },
-  liveBadgeText: { fontSize: FontSizes.xs, fontWeight: '800', color: Colors.secondary, letterSpacing: 1 },
-
-  accent: { width: 3, height: 14, borderRadius: 2, marginRight: 2 },
-
-  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
-  sectionTitle: { flex: 1, fontSize: FontSizes.md, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
-
-  // Permissions
-  permGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  permItem: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: 10, borderWidth: 1, borderColor: Colors.border, flex: 1, minWidth: '45%' },
-  permLabel: { flex: 1, fontSize: FontSizes.xs, fontWeight: '600' },
-  permBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: BorderRadius.full, borderWidth: 1, paddingHorizontal: 5, paddingVertical: 2 },
-  permText: { fontSize: 8, fontWeight: '800', letterSpacing: 0.3 },
-  permHint: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: Spacing.sm, textAlign: 'center' },
-
-  // Environment
-  envCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
-  envGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
-  envItem: { alignItems: 'center', gap: 3 },
-  envValue: { fontSize: FontSizes.lg, fontWeight: '700' },
-  envLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, textAlign: 'center' },
-  motionRow: { marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
-  motionLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, fontWeight: '600', marginBottom: Spacing.sm },
-  motionAxes: { flexDirection: 'row', gap: Spacing.lg },
-  axisItem: { alignItems: 'center', gap: 2 },
-  axisLabel: { fontSize: FontSizes.xs, fontWeight: '800' },
-  axisVal: { fontSize: FontSizes.md, fontWeight: '700', fontVariant: ['tabular-nums'] as any },
-
-  // Location
-  locCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
-  locRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  locInfo: { flex: 1 },
-  locCity: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text },
-  locCoords: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
-  mapBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary + '15', borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: Colors.primary + '30' },
-  mapBtnText: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '700' },
-  locRequest: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, justifyContent: 'center', paddingVertical: Spacing.md },
-  locRequestText: { fontSize: FontSizes.sm, color: Colors.primary, fontWeight: '600' },
-
-  // Clipboard
-  feedList: { gap: Spacing.md },
-  clipCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 3, gap: 5 },
-  clipTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  clipTypeBadge: { borderRadius: BorderRadius.full, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2 },
-  clipTypeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  clipTime: { fontSize: FontSizes.xs, color: Colors.textTertiary },
-  clipPreview: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '500', fontFamily: 'monospace' },
-  clipAnalysis: { fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 },
-  emptyCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.xl, alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textTertiary, textAlign: 'center', lineHeight: 20 },
-  emptyHint: { fontSize: FontSizes.xs, color: Colors.secondary, textAlign: 'center' },
-
-  // Notification
-  notifCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
-  notifRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  notifInfo: { flex: 1 },
-  notifTitle: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  notifSub: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2, lineHeight: 16 },
-
-  // Cross-app
-  crossAppCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.primary + '30' },
-  crossAppDesc: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginBottom: Spacing.md },
-  deepLinkGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  deepLinkChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: BorderRadius.full, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6 },
-  deepLinkText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  glowBtnActive: {
+    backgroundColor: 'rgba(168,85,247,0.2)', borderColor: Colors.primary,
+  },
+  glowBtnText: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '600' },
+  glowBtnTextActive: { color: Colors.primary },
+  callBtns: { flexDirection: 'row', gap: Spacing.sm },
+  answerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' },
+  hangupBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  volumeRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm, gap: Spacing.sm },
+  volBtn: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(168,85,247,0.15)',
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(168,85,247,0.3)',
+  },
+  volBtnText: { color: Colors.primary, fontSize: FontSizes.lg, fontWeight: '700', lineHeight: 22 },
+  volTrack: { flex: 1, height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' },
+  volFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
+  volLabel: { color: Colors.textSecondary, fontSize: FontSizes.sm, width: 38, textAlign: 'right' },
+  batteryBarWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
+  batteryBarOuter: { flex: 1, height: 10, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 5, overflow: 'hidden' },
+  batteryBarFill: { height: '100%', borderRadius: 5 },
+  batteryPct: { fontSize: FontSizes.sm, fontWeight: '600', width: 38, textAlign: 'right' },
+  profileBadge: {
+    paddingHorizontal: Spacing.sm, paddingVertical: 4,
+    borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  profileBadgeText: { fontSize: FontSizes.xs, fontWeight: '700' },
+  smallBtn: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2,
+    backgroundColor: 'rgba(168,85,247,0.15)', borderRadius: BorderRadius.full,
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.4)',
+  },
+  smallBtnText: { color: Colors.primary, fontSize: FontSizes.sm, fontWeight: '600' },
+  notifPreview: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2 },
+  notifLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginBottom: 4 },
+  notifText: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontStyle: 'italic' },
+  readAloudBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+  },
+  readAloudBtnText: { color: Colors.primary, fontSize: FontSizes.md, fontWeight: '600' },
 });

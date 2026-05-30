@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vexsora</string>
+    <string name="accessibility_service_label">Vexsora Assistant</string>
+    <string name="accessibility_service_description">Allows Vexsora to automate actions in messaging apps such as typing and sending messages on your behalf.</string>
+    <string name="notification_listener_label">Vexsora Notification Reader</string>
+</resources>

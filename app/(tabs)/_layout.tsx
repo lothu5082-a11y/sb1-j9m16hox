@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { Sparkles, MessageSquare, Zap, Bell, Settings } from 'lucide-react-native';
+import { Sparkles, MessageSquare, Zap, Activity, Settings } from 'lucide-react-native';
 import { Colors, FontSizes } from '../../constants/theme';
 import Animated, {
   useSharedValue,
@@ -12,28 +12,47 @@ import Animated, {
 } from 'react-native-reanimated';
 import { View, StyleSheet } from 'react-native';
 
-const GEMINI = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'];
+const GLOW_COLORS = ['#A855F7', '#3B82F6', '#A855F7', '#C084FC', '#A855F7'] as const;
 
-function GeminiTabIcon({ Icon, focused, size }: { Icon: any; focused: boolean; size: number }) {
+function VexsoraTabIcon({ Icon, focused, size }: { Icon: any; focused: boolean; size: number }) {
   const phase = useSharedValue(0);
+
   useEffect(() => {
-    phase.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.linear }), -1, false);
-  }, []);
+    if (focused) {
+      phase.value = withRepeat(
+        withTiming(1, { duration: 3500, easing: Easing.linear }),
+        -1,
+        false
+      );
+    }
+  }, [focused]);
+
   const dotStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1], GEMINI),
+    backgroundColor: interpolateColor(phase.value, [0, 0.25, 0.5, 0.75, 1], [...GLOW_COLORS]),
+    shadowColor: interpolateColor(phase.value, [0, 0.5, 1], ['#A855F7', '#3B82F6', '#A855F7']),
+    shadowOpacity: focused ? 0.8 : 0,
+    shadowRadius: focused ? 4 : 0,
   }));
-  const color = focused ? Colors.primary : Colors.textTertiary;
+
+  const color = focused ? Colors.primary : Colors.textMuted;
+
   return (
-    <View style={tabStyles.wrap}>
-      <Icon size={size} color={color} />
-      {focused && <Animated.View style={[tabStyles.dot, dotStyle]} />}
+    <View style={styles.wrap}>
+      <Icon size={size} color={color} strokeWidth={focused ? 2 : 1.5} />
+      {focused && <Animated.View style={[styles.dot, dotStyle]} />}
     </View>
   );
 }
 
-const tabStyles = StyleSheet.create({
-  wrap: { alignItems: 'center', justifyContent: 'center', gap: 3 },
-  dot: { width: 4, height: 4, borderRadius: 2, marginTop: 1 },
+const styles = StyleSheet.create({
+  wrap: { alignItems: 'center', justifyContent: 'center', gap: 2 },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 1,
+    elevation: 4,
+  },
 });
 
 export default function TabLayout() {
@@ -44,16 +63,17 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: Colors.backgroundSecondary,
           borderTopColor: Colors.border,
-          borderTopWidth: 1,
-          height: 70,
-          paddingBottom: 12,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 68,
+          paddingBottom: 10,
           paddingTop: 8,
         },
         tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textTertiary,
+        tabBarInactiveTintColor: Colors.textMuted,
         tabBarLabelStyle: {
           fontSize: FontSizes.xs,
           fontWeight: '600',
+          letterSpacing: 0.3,
         },
         tabBarShowLabel: true,
       }}
@@ -61,36 +81,46 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Ask',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={Sparkles} focused={focused} size={size} />,
+          title: 'Vexsora',
+          tabBarIcon: ({ size, focused }) => (
+            <VexsoraTabIcon Icon={Sparkles} focused={focused} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="chat"
         options={{
           title: 'Chat',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={MessageSquare} focused={focused} size={size} />,
+          tabBarIcon: ({ size, focused }) => (
+            <VexsoraTabIcon Icon={MessageSquare} focused={focused} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="automation"
         options={{
           title: 'Automate',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={Zap} focused={focused} size={size} />,
+          tabBarIcon: ({ size, focused }) => (
+            <VexsoraTabIcon Icon={Zap} focused={focused} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="sensors"
         options={{
-          title: 'Sensors',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={Bell} focused={focused} size={size} />,
+          title: 'Hardware',
+          tabBarIcon: ({ size, focused }) => (
+            <VexsoraTabIcon Icon={Activity} focused={focused} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ size, focused }) => <GeminiTabIcon Icon={Settings} focused={focused} size={size} />,
+          tabBarIcon: ({ size, focused }) => (
+            <VexsoraTabIcon Icon={Settings} focused={focused} size={size} />
+          ),
         }}
       />
     </Tabs>
