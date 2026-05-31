@@ -1,11 +1,12 @@
 import { Message } from './aiService';
 
-// In-memory storage
+// In-memory conversation store — no native dependencies.
 const store = new Map<string, string>();
-const storage = {
-  getItem: async (key: string) => store.get(key) ?? null,
-  setItem: async (key: string, value: string) => { store.set(key, value); },
-  removeItem: async (key: string) => { store.delete(key); },
+
+const kv = {
+  get: (key: string): string | null => store.get(key) ?? null,
+  set: (key: string, value: string): void => { store.set(key, value); },
+  delete: (key: string): void => { store.delete(key); },
 };
 
 export interface Conversation {
@@ -16,17 +17,17 @@ export interface Conversation {
   updatedAt: Date;
 }
 
-const CONVERSATIONS_KEY = 'riuka_conversations';
-const MAX_MESSAGES_PER_CONVERSATION = 100;
+const CONVERSATIONS_KEY = 'vexsora_conversations_v1';
+const MAX_MESSAGES = 100;
 
 class StorageService {
-  private conversations: Map<string, Conversation> = new Map();
+  private conversations = new Map<string, Conversation>();
   private loaded = false;
 
-  private async ensureLoaded(): Promise<void> {
+  private ensureLoaded(): void {
     if (this.loaded) return;
     try {
-      const raw = await storage.getItem(CONVERSATIONS_KEY);
+      const raw = kv.get(CONVERSATIONS_KEY);
       if (raw) {
         const parsed: Conversation[] = JSON.parse(raw);
         for (const conv of parsed) {
@@ -42,29 +43,23 @@ class StorageService {
         }
       }
     } catch {
-      // keep empty
+      // empty
     }
     this.loaded = true;
   }
 
-  private async persist(): Promise<void> {
-    const all = Array.from(this.conversations.values());
-    await storage.setItem(CONVERSATIONS_KEY, JSON.stringify(all));
+  private persist(): void {
+    kv.set(CONVERSATIONS_KEY, JSON.stringify(Array.from(this.conversations.values())));
   }
 
-  async saveMessages(conversationId: string, messages: Message[]): Promise<Conversation> {
-    await this.ensureLoaded();
-
-    // Trim to last 100 messages
-    const trimmed = messages.slice(-MAX_MESSAGES_PER_CONVERSATION);
-
+  saveMessages(conversationId: string, messages: Message[]): Conversation {
+    this.ensureLoaded();
+    const trimmed = messages.slice(-MAX_MESSAGES);
     const existing = this.conversations.get(conversationId);
     const now = new Date();
-
-    // Auto-generate title from first user message
-    const firstUserMsg = trimmed.find((m) => m.role === 'user');
-    const title = firstUserMsg
-      ? firstUserMsg.content.slice(0, 60) + (firstUserMsg.content.length > 60 ? '…' : '')
+    const firstUser = trimmed.find((m) => m.role === 'user');
+    const title = firstUser
+      ? firstUser.content.slice(0, 60) + (firstUser.content.length > 60 ? '…' : '')
       : 'New Conversation';
 
     const conversation: Conversation = {
@@ -74,37 +69,36 @@ class StorageService {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
-
     this.conversations.set(conversationId, conversation);
-    await this.persist();
+    this.persist();
     return conversation;
   }
 
-  async getConversations(): Promise<Conversation[]> {
-    await this.ensureLoaded();
+  getConversations(): Conversation[] {
+    this.ensureLoaded();
     return Array.from(this.conversations.values()).sort(
       (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
     );
   }
 
-  async getConversation(id: string): Promise<Conversation | null> {
-    await this.ensureLoaded();
+  getConversation(id: string): Conversation | null {
+    this.ensureLoaded();
     return this.conversations.get(id) ?? null;
   }
 
-  async deleteConversation(id: string): Promise<void> {
-    await this.ensureLoaded();
+  deleteConversation(id: string): void {
+    this.ensureLoaded();
     this.conversations.delete(id);
-    await this.persist();
+    this.persist();
   }
 
-  async clearAll(): Promise<void> {
+  clearAll(): void {
     this.conversations.clear();
-    await storage.removeItem(CONVERSATIONS_KEY);
+    kv.delete(CONVERSATIONS_KEY);
   }
 
-  createNewConversationId(): string {
-    return Date.now().toString();
+  createNewId(): string {
+    return `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   }
 }
 

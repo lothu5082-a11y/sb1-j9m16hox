@@ -1,25 +1,25 @@
 {
   "expo": {
-    "name": "Riuka AI",
-    "slug": "riuka-ai",
+    "name": "Vexsora",
+    "slug": "vexsora",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "riuka",
+    "scheme": "vexsora",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "backgroundColor": "#0A0A0C",
+    "backgroundColor": "#0B0B0A",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.riuka.ai"
+      "bundleIdentifier": "com.vexsora.ai"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#0A0A0C"
+        "backgroundColor": "#0B0B0A"
       },
-      "package": "com.riuka.ai",
-      "versionCode": 4,
+      "package": "com.vexsora.ai",
+      "versionCode": 1,
       "minSdkVersion": 26,
       "targetSdkVersion": 35,
       "permissions": [
@@ -31,13 +31,21 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
         "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.BIND_ACCESSIBILITY_SERVICE",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ANSWER_PHONE_CALLS",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.CALL_PHONE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.USE_FULL_SCREEN_INTENT"
       ]
     },
     "web": {
@@ -59,8 +67,13 @@
             "minSdkVersion": 26,
             "buildToolsVersion": "35.0.0",
             "packagingOptions": {
-              "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
-            }
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libfbjni.so",
+                "**/libjsi.so"
+              ]
+            },
+            "extraMavenRepos": []
           }
         }
       ]

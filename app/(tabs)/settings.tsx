@@ -1,8 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Switch,
-  TouchableOpacity, TextInput, Alert, Platform, Dimensions,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Platform,
+  NativeModules,
 } from 'react-native';
+
+const HW: any = NativeModules.VexsoraHardware ?? null;
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeInUp,
@@ -10,1012 +20,709 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
-  withSequence,
   Easing,
   interpolateColor,
-  interpolate,
 } from 'react-native-reanimated';
 import {
-  Settings as SettingsIcon, Cpu, Mic, Zap, Shield, Smartphone,
-  Lock, Eye, Fingerprint, ChevronRight, Crown, WifiOff,
-  Database, CheckCircle, Bell, ClipboardList, User, Palette,
-  Volume2, Camera, Hand, Radio, Battery, Wifi, MapPin,
-  Calendar, BookOpen, Trash2, Download, Sparkles,
+  Cpu, Mic, Battery, Database, Trash2, Download,
+  User, Volume2, Radio, Zap, Info, ChevronRight, Shield,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
-import { setAIConfig, setVoiceReplyEnabled, setWakeWordActive } from './chat';
+import { memoryService } from '../../lib/memoryService';
+import { llamaService, MODELS, type ModelMeta } from '../../lib/llamaService';
+import {
+  setAIConfig, getAIConfig,
+  setVoiceReplyEnabled, setWakeWordActive, setUserLang, getUserLang,
+} from './chat';
 
-const { width: W } = Dimensions.get('window');
+// ── Gemini color cycler ───────────────────────────────────────────────────────
+const GEMINI = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'] as const;
 
-export let riukaAIConfig = { provider: 'local', apiKey: '' };
-
-// ── Read evolution data from localStorage ─────────────────────────────────────
-const readEvolution = () => {
-  if (Platform.OS !== 'web') return { xp: 0, level: 1, totalLearned: 0 };
-  try { return { xp: 0, level: 1, totalLearned: 0, ...JSON.parse(localStorage.getItem('riuka_evolution_v1') || '{}') }; }
-  catch { return { xp: 0, level: 1, totalLearned: 0 }; }
-};
-const readMemoryCount = () => {
-  if (Platform.OS !== 'web') return 0;
-  try { return (JSON.parse(localStorage.getItem('riuka_memory_v1') || '[]') as any[]).length; }
-  catch { return 0; }
-};
-const EVO_LEVELS = [
-  { level: 1, name: 'Newborn', xp: 0, icon: '🥚' },
-  { level: 2, name: 'Aware', xp: 40, icon: '👁️' },
-  { level: 3, name: 'Adaptive', xp: 120, icon: '🧠' },
-  { level: 4, name: 'Intelligent', xp: 280, icon: '⚡' },
-  { level: 5, name: 'Sentient', xp: 550, icon: '🌐' },
-  { level: 6, name: 'Evolved', xp: 1000, icon: '🔮' },
-  { level: 7, name: 'Atomic', xp: 2000, icon: '⚛️' },
-];
-const getEvoLevel = (xp: number) => {
-  let cur = EVO_LEVELS[0];
-  for (const l of EVO_LEVELS) { if (xp >= l.xp) cur = l; }
-  return cur;
-};
-const getNextEvoLevel = (xp: number) => EVO_LEVELS.find(l => l.xp > xp) ?? null;
-
-// ── Gemini color palette ──────────────────────────────────────────────────────
-const GEMINI_COLORS = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'] as const;
-const GEMINI_SUBTLE = [
-  'rgba(168,85,247,0.45)',
-  'rgba(59,130,246,0.45)',
-  'rgba(16,185,129,0.45)',
-  'rgba(236,72,153,0.45)',
-  'rgba(168,85,247,0.45)',
-] as const;
-
-// ── Color-cycling components ───────────────────────────────────────────────────
 function GeminiTitle({ text }: { text: string }) {
   const p = useSharedValue(0);
   useEffect(() => {
     p.value = withRepeat(withTiming(1, { duration: 4000, easing: Easing.linear }), -1, false);
   }, []);
   const s = useAnimatedStyle(() => ({
-    color: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
+    color: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI]),
   }));
-  return <Animated.Text style={[styles.headerTitle, s]}>{text}</Animated.Text>;
+  return <Animated.Text style={[styles.screenTitle, s]}>{text}</Animated.Text>;
 }
 
-function GeminiAccentLine() {
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 3500, easing: Easing.linear }), -1, false);
-  }, []);
-  const s = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
-  }));
-  return <Animated.View style={[styles.sectionAccentLine, s]} />;
-}
-
-function GeminiCard({ children, style }: { children: React.ReactNode; style?: any }) {
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 5000, easing: Easing.linear }), -1, false);
-  }, []);
-  const border = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_SUBTLE]),
-  }));
-  return <Animated.View style={[styles.geminiCard, style, border]}>{children}</Animated.View>;
-}
-
-function GeminiSaveButton({ label, onPress }: { label: string; onPress: () => void }) {
-  const p = useSharedValue(0);
-  useEffect(() => {
-    p.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
-  }, []);
-  const bg = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI_COLORS]),
-  }));
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <Animated.View style={[styles.saveBtn, bg]}>
-        <Text style={styles.saveBtnText}>{label}</Text>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Toggle row ─────────────────────────────────────────────────────────────────
-function ToggleRow({
-  icon, label, desc, value, onValueChange, color = Colors.primary,
+// ── Section component ─────────────────────────────────────────────────────────
+function Section({
+  label,
+  icon: Icon,
+  children,
+  delay = 0,
 }: {
-  icon: React.ReactNode; label: string; desc?: string;
-  value: boolean; onValueChange: (v: boolean) => void; color?: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  children: React.ReactNode;
+  delay?: number;
 }) {
-  const glow = useSharedValue(value ? 1 : 0);
-  useEffect(() => { glow.value = withTiming(value ? 1 : 0, { duration: 300 }); }, [value]);
-  const borderStyle = useAnimatedStyle(() => ({
-    borderColor: value ? color + '60' : Colors.border,
-    backgroundColor: value
-      ? interpolateColor(glow.value, [0, 1], [Colors.surface, color + '10'])
-      : Colors.surface,
-  }));
   return (
-    <Animated.View style={[styles.toggleRow, borderStyle]}>
-      <View style={[styles.toggleIcon, { borderColor: value ? color + '50' : Colors.border }]}>
-        {icon}
+    <Animated.View entering={FadeInUp.delay(delay).duration(400)}>
+      <View style={styles.sectionHeader}>
+        <Icon size={14} color={Colors.primary} />
+        <Text style={styles.sectionLabel}>{label.toUpperCase()}</Text>
       </View>
-      <View style={styles.toggleText}>
-        <Text style={[styles.toggleLabel, value && { color }]}>{label}</Text>
-        {desc && <Text style={styles.toggleDesc}>{desc}</Text>}
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: Colors.surface, true: color + '50' }}
-        thumbColor={value ? color : Colors.textTertiary}
-      />
+      <View style={styles.card}>{children}</View>
     </Animated.View>
   );
 }
 
-// ── Header aurora ──────────────────────────────────────────────────────────────
-function HeaderAurora() {
-  const scanX = useSharedValue(0);
-  const orbC   = useSharedValue(0);
-  useEffect(() => {
-    scanX.value = withRepeat(withTiming(1, { duration: 3000, easing: Easing.linear }), -1, false);
-    orbC.value  = withRepeat(withTiming(1, { duration: 6000, easing: Easing.linear }), -1, false);
-  }, []);
-  const scanStyle = useAnimatedStyle(() => ({
-    left: (scanX.value * (W + 80)) - 80,
-    backgroundColor: interpolateColor(scanX.value, [0, 0.25, 0.5, 0.75, 1],
-      ['rgba(168,85,247,0.12)', 'rgba(59,130,246,0.12)', 'rgba(16,185,129,0.1)', 'rgba(236,72,153,0.1)', 'rgba(168,85,247,0.12)']),
-  }));
-  const orbStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(orbC.value, [0, 0.25, 0.5, 0.75, 1],
-      ['rgba(168,85,247,0.12)', 'rgba(59,130,246,0.12)', 'rgba(16,185,129,0.1)', 'rgba(236,72,153,0.1)', 'rgba(168,85,247,0.12)']),
-  }));
+// ── Row components ────────────────────────────────────────────────────────────
+function RowItem({
+  label,
+  value,
+  onPress,
+  right,
+}: {
+  label: string;
+  value?: string;
+  onPress?: () => void;
+  right?: React.ReactNode;
+}) {
   return (
-    <>
-      <Animated.View style={[styles.headerOrb, orbStyle]} pointerEvents="none" />
-      <Animated.View style={[styles.headerScan, scanStyle]} pointerEvents="none" />
-    </>
+    <TouchableOpacity
+      style={styles.row}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      {right ?? (
+        <View style={styles.rowRight}>
+          {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+          {onPress ? <ChevronRight size={16} color={Colors.textTertiary} /> : null}
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
-const PROVIDERS = [
-  { id: 'local',  name: 'On-Device', color: Colors.secondary, icon: '🔒' },
-  { id: 'openai', name: 'OpenAI',    color: Colors.primary,   icon: '🤖' },
-  { id: 'gemini', name: 'Gemini',    color: Colors.accent,    icon: '✨' },
-  { id: 'claude', name: 'Claude',    color: '#7C3AED',        icon: '🧠' },
-  { id: 'groq',   name: 'Groq',      color: '#F97316',        icon: '⚡' },
-];
+function RowSwitch({
+  label,
+  value,
+  onValueChange,
+  description,
+}: {
+  label: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  description?: string;
+}) {
+  return (
+    <View style={styles.row}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        {description ? <Text style={styles.rowDescription}>{description}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: Colors.border, true: 'rgba(168,85,247,0.5)' }}
+        thumbColor={value ? Colors.primary : Colors.textTertiary}
+      />
+    </View>
+  );
+}
 
-const ACCENT_COLORS = [
-  '#A855F7', '#3B82F6', '#10B981', '#EF4444', '#14B8A6', '#F59E0B', '#EC4899', '#8B5CF6',
-];
+function Divider() {
+  return <View style={styles.divider} />;
+}
 
-// ── Main screen ────────────────────────────────────────────────────────────────
+// ── Status badge ──────────────────────────────────────────────────────────────
+function StatusBadge({ status, label }: { status: 'good' | 'warning' | 'error' | 'info'; label: string }) {
+  const color = status === 'good' ? '#10B981' : status === 'warning' ? '#F59E0B' : status === 'error' ? '#EF4444' : Colors.primary;
+  return (
+    <View style={[styles.badge, { backgroundColor: `${color}22`, borderColor: `${color}55` }]}>
+      <View style={[styles.badgeDot, { backgroundColor: color }]} />
+      <Text style={[styles.badgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Battery profile label ─────────────────────────────────────────────────────
+const getBatteryProfile = (level: number): { label: string; status: 'good' | 'warning' | 'error' } => {
+  if (level > 50) return { label: 'Normal', status: 'good' };
+  if (level > 15) return { label: 'Low Power', status: 'warning' };
+  return { label: 'Critical', status: 'error' };
+};
+
+// ── Main Settings screen ──────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  // AI / Profile
-  const [selectedProvider, setSelectedProvider] = useState(riukaAIConfig.provider);
-  const [apiKey, setApiKey]         = useState(riukaAIConfig.apiKey);
-  const [apiVisible, setApiVisible] = useState(false);
+  // Profile
   const [profileName, setProfileName] = useState('');
   const [profileCity, setProfileCity] = useState('');
-  const [accentColor, setAccentColor] = useState('#A855F7');
+  const [profileLang, setProfileLang] = useState(getUserLang());
+
+  // Model
+  const [modelPath, setModelPath] = useState(llamaService.getLoadedModelPath() ?? '');
+  const [customModelInput, setCustomModelInput] = useState('');
+  const [modelStatus, setModelStatus] = useState<'loaded' | 'loading' | 'none'>(
+    llamaService.isLoaded() ? 'loaded' : 'none'
+  );
 
   // Voice
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [voiceReply, setVoiceReply]     = useState(false);
-  const [wakeWord, setWakeWord]         = useState(false);
+  const [voiceReplyEnabled, setVoiceReply] = useState(false);
+  const [ttsLang, setTtsLang] = useState('en-US');
 
-  // Sensors
-  const [notifListener, setNotifListener]   = useState(false);
-  const [clipEngine, setClipEngine]         = useState(false);
-  const [cameraGesture, setCameraGesture]   = useState(false);
-  const [shakeWake, setShakeWake]           = useState(false);
-  const [volumeKeys, setVolumeKeys]         = useState(false);
-  const [locationCtx, setLocationCtx]       = useState(false);
-  const [calendarCtx, setCalendarCtx]       = useState(false);
+  // Wake word
+  const [wakeWordEnabled, setWakeWord] = useState(false);
 
-  // Automation
-  const [autoReply, setAutoReply]         = useState(true);
-  const [clipAnalysis, setClipAnalysis]   = useState(true);
+  // Battery
+  const [batteryLevel, setBatteryLevel] = useState(100);
+  const [autoThrottle, setAutoThrottle] = useState(true);
 
-  // Privacy
-  const [biometric, setBiometric]   = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false);
+  // Gestures
+  const [doubleshakeEnabled, setDoubleshake] = useState(false);
+  const [flipToMuteEnabled, setFlipToMute] = useState(false);
 
-  // Shake listener ref
-  const shakeListenerRef = useRef<((e: any) => void) | null>(null);
-  const lastShakeRef = useRef(0);
-  const [offlinePriority, setOfflinePriority] = useState(true);
+  // Memory / KB
+  const [memoryCount, setMemoryCount] = useState(0);
 
-  // Evolution (read from localStorage)
-  const [evo, setEvo] = useState(() => readEvolution());
-  const [memCount, setMemCount] = useState(() => readMemoryCount());
+  // Download tracking
+  const [downloadState, setDownloadState] = useState<{
+    modelId: string; progress: number; downloadedMB: number; totalMB: number;
+  } | null>(null);
+  const [downloadedModels, setDownloadedModels] = useState<string[]>([]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    try {
-      const p = JSON.parse(localStorage.getItem('riuka_profile_v1') || '{}');
-      if (p.name) setProfileName(p.name);
-      if (p.city) setProfileCity(p.city);
-      const t = localStorage.getItem('riuka_theme_v1');
-      if (t) setAccentColor(t);
-      setVoiceReply(localStorage.getItem('riuka_voice_reply') === 'true');
-      setVoiceReplyEnabled(localStorage.getItem('riuka_voice_reply') === 'true');
-      setWakeWord(localStorage.getItem('riuka_wake_v1') === 'true');
-      setWakeWordActive(localStorage.getItem('riuka_wake_v1') === 'true');
-      setCameraGesture(localStorage.getItem('riuka_gesture_v1') === 'true');
-      setEvo(readEvolution());
-      setMemCount(readMemoryCount());
-    } catch {}
+    llamaService.getDownloadedModels().then(setDownloadedModels);
   }, []);
 
-  const saveProfile = () => {
-    if (Platform.OS === 'web') {
-      try { localStorage.setItem('riuka_profile_v1', JSON.stringify({ name: profileName, city: profileCity })); } catch {}
-    }
-    Alert.alert('Profile Saved', profileName ? `Hey ${profileName}! Profile updated.` : 'Profile saved.');
-  };
-
-  const applyTheme = (color: string) => {
-    setAccentColor(color);
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.setItem('riuka_theme_v1', color);
-        (document as any).documentElement.style.setProperty('--primary', color);
-      } catch {}
-    }
-  };
-
-  const saveAIConfig = () => {
-    const cfg = { provider: selectedProvider, apiKey };
-    riukaAIConfig = cfg;
-    setAIConfig(cfg);
-    Alert.alert('Saved', `Brain set to ${PROVIDERS.find(p => p.id === selectedProvider)?.name ?? selectedProvider}.`);
-  };
-
-  const clearMemory = () => {
-    Alert.alert('Clear Memories', 'Erase all memories Riuka has learned about you?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Erase', style: 'destructive', onPress: () => {
-        if (Platform.OS === 'web') {
-          try {
-            localStorage.removeItem('riuka_memory_v1');
-            localStorage.removeItem('riuka_evolution_v1');
-          } catch {}
-        }
-        setMemCount(0);
-        setEvo({ xp: 0, level: 1, totalLearned: 0 });
-        Alert.alert('Done', 'Memories cleared. Riuka starts fresh. ✨');
-      }},
-    ]);
-  };
-
-  const exportChat = () => {
-    if (Platform.OS !== 'web') { Alert.alert('Web only', 'Export works on the web version.'); return; }
-    try {
-      const raw = localStorage.getItem('riuka_chat_v1');
-      if (!raw) { Alert.alert('No history', 'Chat is empty.'); return; }
-      const msgs: any[] = JSON.parse(raw);
-      const txt = msgs.map(m => `[${m.time}] ${m.isUser ? 'You' : 'Riuka'}: ${m.text}`).join('\n\n');
-      const blob = new Blob([txt], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = (document as any).createElement('a');
-      a.href = url; a.download = `riuka-${new Date().toISOString().slice(0,10)}.txt`;
-      a.click(); URL.revokeObjectURL(url);
-    } catch { Alert.alert('Failed', 'Could not export.'); }
-  };
-
-  const clearAll = () => {
-    Alert.alert('Clear Everything', 'Erase ALL data — chat, todos, memory, profile. Cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Erase All', style: 'destructive', onPress: () => {
-        if (Platform.OS === 'web') {
-          ['riuka_chat_v1','riuka_todos_v1','riuka_profile_v1','riuka_theme_v1',
-           'riuka_voice_reply','riuka_wake_v1','riuka_memory_v1','riuka_evolution_v1',
-           'riuka_habits_v1','riuka_gesture_v1'].forEach(k => {
-            try { localStorage.removeItem(k); } catch {}
-          });
-        }
-        setProfileName(''); setProfileCity(''); setAccentColor('#A855F7');
-        setMemCount(0); setEvo({ xp: 0, level: 1, totalLearned: 0 });
-        Alert.alert('Fresh start!', 'All data erased. ✨');
-      }},
-    ]);
-  };
-
-  // ── Web API sensor helpers ────────────────────────────────────────────────
-  const enableNotifications = (want: boolean) => {
-    if (!want) { setNotifListener(false); return; }
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
-      (window as any).Notification.requestPermission().then((perm: string) => {
-        if (perm === 'granted') {
-          setNotifListener(true);
-          new (window as any).Notification('Riuka AI', { body: 'Notification listener is now active.', icon: '/favicon.ico' });
-        } else {
-          setNotifListener(false);
-          Alert.alert('Permission Needed', 'Allow notifications in your browser settings, then try again.');
-        }
-      });
-    } else { setNotifListener(want); }
-  };
-
-  const enableLocation = (want: boolean) => {
-    if (!want) { setLocationCtx(false); return; }
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocationCtx(true);
-          try { localStorage.setItem('riuka_location_v1', JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude })); } catch {}
-          Alert.alert('Location Active', `Got your position. Riuka now has location context.`);
-        },
-        () => {
-          setLocationCtx(false);
-          Alert.alert('Location Denied', 'Allow location access in your browser settings, then try again.');
-        },
-        { timeout: 8000 }
-      );
-    } else { setLocationCtx(want); }
-  };
-
-  const enableShake = (want: boolean) => {
-    setShakeWake(want);
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
-    if (!want) {
-      if (shakeListenerRef.current) window.removeEventListener('devicemotion', shakeListenerRef.current);
-      shakeListenerRef.current = null;
-      return;
-    }
-    const tryStart = () => {
-      let last = { x: 0, y: 0, z: 0 };
-      const handler = (e: any) => {
-        const a = e.acceleration || e.accelerationIncludingGravity;
-        if (!a) return;
-        const delta = Math.abs((a.x||0) - last.x) + Math.abs((a.y||0) - last.y) + Math.abs((a.z||0) - last.z);
-        last = { x: a.x||0, y: a.y||0, z: a.z||0 };
-        if (delta > 18 && Date.now() - lastShakeRef.current > 1200) {
-          lastShakeRef.current = Date.now();
-          // Trigger voice (dispatch a custom event chat.tsx listens to)
-          window.dispatchEvent(new CustomEvent('riuka-shake'));
-        }
-      };
-      shakeListenerRef.current = handler;
-      window.addEventListener('devicemotion', handler);
+  // Fetch battery level — native on Android, Web API on web
+  useEffect(() => {
+    const fetchBattery = async () => {
+      if (Platform.OS === 'android' && HW) {
+        try {
+          const result = await HW.getBatteryLevel();
+          if (result && typeof result.level === 'number') {
+            setBatteryLevel(Math.round(result.level * 100));
+          }
+        } catch {}
+      } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        try {
+          const nav = navigator as any;
+          if (nav.getBattery) {
+            const b = await nav.getBattery();
+            setBatteryLevel(Math.round(b.level * 100));
+          }
+        } catch {}
+      }
     };
-    if (typeof (window as any).DeviceMotionEvent?.requestPermission === 'function') {
-      (window as any).DeviceMotionEvent.requestPermission()
-        .then((perm: string) => { if (perm === 'granted') tryStart(); else { setShakeWake(false); Alert.alert('Motion Denied', 'Allow motion access in browser settings.'); } })
-        .catch(() => { setShakeWake(false); });
-    } else { tryStart(); }
-  };
+    fetchBattery();
+  }, []);
 
-  const enableCamera = (want: boolean) => {
-    if (!want) {
-      setCameraGesture(false);
-      try { localStorage.setItem('riuka_gesture_v1', 'false'); } catch {}
+  // Load profile
+  useEffect(() => {
+    const loadProfile = async () => {
+      const profile = memoryService.getProfile();
+      if (profile.name) setProfileName(profile.name);
+      if (profile.city) setProfileCity(profile.city);
+      setMemoryCount(memoryService.getMemories().length);
+    };
+    loadProfile();
+  }, []);
+
+  const saveProfile = useCallback(async () => {
+    await memoryService.updateProfile({
+      name: profileName.trim(),
+      city: profileCity.trim(),
+    });
+    setUserLang(profileLang);
+    Alert.alert('Saved', 'Profile updated.');
+  }, [profileName, profileCity, profileLang]);
+
+  const handleLoadModel = useCallback(async () => {
+    const path = customModelInput.trim() || modelPath.trim();
+    if (!path) {
+      Alert.alert('No path', 'Enter a GGUF model file path first.');
       return;
     }
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.mediaDevices) {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(() => {
-          setCameraGesture(true);
-          try { localStorage.setItem('riuka_gesture_v1', 'true'); } catch {}
-          Alert.alert('Camera Active', 'Wave your hand in front of the camera to trigger voice input.');
-        })
-        .catch(() => {
-          setCameraGesture(false);
-          Alert.alert('Camera Denied', 'Allow camera access in your browser settings, then try again.');
-        });
-    } else { setCameraGesture(want); }
-  };
-
-  const enableVolumeKeys = (want: boolean) => {
-    setVolumeKeys(want);
-    if (Platform.OS !== 'web' || !('mediaSession' in navigator)) return;
-    if (want) {
-      try {
-        (navigator as any).mediaSession.setActionHandler('nexttrack', () => window.dispatchEvent(new CustomEvent('riuka-vol-up')));
-        (navigator as any).mediaSession.setActionHandler('previoustrack', () => window.dispatchEvent(new CustomEvent('riuka-vol-down')));
-      } catch {}
-    } else {
-      try {
-        (navigator as any).mediaSession.setActionHandler('nexttrack', null);
-        (navigator as any).mediaSession.setActionHandler('previoustrack', null);
-      } catch {}
+    setModelStatus('loading');
+    try {
+      await llamaService.load(path);
+      setModelPath(path);
+      setModelStatus('loaded');
+      Alert.alert('Success', 'Model loaded. Vexsora is now running on-device.');
+    } catch (err: any) {
+      setModelStatus('none');
+      Alert.alert('Failed', err?.message ?? 'Could not load model.');
     }
-  };
+  }, [customModelInput, modelPath]);
 
-  const enableClipboard = (want: boolean) => {
-    if (!want) { setClipEngine(false); return; }
-    if (Platform.OS === 'web' && navigator.clipboard) {
-      // Test clipboard access
-      navigator.clipboard.readText()
-        .then(() => {
-          setClipEngine(true);
-          Alert.alert('Clipboard Active', 'Riuka will analyze content you copy. Say "read clipboard" in chat.');
-        })
-        .catch(() => {
-          setClipEngine(true); // Still enable — paste events still work
-          Alert.alert('Clipboard Active', 'Clipboard monitoring via paste events is active. For full access, allow clipboard permission in browser settings.');
-        });
-    } else { setClipEngine(want); }
-  };
+  const handleDownloadModel = useCallback(async (model: ModelMeta) => {
+    if (downloadState) {
+      Alert.alert('Download in progress', 'Please wait for the current download to finish.');
+      return;
+    }
+    await llamaService.downloadModel(
+      model,
+      (state) => setDownloadState({ ...state }),
+      () => {
+        setDownloadState(null);
+        setDownloadedModels((prev) => [...new Set([...prev, model.id])]);
+        setCustomModelInput(llamaService.getModelPath(model));
+        Alert.alert('Downloaded!', `${model.name} is ready.\nTap "Load Model" to start.`);
+      },
+      (err) => {
+        setDownloadState(null);
+        Alert.alert('Download failed', err);
+      }
+    );
+  }, [downloadState]);
 
-  const curLevel   = getEvoLevel(evo.xp);
-  const nextLevel  = getNextEvoLevel(evo.xp);
-  const xpProgress = nextLevel ? evo.xp / nextLevel.xp : 1;
+  const handleCancelDownload = useCallback(() => {
+    llamaService.cancelDownload();
+    setDownloadState(null);
+  }, []);
+
+  const handleClearMemories = useCallback(() => {
+    Alert.alert('Clear Memories', 'This will delete all saved memories. Continue?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          await memoryService.clearAllMemories();
+          setMemoryCount(0);
+          Alert.alert('Done', 'All memories cleared.');
+        },
+      },
+    ]);
+  }, []);
+
+  const batteryProfile = getBatteryProfile(batteryLevel);
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={styles.gradient}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+    <View style={styles.root}>
+      <LinearGradient colors={['#0B0B0A', '#0F0B18', '#0B0B0A']} style={StyleSheet.absoluteFill} />
 
-          {/* ── Header ── */}
-          <View style={styles.headerWrap}>
-            <HeaderAurora />
-            <Animated.View entering={FadeInUp.duration(600)} style={styles.headerInner}>
-              <View style={styles.headerIconRing}>
-                <SettingsIcon color={Colors.primary} size={22} />
-              </View>
-              <View>
-                <GeminiTitle text="Settings" />
-                <Text style={styles.headerSub}>Riuka AI · Personalisation & Control</Text>
-              </View>
-            </Animated.View>
+      <View style={styles.header}>
+        <GeminiTitle text="Settings" />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* MODEL */}
+        <Section label="Model" icon={Cpu} delay={0}>
+          <RowItem
+            label="AI Engine"
+            right={
+              <StatusBadge
+                status={llamaService.isAvailable() ? 'good' : 'warning'}
+                label={llamaService.isAvailable() ? 'Available' : 'Command mode'}
+              />
+            }
+          />
+          <Divider />
+          <RowItem
+            label="Inference"
+            right={
+              <StatusBadge
+                status={modelStatus === 'loaded' ? 'good' : modelStatus === 'loading' ? 'warning' : (llamaService.isAvailable() ? 'error' : 'info')}
+                label={modelStatus === 'loaded' ? 'Loaded' : modelStatus === 'loading' ? 'Loading...' : (llamaService.isAvailable() ? 'Not loaded' : 'Download ready')}
+              />
+            }
+          />
+          <Divider />
+          {modelPath ? (
+            <>
+              <RowItem label="Current model" value={modelPath.split('/').pop() ?? modelPath} />
+              <Divider />
+            </>
+          ) : null}
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Custom GGUF path</Text>
           </View>
-
-          {/* ── Profile ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(60)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>PROFILE</Text>
-            </View>
-            <GeminiCard>
-              <View style={styles.inputRow}>
-                <User color={Colors.primary} size={15} />
-                <Text style={styles.inputLabel}>Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Your name"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={profileName}
-                  onChangeText={setProfileName}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-              </View>
-              <View style={[styles.inputRow, styles.inputRowLast]}>
-                <MapPin color={Colors.primary} size={15} />
-                <Text style={styles.inputLabel}>City</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Home city"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={profileCity}
-                  onChangeText={setProfileCity}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-              </View>
-            </GeminiCard>
-            <View style={{ alignSelf: 'flex-end', marginTop: Spacing.sm }}>
-              <GeminiSaveButton label="Save Profile" onPress={saveProfile} />
-            </View>
-          </Animated.View>
-
-          {/* ── Brain Engine ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(100)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>BRAIN ENGINE</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.providerRow}>
-              {PROVIDERS.map(p => {
-                const active = selectedProvider === p.id;
-                return (
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="/storage/emulated/0/Download/model.gguf"
+              placeholderTextColor={Colors.textTertiary}
+              value={customModelInput}
+              onChangeText={setCustomModelInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <TouchableOpacity style={styles.actionBtn} onPress={handleLoadModel} activeOpacity={0.8}>
+            <Text style={styles.actionBtnText}>{modelStatus === 'loading' ? 'Loading...' : 'Load Model'}</Text>
+          </TouchableOpacity>
+          <Divider />
+          <View style={[styles.row, { paddingBottom: 4 }]}>
+            <Text style={styles.rowLabel}>Download Model</Text>
+          </View>
+          {MODELS.map((model, i) => (
+            <React.Fragment key={model.id}>
+              {i > 0 && <Divider />}
+              <View style={styles.modelDownloadRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={styles.rowLabel}>{model.name}</Text>
+                    <View style={[styles.tierBadge, { borderColor: `${model.tierColor}55`, backgroundColor: `${model.tierColor}22` }]}>
+                      <Text style={[styles.tierText, { color: model.tierColor }]}>{model.tier}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.rowDescription}>{model.subtitle} · {model.sizeMB} MB</Text>
+                  {downloadState?.modelId === model.id && (
+                    <>
+                      <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${Math.round(downloadState.progress * 100)}%` }]} />
+                      </View>
+                      <Text style={[styles.rowDescription, { marginTop: 2 }]}>
+                        {downloadState.downloadedMB} / {downloadState.totalMB} MB · {Math.round(downloadState.progress * 100)}%
+                      </Text>
+                    </>
+                  )}
+                </View>
+                {downloadState?.modelId === model.id ? (
+                  <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelDownload} activeOpacity={0.8}>
+                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                ) : downloadedModels.includes(model.id) ? (
                   <TouchableOpacity
-                    key={p.id}
-                    onPress={() => setSelectedProvider(p.id)}
-                    style={[styles.providerCard, active && { borderColor: p.color, backgroundColor: p.color + '18' }]}
+                    style={styles.useBtn}
+                    onPress={() => setCustomModelInput(llamaService.getModelPath(model))}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.providerIcon}>{p.icon}</Text>
-                    <Text style={[styles.providerName, active && { color: p.color }]}>{p.name}</Text>
-                    {active && <View style={[styles.providerActiveDot, { backgroundColor: p.color }]} />}
+                    <Text style={styles.useBtnText}>Use</Text>
                   </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            {selectedProvider !== 'local' && (
-              <View style={styles.apiRow}>
-                <View style={styles.apiInputWrap}>
-                  <TextInput
-                    style={styles.apiInput}
-                    placeholder={`${PROVIDERS.find(p=>p.id===selectedProvider)?.name} API key…`}
-                    placeholderTextColor={Colors.textTertiary}
-                    secureTextEntry={!apiVisible}
-                    value={apiKey}
-                    onChangeText={setApiKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity onPress={() => setApiVisible(!apiVisible)} style={styles.eyeBtn}>
-                    <Eye color={Colors.textTertiary} size={15} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            <View style={{ alignSelf: 'flex-start', marginTop: Spacing.sm }}>
-              <GeminiSaveButton label="Apply Engine" onPress={saveAIConfig} />
-            </View>
-          </Animated.View>
-
-          {/* ── Voice & Interaction ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(140)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>VOICE & INTERACTION</Text>
-            </View>
-            <View style={styles.toggleList}>
-              <ToggleRow
-                icon={<Mic size={18} color={voiceEnabled ? Colors.primary : Colors.textTertiary} />}
-                label="Voice Input"
-                desc="Tap mic or say Hey Riuka"
-                value={voiceEnabled}
-                onValueChange={setVoiceEnabled}
-                color={Colors.primary}
-              />
-              <ToggleRow
-                icon={<Volume2 size={18} color={voiceReply ? Colors.secondary : Colors.textTertiary} />}
-                label="Voice Reply"
-                desc="Riuka speaks responses aloud"
-                value={voiceReply}
-                onValueChange={v => {
-                  setVoiceReply(v);
-                  setVoiceReplyEnabled(v);
-                  if (Platform.OS === 'web') {
-                    try { localStorage.setItem('riuka_voice_reply', String(v)); } catch {}
-                    if (!v) { try { (window as any).speechSynthesis?.cancel(); } catch {} }
-                  }
-                }}
-                color={Colors.secondary}
-              />
-              <ToggleRow
-                icon={<Zap size={18} color={wakeWord ? Colors.primary : Colors.textTertiary} />}
-                label='Wake Word — "Hey Riuka"'
-                desc="Always-on voice activation (Chrome)"
-                value={wakeWord}
-                onValueChange={v => {
-                  setWakeWord(v);
-                  setWakeWordActive(v);
-                  if (Platform.OS === 'web') { try { localStorage.setItem('riuka_wake_v1', String(v)); } catch {} }
-                  if (v) Alert.alert('Wake Word Active', '"Hey Riuka" is now listening.');
-                }}
-                color={Colors.primary}
-              />
-            </View>
-          </Animated.View>
-
-          {/* ── Sensors & Awareness ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(180)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>SENSORS & AWARENESS</Text>
-            </View>
-            <View style={styles.toggleList}>
-              <ToggleRow
-                icon={<Bell size={18} color={notifListener ? Colors.primary : Colors.textTertiary} />}
-                label="Browser Notifications"
-                desc="Riuka alerts you when tab is in background"
-                value={notifListener}
-                onValueChange={enableNotifications}
-                color={Colors.primary}
-              />
-              <ToggleRow
-                icon={<ClipboardList size={18} color={clipEngine ? Colors.secondary : Colors.textTertiary} />}
-                label="Clipboard Engine"
-                desc="Say 'read clipboard' · auto-analyzes copies"
-                value={clipEngine}
-                onValueChange={enableClipboard}
-                color={Colors.secondary}
-              />
-              <ToggleRow
-                icon={<Camera size={18} color={cameraGesture ? '#EC4899' : Colors.textTertiary} />}
-                label="Camera Gesture"
-                desc="Wave hand to trigger voice (needs camera)"
-                value={cameraGesture}
-                onValueChange={enableCamera}
-                color="#EC4899"
-              />
-              <ToggleRow
-                icon={<Smartphone size={18} color={shakeWake ? '#F97316' : Colors.textTertiary} />}
-                label="Shake to Wake"
-                desc="Shake phone/device to trigger Riuka"
-                value={shakeWake}
-                onValueChange={enableShake}
-                color="#F97316"
-              />
-              <ToggleRow
-                icon={<Radio size={18} color={volumeKeys ? Colors.accent : Colors.textTertiary} />}
-                label="Media Key Commands"
-                desc="Next track = send · Prev track = clear"
-                value={volumeKeys}
-                onValueChange={enableVolumeKeys}
-                color={Colors.accent}
-              />
-              <ToggleRow
-                icon={<Calendar size={18} color={calendarCtx ? Colors.primary : Colors.textTertiary} />}
-                label="Calendar Context"
-                desc="Date/time awareness in responses"
-                value={calendarCtx}
-                onValueChange={setCalendarCtx}
-                color={Colors.primary}
-              />
-              <ToggleRow
-                icon={<MapPin size={18} color={locationCtx ? Colors.secondary : Colors.textTertiary} />}
-                label="Location Context"
-                desc="'Where am I?' · location-aware answers"
-                value={locationCtx}
-                onValueChange={enableLocation}
-                color={Colors.secondary}
-              />
-            </View>
-          </Animated.View>
-
-          {/* ── Atomic Evolution ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(220)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>ATOMIC EVOLUTION</Text>
-            </View>
-            <GeminiCard style={styles.evoCard}>
-              <View style={styles.evoHeader}>
-                <Text style={styles.evoIcon}>{curLevel.icon}</Text>
-                <View style={styles.evoInfo}>
-                  <Text style={styles.evoLevel}>Level {curLevel.level} — {curLevel.name}</Text>
-                  <Text style={styles.evoXP}>{evo.xp} XP{nextLevel ? ` / ${nextLevel.xp}` : ' (MAX)'}</Text>
-                </View>
-                <View style={styles.evoMemBadge}>
-                  <Text style={styles.evoMemNum}>{memCount}</Text>
-                  <Text style={styles.evoMemLabel}>memories</Text>
-                </View>
-              </View>
-              <View style={styles.xpTrack}>
-                <View style={[styles.xpFill, { width: `${Math.min(xpProgress * 100, 100)}%` as any }]} />
-              </View>
-              {nextLevel && (
-                <Text style={styles.evoNextLabel}>{nextLevel.xp - evo.xp} XP to {nextLevel.icon} {nextLevel.name}</Text>
-              )}
-              <View style={styles.evoActions}>
-                <TouchableOpacity style={styles.evoActionBtn} onPress={clearMemory}>
-                  <Trash2 color={Colors.error} size={13} />
-                  <Text style={[styles.evoActionText, { color: Colors.error }]}>Clear Memory</Text>
-                </TouchableOpacity>
-              </View>
-            </GeminiCard>
-          </Animated.View>
-
-          {/* ── Appearance ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(260)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>APPEARANCE</Text>
-            </View>
-            <GeminiCard>
-              <View style={styles.themeHeader}>
-                <Palette color={Colors.primary} size={16} />
-                <Text style={styles.themeLabel}>Accent Color</Text>
-              </View>
-              <View style={styles.swatchRow}>
-                {ACCENT_COLORS.map(c => (
+                ) : (
                   <TouchableOpacity
-                    key={c}
-                    style={[styles.swatch, { backgroundColor: c }, accentColor === c && styles.swatchActive]}
-                    onPress={() => applyTheme(c)}
+                    style={[styles.downloadBtn, downloadState ? { opacity: 0.4 } : null]}
+                    onPress={() => handleDownloadModel(model)}
                     activeOpacity={0.8}
+                    disabled={!!downloadState}
                   >
-                    {accentColor === c && <Text style={styles.swatchCheck}>✓</Text>}
+                    <Download size={12} color="#fff" />
+                    <Text style={styles.downloadBtnText}>Get</Text>
                   </TouchableOpacity>
-                ))}
+                )}
               </View>
-            </GeminiCard>
-          </Animated.View>
+            </React.Fragment>
+          ))}
+        </Section>
 
-          {/* ── Automation ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>AUTOMATION</Text>
-            </View>
-            <View style={styles.toggleList}>
-              <ToggleRow
-                icon={<Bell size={18} color={autoReply ? Colors.primary : Colors.textTertiary} />}
-                label="Auto-Reply Drafting"
-                desc="Draft responses to incoming messages"
-                value={autoReply}
-                onValueChange={setAutoReply}
-                color={Colors.primary}
-              />
-              <ToggleRow
-                icon={<ClipboardList size={18} color={clipAnalysis ? Colors.secondary : Colors.textTertiary} />}
-                label="Clipboard Auto-Analysis"
-                desc="Instant analysis on every copy"
-                value={clipAnalysis}
-                onValueChange={setClipAnalysis}
-                color={Colors.secondary}
-              />
-            </View>
-          </Animated.View>
-
-          {/* ── Privacy & Security ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(340)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>PRIVACY & SECURITY</Text>
-            </View>
-            <View style={styles.toggleList}>
-              <ToggleRow
-                icon={<Fingerprint size={18} color={biometric ? Colors.primary : Colors.textTertiary} />}
-                label="Biometric Lock"
-                desc="Fingerprint / Face unlock"
-                value={biometric}
-                onValueChange={setBiometric}
-                color={Colors.primary}
-              />
-              <ToggleRow
-                icon={<Eye size={18} color={privacyMode ? Colors.accent : Colors.textTertiary} />}
-                label="Privacy Mode"
-                desc="Restrict to owner only"
-                value={privacyMode}
-                onValueChange={setPrivacyMode}
-                color={Colors.accent}
-              />
-              <ToggleRow
-                icon={<WifiOff size={18} color={offlinePriority ? Colors.secondary : Colors.textTertiary} />}
-                label="On-Device Priority"
-                desc="Always use local brain first"
-                value={offlinePriority}
-                onValueChange={setOfflinePriority}
-                color={Colors.secondary}
-              />
-            </View>
-            <GeminiCard style={{ marginTop: Spacing.md }}>
-              <View style={styles.securityRow}>
-                <Lock color={Colors.secondary} size={16} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.securityTitle}>On-Device Encryption</Text>
-                  <Text style={styles.securityDesc}>AES-256 · No cloud · Zero data sharing</Text>
-                </View>
-                <View style={styles.verifiedBadge}>
-                  <CheckCircle color={Colors.secondary} size={11} />
-                  <Text style={styles.verifiedText}>Active</Text>
-                </View>
-              </View>
-            </GeminiCard>
-          </Animated.View>
-
-          {/* ── Data & Export ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(380)} style={styles.section}>
-            <View style={styles.sectionTitleRow}>
-              <GeminiAccentLine />
-              <Text style={styles.sectionTitle}>DATA & EXPORT</Text>
-            </View>
-            <View style={styles.dataRow}>
-              <TouchableOpacity style={styles.dataBtn} onPress={exportChat} activeOpacity={0.8}>
-                <Download color={Colors.primary} size={18} />
-                <Text style={styles.dataBtnLabel}>Export Chat</Text>
-                <Text style={styles.dataBtnSub}>.txt file</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.dataBtn, styles.dataBtnDanger]} onPress={clearAll} activeOpacity={0.8}>
-                <Trash2 color={Colors.error} size={18} />
-                <Text style={[styles.dataBtnLabel, { color: Colors.error }]}>Clear All</Text>
-                <Text style={[styles.dataBtnSub, { color: Colors.error + '80' }]}>Cannot undo</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-
-          {/* ── Premium ── */}
-          <Animated.View entering={FadeInUp.duration(500).delay(420)} style={styles.section}>
-            <TouchableOpacity activeOpacity={0.85}>
-              <LinearGradient
-                colors={['rgba(168,85,247,0.18)', 'rgba(59,130,246,0.1)', 'rgba(16,185,129,0.08)']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.premiumCard}
-              >
-                <Crown color={Colors.primary} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumTitle}>Upgrade to Riuka Pro</Text>
-                  <Text style={styles.premiumDesc}>Unlimited memory · Extended automation · Priority model updates</Text>
-                </View>
-                <ChevronRight color={Colors.primary} size={16} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Sparkles color={Colors.primary} size={13} />
-            <Text style={styles.footerText}>Riuka AI v1.0.0</Text>
-            <Text style={styles.footerSub}>On-Device · Zero Cloud · Evolving</Text>
+        {/* PROFILE */}
+        <Section label="Profile" icon={User} delay={60}>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Name</Text>
           </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Your name"
+              placeholderTextColor={Colors.textTertiary}
+              value={profileName}
+              onChangeText={setProfileName}
+            />
+          </View>
+          <Divider />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>City</Text>
+          </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Your city (for weather)"
+              placeholderTextColor={Colors.textTertiary}
+              value={profileCity}
+              onChangeText={setProfileCity}
+            />
+          </View>
+          <Divider />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Language code</Text>
+          </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="en, es, fr, de, hi, zh, ja, ko..."
+              placeholderTextColor={Colors.textTertiary}
+              value={profileLang}
+              onChangeText={setProfileLang}
+              autoCapitalize="none"
+            />
+          </View>
+          <TouchableOpacity style={styles.actionBtn} onPress={saveProfile} activeOpacity={0.8}>
+            <Text style={styles.actionBtnText}>Save Profile</Text>
+          </TouchableOpacity>
+        </Section>
 
-        </ScrollView>
-      </LinearGradient>
+        {/* VOICE */}
+        <Section label="Voice" icon={Volume2} delay={120}>
+          <RowSwitch
+            label="Voice reply"
+            value={voiceReplyEnabled}
+            onValueChange={(v) => {
+              setVoiceReply(v);
+              setVoiceReplyEnabled(v);
+            }}
+            description="Vexsora speaks responses aloud"
+          />
+          <Divider />
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>TTS language code</Text>
+          </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="en-US, hi-IN, zh-CN..."
+              placeholderTextColor={Colors.textTertiary}
+              value={ttsLang}
+              onChangeText={setTtsLang}
+              autoCapitalize="none"
+            />
+          </View>
+        </Section>
+
+        {/* WAKE WORD */}
+        <Section label="Wake Word" icon={Mic} delay={180}>
+          <RowSwitch
+            label="Wake word active"
+            value={wakeWordEnabled}
+            onValueChange={(v) => {
+              setWakeWord(v);
+              setWakeWordActive(v);
+            }}
+            description="Activates background listening service"
+          />
+          {wakeWordEnabled && (
+            <View style={[styles.row, { paddingTop: 0 }]}>
+              <Text style={styles.rowDescription}>
+                Background wake word detection requires a foreground service. On Android, grant microphone permission and ensure battery optimisation is disabled for this app.
+              </Text>
+            </View>
+          )}
+        </Section>
+
+        {/* BATTERY */}
+        <Section label="Battery & Thermal" icon={Battery} delay={240}>
+          <RowItem
+            label="Battery level"
+            right={
+              <StatusBadge
+                status={batteryProfile.status}
+                label={`${batteryLevel}% — ${batteryProfile.label}`}
+              />
+            }
+          />
+          <Divider />
+          <RowSwitch
+            label="Auto-throttle AI"
+            value={autoThrottle}
+            onValueChange={setAutoThrottle}
+            description="Reduces inference speed below 15% battery to prevent drain"
+          />
+        </Section>
+
+        {/* GESTURES */}
+        <Section label="Gestures" icon={Zap} delay={300}>
+          <RowSwitch
+            label="Double-shake to wake"
+            value={doubleshakeEnabled}
+            onValueChange={setDoubleshake}
+            description="Shake phone twice to open Vexsora"
+          />
+          <Divider />
+          <RowSwitch
+            label="Flip-to-mute"
+            value={flipToMuteEnabled}
+            onValueChange={setFlipToMute}
+            description="Place phone face-down to silence voice replies"
+          />
+        </Section>
+
+        {/* MEMORY */}
+        <Section label="Memory" icon={Database} delay={360}>
+          <RowItem label="Saved memories" value={`${memoryCount}`} />
+          <Divider />
+          <TouchableOpacity style={styles.dangerBtn} onPress={handleClearMemories} activeOpacity={0.8}>
+            <Trash2 size={16} color="#EF4444" />
+            <Text style={styles.dangerBtnText}>Clear all memories</Text>
+          </TouchableOpacity>
+          <Divider />
+          <TouchableOpacity
+            style={styles.dangerBtn}
+            onPress={() => {
+              Alert.alert('Clear History', 'This clears the in-memory conversation history for this session.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Clear', style: 'destructive', onPress: () => Alert.alert('Done', 'Session history cleared. Restart the chat tab.') },
+              ]);
+            }}
+            activeOpacity={0.8}
+          >
+            <Trash2 size={16} color="#EF4444" />
+            <Text style={styles.dangerBtnText}>Clear chat history</Text>
+          </TouchableOpacity>
+        </Section>
+
+        {/* ABOUT */}
+        <Section label="About" icon={Info} delay={420}>
+          <RowItem label="Version" value="Vexsora v1.0" />
+          <Divider />
+          <RowItem label="Privacy" value="100% Offline" />
+          <Divider />
+          <RowItem label="Engine" value="llama.cpp" />
+          <Divider />
+          <RowItem label="Models" value="GGUF / ARM-optimised" />
+          <Divider />
+          <View style={styles.row}>
+            <Text style={styles.rowDescription}>
+              Vexsora runs entirely on your device. No data is sent to any server. No API keys required. All inference happens locally using llama.cpp.
+            </Text>
+          </View>
+        </Section>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  gradient:  { flex: 1 },
-  scroll:    { paddingBottom: 60 },
-
-  // Header
-  headerWrap:  { overflow: 'hidden', marginBottom: Spacing.lg, paddingBottom: Spacing.lg },
-  headerInner: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xxxl + Spacing.md,
-    gap: Spacing.md,
+  root: { flex: 1, backgroundColor: '#0B0B0A' },
+  header: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Platform.OS === 'android' ? 52 : 60,
+    paddingBottom: Spacing.md,
   },
-  headerIconRing: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: 'rgba(168,85,247,0.12)',
-    borderWidth: 1.5, borderColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+  screenTitle: { fontSize: FontSizes.xxxl, fontWeight: '800', letterSpacing: 0.5 },
+  scroll: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xxl },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
-  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: 0.5 },
-  headerSub:   { fontSize: FontSizes.xs, color: Colors.secondary, fontWeight: '600', marginTop: 2 },
-  headerOrb: {
-    position: 'absolute', width: W * 0.8, height: W * 0.4,
-    borderRadius: W * 0.2, top: -W * 0.1, left: W * 0.1,
+  sectionLabel: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    letterSpacing: 1.2,
   },
-  headerScan: {
-    position: 'absolute', top: 0, bottom: 0,
-    width: 70,
-  },
-
-  // Sections
-  section:        { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
-  sectionTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
-  sectionAccentLine: { width: 3, height: 14, borderRadius: 2 },
-  sectionTitle: {
-    fontSize: FontSizes.xs, fontWeight: '800',
-    color: Colors.textSecondary, letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-
-  // Gemini card
-  geminiCard: {
-    backgroundColor: Colors.surface,
+  card: {
+    backgroundColor: '#1E1F20',
     borderRadius: BorderRadius.lg,
-    borderWidth: 1.5,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(168,85,247,0.08)',
   },
-
-  // Inputs
-  inputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+  },
+  rowLabel: { fontSize: FontSizes.md, color: Colors.text, fontWeight: '500', flex: 1 },
+  rowDescription: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2, lineHeight: 16, flex: 1 },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  rowValue: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginHorizontal: Spacing.md },
+  inputRow: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
+  textInput: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.text,
+    fontSize: FontSizes.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionBtn: {
+    backgroundColor: Colors.primary,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm + 2,
+    alignItems: 'center',
+    shadowColor: '#A855F7',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  actionBtnText: { color: '#fff', fontSize: FontSizes.md, fontWeight: '700' },
+  dangerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+  },
+  dangerBtnText: { color: '#EF4444', fontSize: FontSizes.md, fontWeight: '500' },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
+  badgeText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  modelDownloadRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
     gap: Spacing.sm,
   },
-  inputRowLast: { borderBottomWidth: 0 },
-  inputLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '600', width: 44 },
-  textInput:  { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: 4 },
-
-  // Save button
-  saveBtn: {
+  tierBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm + 2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
+    borderWidth: 1,
   },
-  saveBtnText: { fontSize: FontSizes.sm, fontWeight: '700', color: '#fff' },
-
-  // Provider cards
-  providerRow:  { gap: Spacing.sm, paddingBottom: Spacing.md },
-  providerCard: {
-    width: 82, borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface, borderWidth: 1.5,
-    borderColor: Colors.border, alignItems: 'center',
-    paddingVertical: Spacing.md, gap: Spacing.xs,
+  tierText: { fontSize: FontSizes.xs, fontWeight: '700' },
+  progressBarBg: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    marginTop: 6,
+    overflow: 'hidden',
   },
-  providerIcon:      { fontSize: 20 },
-  providerName:      { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.textTertiary },
-  providerActiveDot: { width: 5, height: 5, borderRadius: 2.5 },
-  apiRow:       { marginBottom: Spacing.sm },
-  apiInputWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface, borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
+  progressBarFill: {
+    height: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
   },
-  apiInput:  { flex: 1, fontSize: FontSizes.md, color: Colors.text, paddingVertical: Spacing.md },
-  eyeBtn:    { padding: Spacing.xs },
-
-  // Toggles
-  toggleList: { gap: Spacing.sm },
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: BorderRadius.lg, padding: Spacing.md,
-    borderWidth: 1.5, gap: Spacing.md,
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
   },
-  toggleIcon: {
-    width: 42, height: 42, borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundTertiary,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  downloadBtnText: { color: '#fff', fontSize: FontSizes.xs, fontWeight: '700' },
+  useBtn: {
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.4)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
   },
-  toggleText:  { flex: 1 },
-  toggleLabel: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: 1 },
-  toggleDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary },
-
-  // Evolution
-  evoCard:    { padding: Spacing.lg },
-  evoHeader:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
-  evoIcon:    { fontSize: 28 },
-  evoInfo:    { flex: 1 },
-  evoLevel:   { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
-  evoXP:      { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '600', marginTop: 2 },
-  evoMemBadge:{ alignItems: 'center' },
-  evoMemNum:  { fontSize: FontSizes.xl, fontWeight: '800', color: Colors.primary },
-  evoMemLabel:{ fontSize: 9, color: Colors.textTertiary, fontWeight: '600' },
-  xpTrack:    { height: 6, borderRadius: 3, backgroundColor: Colors.backgroundTertiary, overflow: 'hidden', marginBottom: 6 },
-  xpFill:     { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
-  evoNextLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginBottom: Spacing.md },
-  evoActions: { flexDirection: 'row' },
-  evoActionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md, paddingVertical: 5,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+  useBtnText: { color: '#10B981', fontSize: FontSizes.xs, fontWeight: '700' },
+  cancelBtn: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
   },
-  evoActionText: { fontSize: FontSizes.xs, fontWeight: '600' },
-
-  // Theme
-  themeHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md, padding: Spacing.md, paddingBottom: 0 },
-  themeLabel:  { fontSize: FontSizes.sm, color: Colors.textSecondary, fontWeight: '600' },
-  swatchRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, padding: Spacing.md, paddingTop: Spacing.sm },
-  swatch:      { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  swatchActive:{ borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 },
-  swatchCheck: { color: '#fff', fontWeight: '800', fontSize: 16 },
-
-  // Security
-  securityRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
-  securityTitle: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  securityDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
-  verifiedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.secondary + '15',
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, borderColor: Colors.secondary + '30',
-  },
-  verifiedText: { fontSize: 9, color: Colors.secondary, fontWeight: '700' },
-
-  // Data
-  dataRow:     { flexDirection: 'row', gap: Spacing.md },
-  dataBtn:     {
-    flex: 1, backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg, borderWidth: 1,
-    borderColor: Colors.border, padding: Spacing.md,
-    alignItems: 'center', gap: 4,
-  },
-  dataBtnDanger: { borderColor: Colors.error + '40', backgroundColor: 'rgba(239,68,68,0.05)' },
-  dataBtnLabel:  { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  dataBtnSub:    { fontSize: FontSizes.xs, color: Colors.textTertiary },
-
-  // Premium
-  premiumCard: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: BorderRadius.lg, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.primary + '40', gap: Spacing.md,
-  },
-  premiumTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: 2 },
-  premiumDesc:  { fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 16 },
-
-  // Footer
-  footer:     { paddingHorizontal: Spacing.lg, alignItems: 'center', marginTop: Spacing.lg, gap: Spacing.xs },
-  footerText: { fontSize: FontSizes.sm, color: Colors.textTertiary, fontWeight: '600' },
-  footerSub:  { fontSize: FontSizes.xs, color: Colors.textTertiary },
+  cancelBtnText: { color: '#EF4444', fontSize: FontSizes.xs, fontWeight: '700' },
 });

@@ -1,645 +1,519 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Alert,
-  Switch,
   Linking,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+  interpolateColor,
+} from 'react-native-reanimated';
 import {
-  Zap,
-  Play,
-  Clock,
-  Shield,
-  Bell,
-  ChevronRight,
-  Layers,
-  Sun,
-  Music,
-  Share2,
+  MessageSquare, Youtube, Clock, Map, Smartphone,
+  Settings, ChevronRight, CheckCircle, XCircle, History, Zap,
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 
-interface Workflow {
-  id: string;
-  name: string;
-  trigger: string;
-  steps: string[];
-  enabled: boolean;
-  lastRun: string;
-  status: 'idle' | 'running' | 'done' | 'error';
-  color: string;
+const GEMINI = ['#A855F7', '#3B82F6', '#10B981', '#EC4899', '#A855F7'] as const;
+
+// ── Gemini color-cycling title ────────────────────────────────────────────────
+function GeminiTitle({ text }: { text: string }) {
+  const p = useSharedValue(0);
+  React.useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: 4500, easing: Easing.linear }), -1, false);
+  }, []);
+  const s = useAnimatedStyle(() => ({
+    color: interpolateColor(p.value, [0, 0.25, 0.5, 0.75, 1], [...GEMINI]),
+  }));
+  return <Animated.Text style={[styles.screenTitle, s]}>{text}</Animated.Text>;
 }
 
-const PRESET_WORKFLOWS: Workflow[] = [
-  {
-    id: '1',
-    name: 'Business Reply Pipeline',
-    trigger: 'Incoming WhatsApp message',
-    steps: ['Parse message intent', 'Check calendar availability', 'Locate relevant files', 'Draft response', 'Confirm & send'],
-    enabled: true,
-    lastRun: '2 min ago',
-    status: 'done',
-    color: Colors.secondary,
-  },
-  {
-    id: '2',
-    name: 'Clipboard Analyzer',
-    trigger: 'Any clipboard copy event',
-    steps: ['Capture clipboard buffer', 'Classify content type', 'Analyze / summarize', 'Surface action panel'],
-    enabled: true,
-    lastRun: '14 min ago',
-    status: 'done',
-    color: Colors.primary,
-  },
-  {
-    id: '3',
-    name: 'Meeting Auto-Brief',
-    trigger: 'Calendar event in 30 min',
-    steps: ['Scan calendar event details', 'Pull related messages', 'Generate meeting brief', 'Push notification summary'],
-    enabled: false,
-    lastRun: 'Never',
-    status: 'idle',
-    color: Colors.accent,
-  },
-  {
-    id: '4',
-    name: 'Delivery Tracker',
-    trigger: 'SMS with tracking number',
-    steps: ['Extract tracking code', 'Query carrier endpoint', 'Format status update', 'Reply with ETA'],
-    enabled: false,
-    lastRun: 'Never',
-    status: 'idle',
-    color: '#F59E0B',
-  },
-];
-
-// ── Preset automation tiles with real Linking actions ─────────────────────
-interface PresetAutomation {
-  id: string;
-  name: string;
-  description: string;
-  icon: any;
-  color: string;
-  steps: string[];
-  action: () => Promise<void>;
+// ── Section header ────────────────────────────────────────────────────────────
+function SectionHeader({ label, icon: Icon }: { label: string; icon: React.ComponentType<any> }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Icon size={14} color={Colors.primary} />
+      <Text style={styles.sectionLabel}>{label.toUpperCase()}</Text>
+    </View>
+  );
 }
 
-const PRESET_AUTOMATIONS: PresetAutomation[] = [
-  {
-    id: 'morning',
-    name: 'Morning Briefing',
-    description: 'Opens news + announces the time',
-    icon: Sun,
-    color: '#F59E0B',
-    steps: ['Check current time', 'Open top news feed', 'Brief you on the day'],
-    action: async () => {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      const dayStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-      Alert.alert(
-        'Morning Briefing',
-        `Good morning! It\'s ${timeStr} on ${dayStr}.\n\nOpening Google News for your daily briefing...`,
-        [
-          { text: 'Skip', style: 'cancel' },
-          {
-            text: 'Open News',
-            onPress: () => Linking.openURL('https://news.google.com'),
-          },
-        ]
-      );
-    },
-  },
-  {
-    id: 'focus',
-    name: 'Focus Mode',
-    description: 'Opens Spotify to get in the zone',
-    icon: Music,
-    color: Colors.secondary,
-    steps: ['Launch Spotify', 'Open focus playlist', 'Minimize distractions'],
-    action: async () => {
-      try {
-        if (Platform.OS === 'android') {
-          const canOpen = await Linking.canOpenURL('spotify://');
-          if (canOpen) {
-            await Linking.openURL('spotify://');
-            return;
-          }
-        }
-        await Linking.openURL('https://open.spotify.com');
-      } catch {
-        await Linking.openURL('https://open.spotify.com');
-      }
-    },
-  },
-  {
-    id: 'share',
-    name: 'Quick Share',
-    description: 'Opens WhatsApp to share instantly',
-    icon: Share2,
-    color: Colors.primary,
-    steps: ['Open WhatsApp', 'Go to contacts', 'Ready to share'],
-    action: async () => {
-      try {
-        if (Platform.OS === 'android') {
-          const canOpen = await Linking.canOpenURL('whatsapp://');
-          if (canOpen) {
-            await Linking.openURL('whatsapp://');
-            return;
-          }
-        }
-        // Web fallback — WhatsApp web
-        await Linking.openURL('https://web.whatsapp.com');
-      } catch {
-        await Linking.openURL('https://web.whatsapp.com');
-      }
-    },
-  },
+// ── Action card ───────────────────────────────────────────────────────────────
+function ActionCard({
+  title,
+  icon: Icon,
+  delay,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<any>;
+  delay?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Animated.View entering={FadeInUp.delay(delay ?? 0).duration(400)} style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Icon size={18} color={Colors.primary} />
+        <Text style={styles.cardTitle}>{title}</Text>
+      </View>
+      <View style={styles.cardBody}>{children}</View>
+    </Animated.View>
+  );
+}
+
+// ── Input component ───────────────────────────────────────────────────────────
+function Field({
+  placeholder,
+  value,
+  onChangeText,
+  label,
+  autoCapitalize,
+}: {
+  placeholder: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  label?: string;
+  autoCapitalize?: 'none' | 'words' | 'sentences';
+}) {
+  return (
+    <View style={styles.fieldWrap}>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      <TextInput
+        style={styles.fieldInput}
+        placeholder={placeholder}
+        placeholderTextColor={Colors.textTertiary}
+        value={value}
+        onChangeText={onChangeText}
+        autoCapitalize={autoCapitalize ?? 'sentences'}
+      />
+    </View>
+  );
+}
+
+// ── Run button ────────────────────────────────────────────────────────────────
+function RunButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.runBtn} onPress={onPress} activeOpacity={0.8}>
+      <Text style={styles.runBtnText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── Divider ───────────────────────────────────────────────────────────────────
+function Divider() {
+  return <View style={styles.divider} />;
+}
+
+// ── History item ──────────────────────────────────────────────────────────────
+interface HistoryItem {
+  id: string;
+  action: string;
+  detail: string;
+  time: string;
+  success: boolean;
+}
+
+// ── App names for "Open App" dropdown ────────────────────────────────────────
+const APP_OPTIONS = [
+  { label: 'WhatsApp', url: 'whatsapp://', fallback: 'https://web.whatsapp.com' },
+  { label: 'YouTube', url: 'https://youtube.com', fallback: 'https://youtube.com' },
+  { label: 'Spotify', url: 'spotify://', fallback: 'https://open.spotify.com' },
+  { label: 'Gmail', url: 'https://mail.google.com', fallback: 'https://mail.google.com' },
+  { label: 'Maps', url: 'https://maps.google.com', fallback: 'https://maps.google.com' },
+  { label: 'Settings', url: 'android.settings.SETTINGS', fallback: 'app-settings:' },
 ];
 
-const statusColor = (s: Workflow['status']) => {
-  switch (s) {
-    case 'running': return Colors.primary;
-    case 'done': return Colors.secondary;
-    case 'error': return Colors.error;
-    default: return Colors.textTertiary;
-  }
-};
-
-const statusLabel = (s: Workflow['status']) => {
-  switch (s) {
-    case 'running': return 'RUNNING';
-    case 'done': return 'COMPLETE';
-    case 'error': return 'ERROR';
-    default: return 'IDLE';
-  }
-};
-
+// ── Main Automation screen ────────────────────────────────────────────────────
 export default function AutomationScreen() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(PRESET_WORKFLOWS);
-  const [runningId, setRunningId] = useState<string | null>(null);
-  const [presetStatus, setPresetStatus] = useState<Record<string, 'idle' | 'running' | 'done'>>({
-    morning: 'idle', focus: 'idle', share: 'idle',
-  });
+  // WhatsApp
+  const [waContact, setWaContact] = useState('');
+  const [waMessage, setWaMessage] = useState('');
 
-  const runPreset = async (preset: PresetAutomation) => {
-    setPresetStatus((prev) => ({ ...prev, [preset.id]: 'running' }));
+  // YouTube
+  const [ytQuery, setYtQuery] = useState('');
+
+  // Alarm
+  const [alarmHour, setAlarmHour] = useState('7');
+  const [alarmMinute, setAlarmMinute] = useState('00');
+
+  // Navigation
+  const [navDest, setNavDest] = useState('');
+
+  // Open app
+  const [selectedApp, setSelectedApp] = useState(0);
+
+  // History
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+
+  const addHistory = useCallback((action: string, detail: string, success: boolean) => {
+    setHistory((prev) => [
+      {
+        id: `h_${Date.now()}`,
+        action,
+        detail,
+        time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        success,
+      },
+      ...prev.slice(0, 4),
+    ]);
+  }, []);
+
+  // WhatsApp send
+  const handleWaSend = useCallback(async () => {
+    if (!waContact.trim()) { Alert.alert('Missing contact', 'Enter a phone number or name.'); return; }
+    const num = waContact.replace(/[^\d+]/g, '');
+    const msg = encodeURIComponent(waMessage.trim());
+    const url = num ? `https://wa.me/${num}${msg ? `?text=${msg}` : ''}` : `whatsapp://`;
     try {
-      await preset.action();
+      await Linking.openURL(url);
+      addHistory('WhatsApp', `To: ${waContact}`, true);
     } catch {
-      // silently ignore — Linking errors handled inside action
+      addHistory('WhatsApp', 'Failed to open', false);
     }
-    // Mark done after a short delay so the UI shows "Running..." briefly
-    setTimeout(() => {
-      setPresetStatus((prev) => ({ ...prev, [preset.id]: 'done' }));
-      // Reset back to idle after 3s
-      setTimeout(() => {
-        setPresetStatus((prev) => ({ ...prev, [preset.id]: 'idle' }));
-      }, 3000);
-    }, 1200);
-  };
+  }, [waContact, waMessage, addHistory]);
 
-  const toggleWorkflow = (id: string) => {
-    setWorkflows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, enabled: !w.enabled } : w))
-    );
-  };
+  // YouTube search
+  const handleYtSearch = useCallback(async () => {
+    if (!ytQuery.trim()) { Alert.alert('Enter a search query.'); return; }
+    const q = encodeURIComponent(ytQuery.trim());
+    try {
+      const ytDeep = `vnd.youtube://results?search_query=${q}`;
+      const ytWeb = `https://www.youtube.com/results?search_query=${q}`;
+      const canDeep = await Linking.canOpenURL(ytDeep).catch(() => false);
+      await Linking.openURL(canDeep ? ytDeep : ytWeb);
+      addHistory('YouTube Search', ytQuery, true);
+    } catch {
+      addHistory('YouTube Search', 'Failed', false);
+    }
+  }, [ytQuery, addHistory]);
 
-  const runWorkflow = (id: string) => {
-    Alert.alert(
-      'Confirm Execution',
-      'Riuka will execute this automation pipeline. Proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Execute',
-          onPress: () => {
-            setRunningId(id);
-            setWorkflows((prev) =>
-              prev.map((w) => (w.id === id ? { ...w, status: 'running' } : w))
-            );
-            setTimeout(() => {
-              setWorkflows((prev) =>
-                prev.map((w) =>
-                  w.id === id ? { ...w, status: 'done', lastRun: 'Just now' } : w
-                )
-              );
-              setRunningId(null);
-            }, 2500);
-          },
-        },
-      ]
-    );
-  };
+  // Set alarm
+  const handleSetAlarm = useCallback(async () => {
+    const h = parseInt(alarmHour, 10);
+    const m = parseInt(alarmMinute, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+      Alert.alert('Invalid time', 'Enter a valid hour (0–23) and minute (0–59).');
+      return;
+    }
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL(`intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};end`);
+        addHistory('Set Alarm', `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, true);
+        return;
+      } catch {}
+    }
+    await Linking.openURL('https://www.online-stopwatch.com/alarm-clock/');
+    addHistory('Set Alarm', `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} (web fallback)`, true);
+  }, [alarmHour, alarmMinute, addHistory]);
 
-  const enabledCount = workflows.filter((w) => w.enabled).length;
+  // Navigate
+  const handleNavigate = useCallback(async () => {
+    if (!navDest.trim()) { Alert.alert('Enter a destination.'); return; }
+    const dest = encodeURIComponent(navDest.trim());
+    try {
+      if (Platform.OS === 'android') {
+        const gmapsIntent = `google.navigation:q=${dest}`;
+        const canOpen = await Linking.canOpenURL(gmapsIntent).catch(() => false);
+        if (canOpen) {
+          await Linking.openURL(gmapsIntent);
+          addHistory('Navigate', navDest, true);
+          return;
+        }
+      }
+      await Linking.openURL(`https://maps.google.com/maps?daddr=${dest}`);
+      addHistory('Navigate', navDest, true);
+    } catch {
+      addHistory('Navigate', 'Failed', false);
+    }
+  }, [navDest, addHistory]);
+
+  // Open app
+  const handleOpenApp = useCallback(async () => {
+    const app = APP_OPTIONS[selectedApp];
+    try {
+      const canOpen = await Linking.canOpenURL(app.url).catch(() => false);
+      await Linking.openURL(canOpen ? app.url : app.fallback);
+      addHistory('Open App', app.label, true);
+    } catch {
+      try { await Linking.openURL(app.fallback); addHistory('Open App', app.label, true); }
+      catch { addHistory('Open App', `${app.label} failed`, false); }
+    }
+  }, [selectedApp, addHistory]);
+
+  // Accessibility settings
+  const handleGrantAccessibility = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL('android.settings.ACCESSIBILITY_SETTINGS');
+      } catch {
+        Alert.alert('Could not open', 'Please open Settings > Accessibility manually.');
+      }
+    } else {
+      Alert.alert('Android only', 'Accessibility Service is an Android-only feature.');
+    }
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={styles.gradient}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <View style={styles.root}>
+      <LinearGradient colors={['#0B0B0A', '#0F0B18', '#0B0B0A']} style={StyleSheet.absoluteFill} />
 
-          {/* Header */}
-          <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.headerIcon}>
-                <Zap color={Colors.accent} size={22} />
-              </View>
-              <View>
-                <Text style={styles.headerTitle}>Automation</Text>
-                <Text style={styles.headerSub}>Cross-App Workflow Engine</Text>
-              </View>
+      <View style={styles.header}>
+        <GeminiTitle text="Automate" />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* QUICK ACTIONS */}
+        <SectionHeader label="Quick Actions" icon={Zap} />
+
+        {/* WhatsApp */}
+        <ActionCard title="Text on WhatsApp" icon={MessageSquare} delay={0}>
+          <Field
+            label="Contact (phone number)"
+            placeholder="+1234567890"
+            value={waContact}
+            onChangeText={setWaContact}
+            autoCapitalize="none"
+          />
+          <Field
+            label="Message"
+            placeholder="Type your message..."
+            value={waMessage}
+            onChangeText={setWaMessage}
+          />
+          <RunButton label="Open WhatsApp" onPress={handleWaSend} />
+        </ActionCard>
+
+        {/* YouTube */}
+        <ActionCard title="YouTube Search" icon={Youtube} delay={60}>
+          <Field
+            label="Search query"
+            placeholder="lo-fi hip hop music"
+            value={ytQuery}
+            onChangeText={setYtQuery}
+          />
+          <RunButton label="Search YouTube" onPress={handleYtSearch} />
+        </ActionCard>
+
+        {/* Alarm */}
+        <ActionCard title="Set Alarm" icon={Clock} delay={120}>
+          <View style={styles.timeRow}>
+            <View style={styles.timeField}>
+              <Text style={styles.fieldLabel}>Hour (0–23)</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="7"
+                placeholderTextColor={Colors.textTertiary}
+                value={alarmHour}
+                onChangeText={setAlarmHour}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
             </View>
-            <View style={styles.headerBadge}>
-              <Text style={styles.headerBadgeText}>{enabledCount} ACTIVE</Text>
+            <Text style={styles.timeSep}>:</Text>
+            <View style={styles.timeField}>
+              <Text style={styles.fieldLabel}>Minute</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="00"
+                placeholderTextColor={Colors.textTertiary}
+                value={alarmMinute}
+                onChangeText={setAlarmMinute}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
             </View>
-          </Animated.View>
+          </View>
+          <RunButton label="Set Alarm" onPress={handleSetAlarm} />
+        </ActionCard>
 
-          {/* Stats Row */}
-          <Animated.View entering={FadeInUp.duration(600).delay(80)} style={styles.statsRow}>
-            {[
-              { label: 'Workflows', value: workflows.length.toString(), color: Colors.primary },
-              { label: 'Active', value: enabledCount.toString(), color: Colors.secondary },
-              { label: 'Runs Today', value: '7', color: Colors.accent },
-            ].map((s, i) => (
-              <View key={i} style={styles.statCard}>
-                <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-            ))}
-          </Animated.View>
+        {/* Navigate */}
+        <ActionCard title="Navigate to" icon={Map} delay={180}>
+          <Field
+            label="Destination"
+            placeholder="Eiffel Tower, Paris"
+            value={navDest}
+            onChangeText={setNavDest}
+          />
+          <RunButton label="Open Google Maps" onPress={handleNavigate} />
+        </ActionCard>
 
-          {/* Preset Automations — real actions */}
-          <Animated.View entering={FadeInUp.duration(600).delay(120)} style={styles.section}>
-            <Text style={styles.sectionTitle}>One-Tap Automations</Text>
-            <View style={styles.workflowList}>
-              {PRESET_AUTOMATIONS.map((preset) => {
-                const IconComp = preset.icon;
-                const status = presetStatus[preset.id];
-                const isRunning = status === 'running';
-                const isDone = status === 'done';
-                return (
-                  <View
-                    key={preset.id}
-                    style={[
-                      styles.workflowCard,
-                      { borderColor: preset.color + '40' },
-                      isRunning && {
-                        shadowColor: preset.color,
-                        shadowOpacity: 0.35,
-                        shadowRadius: 14,
-                        elevation: 8,
-                      },
-                    ]}
-                  >
-                    <View style={styles.workflowCardHeader}>
-                      <View style={[styles.workflowIcon, { backgroundColor: preset.color + '20' }]}>
-                        <IconComp color={preset.color} size={18} />
-                      </View>
-                      <View style={styles.workflowMeta}>
-                        <Text style={[styles.workflowName, { color: Colors.text }]}>{preset.name}</Text>
-                        <Text style={styles.workflowTrigger}>{preset.description}</Text>
-                      </View>
-                    </View>
-
-                    {/* Mini step list */}
-                    <View style={styles.stepsContainer}>
-                      {preset.steps.map((step, si) => (
-                        <View key={si} style={styles.stepRow}>
-                          <View style={[styles.stepDot, { backgroundColor: preset.color + '70' }]} />
-                          <Text style={styles.stepText}>{step}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    <View style={styles.workflowCardFooter}>
-                      <View style={styles.statusRow}>
-                        <View style={[
-                          styles.statusDot,
-                          { backgroundColor: isRunning ? Colors.primary : isDone ? Colors.secondary : Colors.textTertiary },
-                        ]} />
-                        <Text style={[
-                          styles.statusText,
-                          { color: isRunning ? Colors.primary : isDone ? Colors.secondary : Colors.textTertiary },
-                        ]}>
-                          {isRunning ? 'RUNNING...' : isDone ? 'DONE' : 'READY'}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[
-                          styles.runButton,
-                          { borderColor: preset.color + '60', backgroundColor: preset.color + '15' },
-                        ]}
-                        onPress={() => runPreset(preset)}
-                        disabled={isRunning}
-                      >
-                        <Play color={preset.color} size={12} />
-                        <Text style={[styles.runButtonText, { color: preset.color }]}>
-                          {isRunning ? 'Running...' : 'Run Now'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </Animated.View>
-
-          {/* Workflows */}
-          <Animated.View entering={FadeInUp.duration(600).delay(160)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Automation Pipelines</Text>
-            <View style={styles.workflowList}>
-              {workflows.map((wf, i) => (
-                <Animated.View
-                  key={wf.id}
-                  entering={FadeInUp.duration(500).delay(i * 80)}
-                  style={[
-                    styles.workflowCard,
-                    { borderColor: wf.enabled ? wf.color + '30' : Colors.border },
-                    runningId === wf.id && {
-                      shadowColor: Colors.primary,
-                      shadowOpacity: 0.4,
-                      shadowRadius: 14,
-                      elevation: 8,
-                    },
-                  ]}
-                >
-                  {/* Card Header */}
-                  <View style={styles.workflowCardHeader}>
-                    <View style={[styles.workflowIcon, { backgroundColor: wf.color + '18' }]}>
-                      <Layers color={wf.color} size={18} />
-                    </View>
-                    <View style={styles.workflowMeta}>
-                      <Text style={[styles.workflowName, { color: wf.enabled ? Colors.text : Colors.textTertiary }]}>
-                        {wf.name}
-                      </Text>
-                      <View style={styles.workflowTriggerRow}>
-                        <Bell color={Colors.textTertiary} size={10} />
-                        <Text style={styles.workflowTrigger}>{wf.trigger}</Text>
-                      </View>
-                    </View>
-                    <Switch
-                      value={wf.enabled}
-                      onValueChange={() => toggleWorkflow(wf.id)}
-                      trackColor={{ false: Colors.surface, true: wf.color + '50' }}
-                      thumbColor={wf.enabled ? wf.color : Colors.textTertiary}
-                    />
-                  </View>
-
-                  {/* Steps */}
-                  {wf.enabled && (
-                    <View style={styles.stepsContainer}>
-                      {wf.steps.map((step, si) => (
-                        <View key={si} style={styles.stepRow}>
-                          <View style={[styles.stepDot, { backgroundColor: wf.color + '60' }]} />
-                          {si < wf.steps.length - 1 && (
-                            <View style={[styles.stepLine, { backgroundColor: wf.color + '20' }]} />
-                          )}
-                          <Text style={styles.stepText}>{step}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {/* Card Footer */}
-                  <View style={styles.workflowCardFooter}>
-                    <View style={styles.statusRow}>
-                      <View style={[styles.statusDot, { backgroundColor: statusColor(wf.status) }]} />
-                      <Text style={[styles.statusText, { color: statusColor(wf.status) }]}>
-                        {statusLabel(wf.status)}
-                      </Text>
-                      <Clock color={Colors.textTertiary} size={10} />
-                      <Text style={styles.lastRunText}>{wf.lastRun}</Text>
-                    </View>
-                    {wf.enabled && (
-                      <TouchableOpacity
-                        style={[styles.runButton, { borderColor: wf.color + '50', backgroundColor: wf.color + '12' }]}
-                        onPress={() => runWorkflow(wf.id)}
-                        disabled={runningId === wf.id}
-                      >
-                        <Play color={wf.color} size={12} />
-                        <Text style={[styles.runButtonText, { color: wf.color }]}>
-                          {runningId === wf.id ? 'Running...' : 'Run Now'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </Animated.View>
-              ))}
-            </View>
-          </Animated.View>
-
-          {/* Add New Workflow */}
-          <Animated.View entering={FadeInUp.duration(600).delay(400)} style={styles.section}>
-            <TouchableOpacity
-              style={styles.addWorkflowButton}
-              onPress={() => Alert.alert('Workflow Builder', 'Custom workflow builder coming in the next release.')}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={['rgba(168,85,247,0.15)', 'rgba(168,85,247,0.05)']}
-                style={styles.addWorkflowGradient}
+        {/* Open App */}
+        <ActionCard title="Open App" icon={Smartphone} delay={240}>
+          <Text style={styles.fieldLabel}>Select app</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.appPickerRow}
+          >
+            {APP_OPTIONS.map((app, i) => (
+              <TouchableOpacity
+                key={app.label}
+                style={[styles.appChip, i === selectedApp && styles.appChipActive]}
+                onPress={() => setSelectedApp(i)}
+                activeOpacity={0.7}
               >
-                <Zap color={Colors.primary} size={20} />
-                <Text style={styles.addWorkflowText}>Build Custom Automation</Text>
-                <ChevronRight color={Colors.primary} size={16} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+                <Text style={[styles.appChipText, i === selectedApp && styles.appChipTextActive]}>
+                  {app.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <RunButton label={`Open ${APP_OPTIONS[selectedApp].label}`} onPress={handleOpenApp} />
+        </ActionCard>
 
-          {/* Accessibility notice */}
-          <Animated.View entering={FadeInUp.duration(600).delay(480)} style={styles.section}>
-            <View style={styles.noticeCard}>
-              <Shield color={Colors.secondary} size={16} />
-              <Text style={styles.noticeText}>
-                Automation pipelines use the Android Accessibility Service to pilot the interface. No data is transmitted externally.
+        {/* ACCESSIBILITY ENGINE */}
+        <SectionHeader label="Accessibility Engine" icon={Settings} />
+
+        <Animated.View entering={FadeInUp.delay(300).duration(400)} style={styles.card}>
+          <View style={styles.accessibilityRow}>
+            <View style={styles.accLeft}>
+              <View style={styles.accTitleRow}>
+                <View style={styles.accStatusDot} />
+                <Text style={styles.cardTitle}>Vexsora Accessibility Service</Text>
+              </View>
+              <Text style={styles.accDesc}>
+                Required for auto-typing, screen reading, and full app control.
               </Text>
             </View>
-          </Animated.View>
+          </View>
+          <Divider />
+          <TouchableOpacity style={styles.grantBtn} onPress={handleGrantAccessibility} activeOpacity={0.8}>
+            <Settings size={16} color={Colors.primary} />
+            <Text style={styles.grantBtnText}>Grant Permission</Text>
+            <ChevronRight size={16} color={Colors.primary} />
+          </TouchableOpacity>
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              Tap "Grant Permission" → find "Vexsora" in the list → enable it. This allows Vexsora to auto-type, tap, and read on-screen content.
+            </Text>
+          </View>
+        </Animated.View>
 
-        </ScrollView>
-      </LinearGradient>
+        {/* AUTOMATION HISTORY */}
+        <SectionHeader label="Automation History" icon={History} />
+
+        <Animated.View entering={FadeInUp.delay(360).duration(400)} style={styles.card}>
+          {history.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Text style={styles.emptyHistoryText}>No automation actions yet.</Text>
+            </View>
+          ) : (
+            history.map((item, i) => (
+              <React.Fragment key={item.id}>
+                {i > 0 && <Divider />}
+                <View style={styles.historyRow}>
+                  {item.success ? (
+                    <CheckCircle size={16} color="#10B981" />
+                  ) : (
+                    <XCircle size={16} color="#EF4444" />
+                  )}
+                  <View style={styles.historyText}>
+                    <Text style={styles.historyAction}>{item.action}</Text>
+                    <Text style={styles.historyDetail}>{item.detail}</Text>
+                  </View>
+                  <Text style={styles.historyTime}>{item.time}</Text>
+                </View>
+              </React.Fragment>
+            ))
+          )}
+        </Animated.View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  gradient: { flex: 1 },
-  scrollContent: { paddingBottom: Spacing.xxxl },
-
+  root: { flex: 1, backgroundColor: '#0B0B0A' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xxxl + Spacing.md,
-    marginBottom: Spacing.xl,
-  },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  headerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.accent + '18',
-    borderWidth: 1,
-    borderColor: Colors.accent + '40',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: { fontSize: FontSizes.xxl, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 1 },
-  headerBadge: {
-    backgroundColor: Colors.secondary + '20',
-    borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: Colors.secondary + '40',
+    paddingTop: Platform.OS === 'android' ? 52 : 60,
+    paddingBottom: Spacing.md,
   },
-  headerBadgeText: { fontSize: FontSizes.xs, fontWeight: '800', color: Colors.secondary, letterSpacing: 0.5 },
-
-  statsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-    marginBottom: Spacing.xl,
+  screenTitle: { fontSize: FontSizes.xxxl, fontWeight: '800', letterSpacing: 0.5 },
+  scroll: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xxl },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    marginTop: Spacing.lg, marginBottom: Spacing.sm, paddingHorizontal: Spacing.xs,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+  sectionLabel: { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 1.2 },
+  card: {
+    backgroundColor: '#1E1F20', borderRadius: BorderRadius.lg, overflow: 'hidden',
+    borderWidth: 1, borderColor: 'rgba(168,85,247,0.08)', marginBottom: Spacing.sm,
   },
-  statValue: { fontSize: FontSizes.xxl, fontWeight: '800' },
-  statLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginTop: 2 },
-
-  section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },
-  sectionTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  cardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm,
   },
-
-  workflowList: { gap: Spacing.md },
-  workflowCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
+  cardTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  cardBody: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
+  fieldWrap: { marginBottom: Spacing.sm },
+  fieldLabel: { fontSize: FontSizes.xs, color: Colors.textTertiary, marginBottom: 4, fontWeight: '600', letterSpacing: 0.5 },
+  fieldInput: {
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    color: Colors.text, fontSize: FontSizes.md, borderWidth: 1, borderColor: Colors.border,
   },
-  workflowCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
+  runBtn: {
+    backgroundColor: Colors.primary, borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm + 2, alignItems: 'center',
+    shadowColor: '#A855F7', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+    marginTop: Spacing.xs,
   },
-  workflowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+  runBtnText: { color: '#fff', fontSize: FontSizes.md, fontWeight: '700' },
+  timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, marginBottom: Spacing.sm },
+  timeField: { flex: 1 },
+  timeSep: { color: Colors.text, fontSize: FontSizes.xxl, fontWeight: '700', paddingBottom: Spacing.xs },
+  appPickerRow: { gap: Spacing.sm, paddingBottom: Spacing.sm, flexDirection: 'row' },
+  appChip: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.full, backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: Colors.border,
   },
-  workflowMeta: { flex: 1 },
-  workflowName: { fontSize: FontSizes.md, fontWeight: '600', marginBottom: 3 },
-  workflowTriggerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  workflowTrigger: { fontSize: FontSizes.xs, color: Colors.textTertiary },
-
-  stepsContainer: {
-    marginVertical: Spacing.sm,
-    marginLeft: Spacing.sm,
-    paddingLeft: Spacing.md,
-    borderLeftWidth: 1,
-    borderLeftColor: Colors.border,
-    gap: Spacing.xs,
+  appChipActive: { backgroundColor: 'rgba(168,85,247,0.2)', borderColor: Colors.primary },
+  appChipText: { color: Colors.textSecondary, fontSize: FontSizes.sm, fontWeight: '500' },
+  appChipTextActive: { color: Colors.primary, fontWeight: '700' },
+  accessibilityRow: { padding: Spacing.md },
+  accLeft: { flex: 1 },
+  accTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4 },
+  accStatusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  accDesc: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 18 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginHorizontal: Spacing.md },
+  grantBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
   },
-  stepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    position: 'relative',
+  grantBtnText: { color: Colors.primary, fontSize: FontSizes.md, fontWeight: '600', flex: 1 },
+  infoBox: {
+    backgroundColor: 'rgba(168,85,247,0.08)', marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md, borderRadius: BorderRadius.sm, padding: Spacing.sm,
   },
-  stepDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    position: 'absolute',
-    left: -Spacing.md - 2,
+  infoText: { color: Colors.textSecondary, fontSize: FontSizes.xs, lineHeight: 16 },
+  emptyHistory: { paddingVertical: Spacing.xl, alignItems: 'center' },
+  emptyHistoryText: { color: Colors.textTertiary, fontSize: FontSizes.sm },
+  historyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
   },
-  stepLine: {
-    position: 'absolute',
-    left: -Spacing.md + 1,
-    top: 8,
-    width: 2,
-    height: 16,
-  },
-  stepText: { fontSize: FontSizes.xs, color: Colors.textSecondary, lineHeight: 18 },
-
-  workflowCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: FontSizes.xs, fontWeight: '700', letterSpacing: 0.3 },
-  lastRunText: { fontSize: FontSizes.xs, color: Colors.textTertiary },
-  runButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-  },
-  runButtonText: { fontSize: FontSizes.xs, fontWeight: '700' },
-
-  addWorkflowButton: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.primary + '30',
-  },
-  addWorkflowGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    gap: Spacing.md,
-  },
-  addWorkflowText: { flex: 1, fontSize: FontSizes.md, fontWeight: '600', color: Colors.primary },
-
-  noticeCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.backgroundTertiary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.secondary + '30',
-    gap: Spacing.sm,
-  },
-  noticeText: { flex: 1, fontSize: FontSizes.xs, color: Colors.textTertiary, lineHeight: 18 },
+  historyText: { flex: 1 },
+  historyAction: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '600' },
+  historyDetail: { fontSize: FontSizes.xs, color: Colors.textTertiary },
+  historyTime: { fontSize: FontSizes.xs, color: Colors.textTertiary },
 });
