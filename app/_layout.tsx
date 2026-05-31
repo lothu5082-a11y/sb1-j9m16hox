@@ -16,23 +16,28 @@ import { memoryService } from '../lib/memoryService';
 import { knowledgeBase } from '../lib/knowledgeBase';
 import { batteryMonitor } from '../lib/batteryMonitor';
 
-export default function RootLayout() {
-  useFrameworkReady();
-
-  // Catch any unhandled JS crash and show it on-screen so we can read the error
-  useEffect(() => {
+// Install the global crash reporter at MODULE LOAD TIME (before any component
+// renders) so it catches exceptions thrown during the first render cycle —
+// including failures from reanimated / worklets native module initialization.
+// This runs synchronously when this file is first require()'d.
+(function installCrashReporter() {
+  try {
     const prev = ErrorUtils.getGlobalHandler();
     ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
       if (isFatal) {
         Alert.alert(
           'Crash — copy this',
-          (error?.message ?? 'unknown') + '\n\n' + (error?.stack ?? '').slice(0, 600),
+          (error?.message ?? 'unknown') + '\n\n' + (error?.stack ?? '').slice(0, 800),
           [{ text: 'OK' }]
         );
       }
       prev?.(error, isFatal);
     });
-  }, []);
+  } catch (_) { /* ErrorUtils not available during SSR */ }
+})();
+
+export default function RootLayout() {
+  useFrameworkReady();
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
