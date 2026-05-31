@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vexsora",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "backgroundColor": "#0B0B0A",
     "ios": {
       "supportsTablet": false,

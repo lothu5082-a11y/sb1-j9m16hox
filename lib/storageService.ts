@@ -1,30 +1,12 @@
 import { Message } from './aiService';
 
-// MMKV-backed storage for Vexsora (falls back to in-memory on web/dev)
-// On Android with react-native-mmkv installed, swap the store implementation below.
-let _mmkv: any = null;
-try {
-  const { MMKV } = require('react-native-mmkv');
-  _mmkv = new MMKV({ id: 'vexsora-storage' });
-} catch {
-  // Use in-memory fallback (web / dev)
-}
-
+// In-memory conversation store — no native dependencies.
 const store = new Map<string, string>();
 
 const kv = {
-  get: (key: string): string | null => {
-    if (_mmkv) return _mmkv.getString(key) ?? null;
-    return store.get(key) ?? null;
-  },
-  set: (key: string, value: string): void => {
-    if (_mmkv) { _mmkv.set(key, value); return; }
-    store.set(key, value);
-  },
-  delete: (key: string): void => {
-    if (_mmkv) { _mmkv.delete(key); return; }
-    store.delete(key);
-  },
+  get: (key: string): string | null => store.get(key) ?? null,
+  set: (key: string, value: string): void => { store.set(key, value); },
+  delete: (key: string): void => { store.delete(key); },
 };
 
 export interface Conversation {
