@@ -8,117 +8,172 @@
     android:background="#0F0F13"
     tools:context=".MainActivity">
 
-    <!-- ── App title bar ───────────────────────────────────────────────── -->
+    <!-- ── Title ────────────────────────────────────────────────────────── -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="20dp"
         android:layout_marginEnd="16dp"
         android:text="Vexora AI  •  Offline"
         android:textColor="#E0E0FF"
         android:textSize="20sp"
         android:textStyle="bold"
-        android:fontFamily="sans-serif-medium"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- ── Status label (shown while model loads / AI is thinking) ──────── -->
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="4dp"
-        android:layout_marginEnd="16dp"
-        android:text="Loading model…"
-        android:textColor="#7C7CFF"
-        android:textSize="13sp"
-        android:visibility="visible"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvTitle" />
-
-    <!-- ── Scrollable response area ─────────────────────────────────────── -->
-    <ScrollView
-        android:id="@+id/scrollView"
+    <!-- ══════════════════════════════════════════════════════════════════════
+         SETUP SCREEN  — shown when no model is present
+    ══════════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/layoutSetup"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp"
-        android:background="#1A1A24"
-        android:padding="12dp"
-        android:scrollbarThumbVertical="@android:color/darker_gray"
-        app:layout_constraintBottom_toTopOf="@id/divider"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvStatus">
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        tools:visibility="visible">
+
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginBottom="20dp"
+            android:src="@android:drawable/ic_menu_upload"
+            android:tint="#4B4BFF"
+            android:contentDescription="Upload model" />
 
         <TextView
-            android:id="@+id/tvResponse"
+            android:id="@+id/tvSetupInstructions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:lineSpacingMultiplier="1.4"
-            android:textColor="#D0D0E8"
+            android:lineSpacingMultiplier="1.5"
+            android:textColor="#C0C0E0"
             android:textSize="15sp"
-            android:fontFamily="monospace"
-            android:hint="Responses will appear here…"
-            android:textColorHint="#444466"
-            tools:text="AI: Hello! How can I help you today?" />
+            android:gravity="center"
+            android:layout_marginBottom="32dp"
+            tools:text="Instructions appear here" />
 
-    </ScrollView>
+        <Button
+            android:id="@+id/btnPickModel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Choose Model File (.bin)"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#4B4BFF"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp" />
 
-    <!-- ── Visual divider ───────────────────────────────────────────────── -->
-    <View
-        android:id="@+id/divider"
+    </LinearLayout>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CHAT SCREEN  — shown once model is loaded
+    ══════════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/layoutChat"
         android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:background="#2A2A3A"
-        app:layout_constraintBottom_toTopOf="@id/etInput"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginBottom="8dp" />
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        tools:visibility="visible">
 
-    <!-- ── User input field ─────────────────────────────────────────────── -->
-    <EditText
-        android:id="@+id/etInput"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="16dp"
-        android:background="#1E1E2E"
-        android:hint="Ask me anything…"
-        android:textColor="#E0E0FF"
-        android:textColorHint="#44446A"
-        android:textSize="15sp"
-        android:padding="12dp"
-        android:imeOptions="actionSend"
-        android:inputType="textMultiLine|textCapSentences"
-        android:maxLines="4"
-        android:minLines="1"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/btnSend"
-        app:layout_constraintStart_toStartOf="parent" />
+        <!-- Status label (Thinking… / Loading…) -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="4dp"
+            android:text="Loading AI model… please wait"
+            android:textColor="#7C7CFF"
+            android:textSize="13sp"
+            android:visibility="visible" />
 
-    <!-- ── Send button ──────────────────────────────────────────────────── -->
-    <Button
-        android:id="@+id/btnSend"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
-        android:text="Send"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#4B4BFF"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBaseline_toBaselineOf="@id/etInput" />
+        <!-- Scrollable response area -->
+        <ScrollView
+            android:id="@+id/scrollView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:background="#1A1A24"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvResponse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.4"
+                android:textColor="#D0D0E8"
+                android:textSize="15sp"
+                android:fontFamily="monospace"
+                android:hint="Responses will appear here…"
+                android:textColorHint="#444466"
+                tools:text="AI: Hello! How can I help you?" />
+        </ScrollView>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="8dp"
+            android:background="#2A2A3A" />
+
+        <!-- Input row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:background="#1E1E2E"
+                android:hint="Ask me anything…"
+                android:textColor="#E0E0FF"
+                android:textColorHint="#44446A"
+                android:textSize="15sp"
+                android:padding="12dp"
+                android:imeOptions="actionSend"
+                android:inputType="textMultiLine|textCapSentences"
+                android:maxLines="4"
+                android:minLines="1" />
+
+            <Button
+                android:id="@+id/btnSend"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Send"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#4B4BFF"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

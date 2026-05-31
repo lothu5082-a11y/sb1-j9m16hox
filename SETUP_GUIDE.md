@@ -1,110 +1,85 @@
-# Vexora AI — Offline Android App Setup Guide
+# Vexora AI — Phone-Only Setup Guide
 
-This is your **step-by-step guide** to install and run the app on your Android phone.  
-No coding knowledge needed — just follow each step in order.
-
----
-
-## What you need (one-time installs)
-
-| Tool | What it is | Download link |
-|---|---|---|
-| **Android Studio** | The program used to build Android apps | https://developer.android.com/studio |
-| **Java 17** | Required by Android Studio (usually bundled with it) | Included with Android Studio |
-| **A USB cable** | To connect your phone to your PC | Any USB-C or Micro-USB cable |
+**No PC or laptop needed.** Everything is done from your Android phone.
 
 ---
 
-## Step 1 — Install Android Studio
+## How it works
 
-1. Go to https://developer.android.com/studio and click **Download Android Studio**.
-2. Run the installer and click **Next** on every screen (defaults are fine).
-3. When Android Studio opens for the first time, let it finish downloading components (may take 10–20 minutes on first launch).
-
----
-
-## Step 2 — Open the project
-
-1. Open Android Studio.
-2. Click **"Open"** (or "Open an Existing Project").
-3. Navigate to the folder where you downloaded this repository, then go inside the **`android`** subfolder.
-4. Click **OK / Open**. Android Studio will sync the project (a progress bar runs at the bottom). Wait for it to finish.
+1. GitHub automatically builds the app for you (it's already set up).
+2. You download the app file (APK) straight to your phone.
+3. You download the AI model file to your phone.
+4. You open the app and select the model — done.
 
 ---
 
-## Step 3 — Download the AI model
+## Step 1 — Get the APK from GitHub
 
-The app runs the AI **100% offline** — no internet when chatting. But you need to download the model file once.
+1. Open your phone's browser and go to your GitHub repository.
+2. Tap the **Actions** tab (near the top of the page).
+3. Tap the latest green build called **"Build APK"**.
+4. Scroll to the bottom and tap **"VexoraAI-debug"** to download it.
+5. The file `app-debug.apk` will save to your Downloads folder.
 
-1. Go to https://www.kaggle.com/models/google/gemma/frameworks/tfLite/variations/gemma-2b-it-gpu-int4  
-   *(You may need a free Kaggle account.)*
-2. Download the file — it will be named something like `gemma-2b-it-gpu-int4.bin` (about 1.5 GB).
-3. Keep this file somewhere easy to find, like your Desktop.
-
-> **Alternative smaller model:** If 1.5 GB is too large, search Kaggle or HuggingFace for `gemma-2b mediapipe bin` — any `.bin` file compatible with MediaPipe LlmInference will work.
+> **If you don't see a green build yet:** The build runs automatically when code is pushed.
+> Wait 5–10 minutes and refresh the page. A green checkmark means it succeeded.
 
 ---
 
-## Step 4 — Enable Developer Mode on your Android phone
+## Step 2 — Allow your phone to install the APK
 
-*(Skip if you already have Developer Options enabled.)*
+Android blocks unknown apps by default. Do this once:
 
 1. Open **Settings** on your phone.
-2. Scroll down to **"About phone"**.
-3. Tap **"Build number"** seven times quickly. You'll see "You are now a developer!"
-4. Go back to Settings → **Developer Options** → turn on **USB Debugging**.
+2. Search for **"Install unknown apps"** or go to:
+   **Settings → Apps → Special app access → Install unknown apps**
+3. Find your browser (e.g., Chrome) and turn on **"Allow from this source"**.
 
 ---
 
-## Step 5 — Connect your phone
+## Step 3 — Install the APK
 
-1. Plug your phone into your PC with the USB cable.
-2. On your phone, when asked "Allow USB debugging?" tap **Allow**.
-3. In Android Studio, look at the top toolbar — your phone's name should appear in the dropdown (e.g., "Samsung Galaxy S23").
-
----
-
-## Step 6 — Copy the model file to your phone
-
-Open a **Command Prompt** (Windows) or **Terminal** (Mac/Linux) and run:
-
-```
-adb push YOUR_MODEL_FILE_PATH /data/data/com.vexora.aiassistant/files/model.bin
-```
-
-Replace `YOUR_MODEL_FILE_PATH` with the actual path to the `.bin` file you downloaded.
-
-**Example on Windows:**
-```
-adb push C:\Users\YourName\Desktop\gemma-2b-it-gpu-int4.bin /data/data/com.vexora.aiassistant/files/model.bin
-```
-
-**Example on Mac:**
-```
-adb push /Users/YourName/Desktop/gemma-2b-it-gpu-int4.bin /data/data/com.vexora.aiassistant/files/model.bin
-```
-
-> `adb` is installed with Android Studio. If the command is not found, add Android Studio's `platform-tools` folder to your PATH, or navigate to it first:  
-> Windows: `C:\Users\YourName\AppData\Local\Android\Sdk\platform-tools\adb.exe`  
-> Mac: `~/Library/Android/sdk/platform-tools/adb`
+1. Open your **Downloads** folder (Files app → Downloads).
+2. Tap **app-debug.apk**.
+3. Tap **Install** when asked.
+4. Tap **Open** when it finishes.
 
 ---
 
-## Step 7 — Build and install the app
+## Step 4 — Download the AI model file
 
-1. In Android Studio, click the green **▶ Run** button (top toolbar).
-2. Android Studio will build the app and install it on your phone automatically.
-3. The app "Vexora AI" will open on your phone.
+The AI runs 100% offline — but you need to download the model file once.
+
+1. Open your phone's browser.
+2. Search for: **"gemma 2b mediapipe bin kaggle"**
+3. Go to the Kaggle page and download the file  
+   (it's about 1.5 GB — use Wi-Fi, not mobile data).
+4. The `.bin` file will save to your Downloads folder.
+
+> **No Kaggle account?** Search for **"gemma-2b-it-gpu-int4.bin huggingface"** as an alternative.
 
 ---
 
-## Step 8 — Use the app
+## Step 5 — Load the model into the app
 
-- **Type a message** in the box at the bottom and tap **Send**.
-- The AI thinks locally on your phone — no internet needed.
-- Say **"open the camera"** → the app opens your camera.
-- Say **"open settings"** → the app opens device settings.
-- The first response may take 10–30 seconds while the model loads into memory. After that it gets faster.
+1. Open the **Vexora AI** app on your phone.
+2. You'll see a setup screen with a **"Choose Model File (.bin)"** button.
+3. Tap the button — your phone's file picker opens.
+4. Navigate to your **Downloads** folder.
+5. Tap the `.bin` file you downloaded.
+6. The app will copy it (may take 1–3 minutes for a large file).
+7. The chat screen will open automatically when it's ready.
+
+---
+
+## Step 6 — Start chatting
+
+- Type anything and tap **Send**.
+- The first response may take 20–30 seconds (the AI is loading into memory).
+- After that, responses are faster.
+- Say **"open the camera"** → camera opens.
+- Say **"open settings"** → device settings open.
+- Everything works **100% offline** — no internet needed after setup.
 
 ---
 
@@ -112,14 +87,16 @@ adb push /Users/YourName/Desktop/gemma-2b-it-gpu-int4.bin /data/data/com.vexora.
 
 | Problem | Fix |
 |---|---|
-| "Model file not found" message | You haven't pushed the model yet — repeat Step 6 |
-| App crashes on launch | Your phone may be below Android 8 (API 26). Check Settings → About phone → Android version |
-| `adb` command not found | See the path hint in Step 6 |
-| Build fails in Android Studio | Click **File → Sync Project with Gradle Files**, wait, then try again |
-| Phone not appearing in Android Studio | Make sure USB Debugging is on (Step 4) and try a different USB cable |
+| No green build in Actions tab | Wait 10 minutes, then refresh. If it shows red, let me know. |
+| "App not installed" error | Try again after enabling "Install unknown apps" (Step 2) |
+| "Choose Model File" shows no Downloads folder | Tap the menu icon (≡) in the file picker and choose "Downloads" |
+| App shows "Copy failed" | The file might be corrupted — re-download the model and try again |
+| App crashes on open | Your Android version may be below 8.0 — check Settings → About phone |
+| Response is very slow | Normal for first response. The model is large. Be patient. |
 
 ---
 
-## Privacy note
+## Your privacy
 
-Everything runs **100% on your device**. No messages, no model data, nothing leaves your phone.
+Nothing leaves your phone. No internet connection is used after the model is loaded.
+All AI processing happens on your device.

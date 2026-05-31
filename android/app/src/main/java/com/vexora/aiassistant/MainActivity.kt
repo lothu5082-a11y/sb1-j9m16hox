@@ -3,6 +3,7 @@ package com.vexora.aiassistant
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.Settings
@@ -21,34 +22,31 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
-    // ── View binding ────────────────────────────────────────────────────────
     private lateinit var binding: ActivityMainBinding
-
-    // ── MediaPipe LLM engine (nullable until model is loaded) ───────────────
     private var llmInference: LlmInference? = null
 
-    // ── Expected model filename inside internal storage ──────────────────────
-    // Place your .bin model file at:  /data/data/<package>/files/model.bin
-    // You can push it via adb:
-    //   adb push gemma-2b-it-gpu-int4.bin /data/data/com.vexora.aiassistant/files/model.bin
     private val MODEL_FILENAME = "model.bin"
 
-    // ── System prompt injected before every user turn ───────────────────────
     private val SYSTEM_PROMPT = """
         You are a helpful, concise AI assistant running fully offline on this device.
-        You have the ability to control the device. Use the following action tokens
-        ONLY when the user explicitly requests the matching action:
+        You can control the device. Use these action tokens ONLY when the user explicitly asks:
 
           [ACTION: CAMERA]   → open the device camera
           [ACTION: SETTINGS] → open device settings
 
         Rules:
-        - Output an action token on its own line at the END of your reply.
-        - Never fabricate action tokens; use them only when clearly asked.
+        - Put the action token on its own line at the END of your reply.
+        - Never use action tokens unless clearly asked.
         - Keep responses short and friendly.
     """.trimIndent()
 
-    // ── Camera permission launcher ───────────────────────────────────────────
+    // ── File picker: lets the user choose the .bin model from Downloads ──────
+    private val modelPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) copyModelFromUri(uri)
+        }
+
+    // ── Camera permission ────────────────────────────────────────────────────
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) launchCamera() else showToast("Camera permission denied.")
@@ -62,9 +60,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         setupUi()
-        loadModel()
+
+        val modelFile = File(filesDir, MODEL_FILENAME)
+        if (modelFile.exists()) {
+            loadModel(modelFile)
+        } else {
+            showModelSetupScreen()
+        }
     }
 
     override fun onDestroy() {
@@ -73,45 +76,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // UI setup
+    // UI
     // ────────────────────────────────────────────────────────────────────────
 
     private fun setupUi() {
         binding.btnSend.setOnClickListener {
-            val userText = binding.etInput.text.toString().trim()
-            if (userText.isBlank()) return@setOnClickListener
-            if (llmInference == null) {
-                showToast("Model not loaded yet. Please wait…")
-                return@setOnClickListener
-            }
+            val text = binding.etInput.text.toString().trim()
+            if (text.isBlank()) return@setOnClickListener
+            if (llmInference == null) { showToast("Model not loaded yet."); return@setOnClickListener }
             binding.etInput.setText("")
-            sendMessage(userText)
+            sendMessage(text)
+        }
+
+        // "Choose Model File" button — opens the phone's file picker
+        binding.btnPickModel.setOnClickListener {
+            // "*/*" shows all files; the user should navigate to Downloads and pick the .bin file
+            modelPickerLauncher.launch(arrayOf("*/*"))
         }
     }
 
+    private fun showModelSetupScreen() {
+        binding.layoutSetup.visibility = View.VISIBLE
+        binding.layoutChat.visibility = View.GONE
+        binding.tvSetupInstructions.text =
+            "No AI model found.\n\n" +
+            "1.  Download a MediaPipe .bin model file to your phone's Downloads folder using your browser.\n\n" +
+            "2.  Tap the button below and navigate to your Downloads folder.\n\n" +
+            "3.  Select the .bin file — the app will copy it and start automatically."
+    }
+
+    private fun showChatScreen() {
+        binding.layoutSetup.visibility = View.GONE
+        binding.layoutChat.visibility = View.VISIBLE
+    }
+
     // ────────────────────────────────────────────────────────────────────────
-    // Model loading
+    // Model: copy from URI then load
     // ────────────────────────────────────────────────────────────────────────
 
-    private fun loadModel() {
-        setUiBusy(true, "Loading model…")
+    private fun copyModelFromUri(uri: Uri) {
+        binding.tvSetupInstructions.text = "Copying model file… this may take a few minutes."
+        binding.btnPickModel.isEnabled = false
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val modelFile = File(filesDir, MODEL_FILENAME)
-
-                if (!modelFile.exists()) {
-                    withContext(Dispatchers.Main) {
-                        setUiBusy(false)
-                        appendToChat(
-                            "ERROR: Model file not found at:\n${modelFile.absolutePath}\n\n" +
-                            "Push your .bin model with:\n" +
-                            "adb push <model>.bin ${modelFile.absolutePath}"
-                        )
-                    }
-                    return@launch
+                val dest = File(filesDir, MODEL_FILENAME)
+                contentResolver.openInputStream(uri)?.use { input ->
+                    dest.outputStream().use { output -> input.copyTo(output) }
                 }
+                withContext(Dispatchers.Main) {
+                    loadModel(dest)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    binding.btnPickModel.isEnabled = true
+                    binding.tvSetupInstructions.text =
+                        "Copy failed: ${e.localizedMessage}\n\nPlease try again."
+                }
+            }
+        }
+    }
 
+    private fun loadModel(modelFile: File) {
+        showChatScreen()
+        setUiBusy(true, "Loading AI model… please wait")
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
                 val options = LlmInference.LlmInferenceOptions.builder()
                     .setModelPath(modelFile.absolutePath)
                     .setMaxTokens(1024)
@@ -124,7 +155,7 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     setUiBusy(false)
-                    appendToChat("Model loaded. How can I help you?")
+                    appendToChat("AI is ready! How can I help you?")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -143,82 +174,55 @@ class MainActivity : AppCompatActivity() {
         appendToChat("You: $userInput")
         setUiBusy(true, "Thinking…")
 
-        // Build a simple turn-based prompt understood by most instruction-tuned models.
-        val prompt = buildPrompt(userInput)
-
-        // Run inference on a background thread so the UI stays responsive.
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // generateResponse is synchronous; use generateResponseAsync for streaming.
-                val rawResponse = llmInference!!.generateResponse(prompt)
+                val prompt = buildPrompt(userInput)
+                val response = llmInference!!.generateResponse(prompt)
 
                 withContext(Dispatchers.Main) {
                     setUiBusy(false)
-                    appendToChat("AI: $rawResponse")
-                    parseAndExecuteActions(rawResponse)
+                    appendToChat("AI: $response")
+                    parseAndExecuteActions(response)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     setUiBusy(false)
-                    appendToChat("Inference error: ${e.localizedMessage}")
+                    appendToChat("Error: ${e.localizedMessage}")
                 }
             }
         }
     }
 
-    /**
-     * Wraps the user message in a system + user/assistant template.
-     * Gemma-style format; adjust brackets if you use a different model family.
-     */
-    private fun buildPrompt(userInput: String): String {
-        return "<start_of_turn>system\n$SYSTEM_PROMPT<end_of_turn>\n" +
-               "<start_of_turn>user\n$userInput<end_of_turn>\n" +
-               "<start_of_turn>model\n"
-    }
+    private fun buildPrompt(userInput: String): String =
+        "<start_of_turn>system\n$SYSTEM_PROMPT<end_of_turn>\n" +
+        "<start_of_turn>user\n$userInput<end_of_turn>\n" +
+        "<start_of_turn>model\n"
 
     // ────────────────────────────────────────────────────────────────────────
     // Action parser
     // ────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Scans the AI response for embedded action tokens and fires the
-     * corresponding Android intent.  Multiple actions in one response are
-     * each executed in order.
-     */
     private fun parseAndExecuteActions(response: String) {
-        if (response.contains("[ACTION: CAMERA]")) {
-            handleCameraAction()
-        }
-        if (response.contains("[ACTION: SETTINGS]")) {
-            handleSettingsAction()
-        }
+        if (response.contains("[ACTION: CAMERA]"))   handleCameraAction()
+        if (response.contains("[ACTION: SETTINGS]")) handleSettingsAction()
     }
 
-    // ── Camera ───────────────────────────────────────────────────────────────
-
     private fun handleCameraAction() {
-        when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    == PackageManager.PERMISSION_GRANTED -> launchCamera()
-            else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED) {
+            launchCamera()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
     private fun launchCamera() {
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        if (intent.resolveActivity(packageManager) != null) {
-            startActivity(intent)
-        } else {
-            showToast("No camera app found on this device.")
-        }
+        if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+        else showToast("No camera app found.")
     }
 
-    // ── Settings ─────────────────────────────────────────────────────────────
-
-    private fun handleSettingsAction() {
-        val intent = Intent(Settings.ACTION_SETTINGS)
-        startActivity(intent)
-    }
+    private fun handleSettingsAction() = startActivity(Intent(Settings.ACTION_SETTINGS))
 
     // ────────────────────────────────────────────────────────────────────────
     // UI helpers
@@ -226,9 +230,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun appendToChat(text: String) {
         val current = binding.tvResponse.text.toString()
-        val updated = if (current.isBlank()) text else "$current\n\n$text"
-        binding.tvResponse.text = updated
-        // Auto-scroll to bottom
+        binding.tvResponse.text = if (current.isBlank()) text else "$current\n\n$text"
         binding.scrollView.post { binding.scrollView.fullScroll(View.FOCUS_DOWN) }
     }
 
@@ -239,7 +241,5 @@ class MainActivity : AppCompatActivity() {
         binding.tvStatus.text = hint
     }
 
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
+    private fun showToast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

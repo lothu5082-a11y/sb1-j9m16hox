@@ -1,0 +1,55 @@
+name: Build APK
+
+# Runs automatically every time you push code, AND can be triggered manually
+on:
+  push:
+    branches: ["claude/android-offline-llm-mediapipe-xraaD", "main"]
+  workflow_dispatch:   # "Run workflow" button on GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Install Java 17 (required to build Android apps)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 3. Point Gradle at the Android SDK that is pre-installed on the runner
+      - name: Write local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+      # 4. Accept all Android SDK license agreements automatically
+      - name: Accept SDK licenses
+        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      # 5. Generate the Gradle wrapper jar (the binary we can't store in git)
+      - name: Generate Gradle wrapper
+        working-directory: android
+        run: gradle wrapper --gradle-version=8.4 --distribution-type=bin
+
+      # 6. Make the wrapper script executable
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      # 7. Build the debug APK
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 8. Upload the APK so you can download it from GitHub
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VexoraAI-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+          if-no-files-found: error
