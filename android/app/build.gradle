@@ -126,10 +126,6 @@ android {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
             useLegacyPackaging enableLegacyPackaging.toBoolean()
         }
-        // Exclude worklets native library — its C++ thread init crashes on some
-        // Android devices before JS starts. Reanimated falls back to JS-thread
-        // animations when the worklets .so is absent.
-        excludes += ['**/librnworklets.so']
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'

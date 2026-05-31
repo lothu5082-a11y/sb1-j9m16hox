@@ -10,7 +10,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
-import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Alert, NativeModules, Platform } from 'react-native';
 import { Colors } from '../constants/theme';
 import { memoryService } from '../lib/memoryService';
 import { knowledgeBase } from '../lib/knowledgeBase';
@@ -42,6 +42,24 @@ export default function RootLayout() {
     'Orbitron-Regular': Orbitron_400Regular,
     'Orbitron-Bold': Orbitron_700Bold,
   });
+
+  // Check if the previous app process left a Java crash report
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const HW = NativeModules.VexsoraHardware;
+    if (!HW?.getDiagnosticInfo) return;
+    HW.getDiagnosticInfo()
+      .then((info: string | null) => {
+        if (info) {
+          Alert.alert(
+            'Previous crash info',
+            info,
+            [{ text: 'OK' }]
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Boot all persistent services

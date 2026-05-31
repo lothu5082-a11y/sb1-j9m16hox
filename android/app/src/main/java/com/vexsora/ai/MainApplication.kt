@@ -40,6 +40,23 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+
+    // Capture any Java/Kotlin uncaught exception before React Native is ready.
+    // Native signals (SIGABRT, SIGSEGV) cannot be caught here but Java-level
+    // crashes will be persisted and surfaced on the next launch via
+    // VexsoraHardwareModule.getDiagnosticInfo().
+    val existingHandler = Thread.getDefaultUncaughtExceptionHandler()
+    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+      try {
+        val msg = "${throwable.javaClass.name}: ${throwable.message}\n" +
+          "Thread: ${thread.name}\n" +
+          throwable.stackTraceToString().take(2000)
+        getSharedPreferences("vexsora_diag", MODE_PRIVATE)
+          .edit().putString("crash", msg).commit()
+      } catch (_: Exception) { /* ignore write errors */ }
+      existingHandler?.uncaughtException(thread, throwable)
+    }
+
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {

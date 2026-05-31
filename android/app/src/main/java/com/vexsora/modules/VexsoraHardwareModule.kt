@@ -224,6 +224,22 @@ class VexsoraHardwareModule(private val reactContext: ReactApplicationContext) :
     }
 
     // -------------------------------------------------------------------------
+    // Crash diagnostics
+    // -------------------------------------------------------------------------
+
+    @ReactMethod
+    fun getDiagnosticInfo(promise: Promise) {
+        try {
+            val prefs = reactContext.getSharedPreferences("vexsora_diag", Context.MODE_PRIVATE)
+            val crash = prefs.getString("crash", null)
+            prefs.edit().remove("crash").apply()
+            promise.resolve(crash)
+        } catch (e: Exception) {
+            promise.resolve(null)
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Battery
     // -------------------------------------------------------------------------
 
