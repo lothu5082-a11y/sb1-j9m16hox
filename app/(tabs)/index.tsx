@@ -170,7 +170,7 @@ function InputBar({ value, onChange, onSend, onMic }: {
         style={st.inputField}
         value={value}
         onChangeText={onChange}
-        placeholder="Ask Riuka..."
+        placeholder="Ask Vexsora..."
         placeholderTextColor="rgba(255,255,255,0.25)"
         multiline
         returnKeyType="send"
@@ -244,7 +244,7 @@ export default function AskScreen() {
           {[0, 1, 2].map(i => <View key={i} style={st.hLine} />)}
         </View>
         <TouchableOpacity style={st.modelPill} activeOpacity={0.7}>
-          <Text style={st.modelText}>Riuka AI</Text>
+          <Text style={st.modelText}>Vexsora AI</Text>
           <ChevronDown color="rgba(255,255,255,0.45)" size={13} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/settings' as any)} style={st.editBtn}>

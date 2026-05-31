@@ -214,7 +214,7 @@ export default function AutomationScreen() {
   const runWorkflow = (id: string) => {
     Alert.alert(
       'Confirm Execution',
-      'Riuka will execute this automation pipeline. Proceed?',
+      'Vexsora will execute this automation pipeline. Proceed?',
       [
         { text: 'Cancel', style: 'cancel' },
         {

@@ -1,6 +1,16 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
+// llama.rn is a native module. It is only present in a native (EAS / dev-client)
+// build. We require it lazily so the web bundle and Expo Go don't crash.
+let RNLlama: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  RNLlama = require('llama.rn');
+} catch {
+  RNLlama = null;
+}
+
 export interface ModelMeta {
   id: string;
   name: string;
@@ -23,7 +33,7 @@ export const MODELS: ModelMeta[] = [
     tierColor: '#10B981',
     url: 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
     filename: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-    stopTokens: ['<|eot_id|>', '</s>'],
+    stopTokens: ['<|eot_id|>', '<|end_of_text|>', '</s>'],
   },
   {
     id: 'gemma2-2b',
@@ -37,15 +47,15 @@ export const MODELS: ModelMeta[] = [
     stopTokens: ['<end_of_turn>', '</s>'],
   },
   {
-    id: 'phi35-mini',
-    name: 'Phi-3.5 Mini',
-    subtitle: 'Microsoft · Instruct · Q4',
-    sizeMB: 2200,
+    id: 'qwen25-15b',
+    name: 'Qwen 2.5 1.5B',
+    subtitle: 'Alibaba · Instruct · Q4_K_M',
+    sizeMB: 1100,
     tier: 'Smart',
     tierColor: '#F59E0B',
-    url: 'https://huggingface.co/microsoft/Phi-3.5-mini-instruct-gguf/resolve/main/Phi-3.5-mini-instruct-q4.gguf',
-    filename: 'Phi-3.5-mini-instruct-q4.gguf',
-    stopTokens: ['<|end|>', '</s>', '<|im_end|>'],
+    url: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    filename: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    stopTokens: ['<|im_end|>', '<|endoftext|>'],
   },
 ];
 
@@ -56,14 +66,22 @@ export type DownloadState = {
   totalMB: number;
 };
 
+export type ChatTurn = { role: 'system' | 'user' | 'assistant'; content: string };
+
 class LlamaService {
   private _activeDownload: ReturnType<typeof FileSystem.createDownloadResumable> | null = null;
   private _downloadState: DownloadState | null = null;
   private _loadedModelId: string | null = null;
+  private _context: any = null;
+  private _loading = false;
+  private _stopTokens: string[] = [];
 
-  isAvailable(): boolean { return false; }
-  isLoaded(): boolean { return false; }
-  isLoading(): boolean { return false; }
+  /** True only when the native llama.rn module is present (real device build). */
+  isAvailable(): boolean {
+    return Platform.OS !== 'web' && RNLlama != null && typeof RNLlama.initLlama === 'function';
+  }
+  isLoaded(): boolean { return this._context != null; }
+  isLoading(): boolean { return this._loading; }
   isDownloading(): boolean { return this._activeDownload !== null; }
   getLoadedModelId(): string | null { return this._loadedModelId; }
   getDownloadState(): DownloadState | null { return this._downloadState; }
@@ -100,7 +118,7 @@ class LlamaService {
     onDone: () => void,
     onError: (msg: string) => void
   ): Promise<void> {
-    if (Platform.OS === 'web') { onError('Not supported on web'); return; }
+    if (Platform.OS === 'web') { onError('On-device models need the Android app (not the web preview).'); return; }
     if (this._activeDownload) { onError('A download is already in progress'); return; }
 
     const dir = this.getModelDir();
@@ -156,24 +174,93 @@ class LlamaService {
 
   async deleteModel(model: ModelMeta): Promise<void> {
     if (Platform.OS === 'web') return;
+    if (this._loadedModelId === model.id) await this.unload();
     const path = this.getModelPath(model);
     const info = await FileSystem.getInfoAsync(path);
     if (info.exists) await FileSystem.deleteAsync(path, { idempotent: true });
   }
 
-  async load(_model: ModelMeta): Promise<void> {
-    throw new Error('On-device inference not available in this build');
+  /** Load a downloaded GGUF into the on-device inference engine. */
+  async load(model: ModelMeta): Promise<void> {
+    if (!this.isAvailable()) {
+      throw new Error('On-device AI needs the installed Android app. Build it with EAS (see README).');
+    }
+    if (this._loadedModelId === model.id && this._context) return;
+    if (this._loading) throw new Error('A model is already loading');
+
+    const downloaded = await this.isModelDownloaded(model);
+    if (!downloaded) throw new Error('Download the model first.');
+
+    this._loading = true;
+    try {
+      // Release any previously loaded model before swapping.
+      if (this._context) {
+        try { await this._context.release(); } catch { }
+        this._context = null;
+        this._loadedModelId = null;
+      }
+
+      let modelPath = this.getModelPath(model);
+      // llama.rn expects a bare filesystem path (no file:// scheme).
+      if (modelPath.startsWith('file://')) modelPath = modelPath.replace('file://', '');
+
+      this._context = await RNLlama.initLlama({
+        model: modelPath,
+        n_ctx: 2048,
+        n_gpu_layers: Platform.OS === 'ios' ? 99 : 0, // Metal on iOS; CPU on Android.
+        use_mlock: false,
+      });
+      this._loadedModelId = model.id;
+      this._stopTokens = model.stopTokens;
+    } catch (e: any) {
+      this._context = null;
+      this._loadedModelId = null;
+      throw new Error(e?.message ?? 'Failed to load model');
+    } finally {
+      this._loading = false;
+    }
   }
 
   async unload(): Promise<void> {
+    if (this._context) {
+      try { await this._context.release(); } catch { }
+    }
+    this._context = null;
     this._loadedModelId = null;
   }
 
+  /**
+   * Run a streaming chat completion fully on-device.
+   * `onToken` is called with each new token as it is generated.
+   * Returns the full generated text.
+   */
   async completion(
-    _history: { role: string; content: string }[],
-    _onToken: (token: string) => void
+    history: ChatTurn[],
+    onToken: (token: string) => void
   ): Promise<string> {
-    throw new Error('No model loaded');
+    if (!this._context) throw new Error('No model loaded');
+
+    const result = await this._context.completion(
+      {
+        messages: history,
+        n_predict: 512,
+        temperature: 0.7,
+        top_p: 0.9,
+        stop: this._stopTokens,
+      },
+      (data: { token?: string }) => {
+        if (data?.token) onToken(data.token);
+      }
+    );
+
+    const text: string = (result?.text ?? '').toString();
+    // Trim any stop token that leaked into the final text.
+    let clean = text;
+    for (const s of this._stopTokens) {
+      const idx = clean.indexOf(s);
+      if (idx !== -1) clean = clean.slice(0, idx);
+    }
+    return clean.trim();
   }
 }
 

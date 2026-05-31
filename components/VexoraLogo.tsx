@@ -11,7 +11,7 @@ import { Colors, FontSizes, Spacing } from '../constants/theme';
 
 type LogoSize = 'sm' | 'md' | 'lg';
 
-interface RiukaLogoProps {
+interface VexsoraLogoProps {
   size?: LogoSize;
   showTagline?: boolean;
 }
@@ -25,7 +25,7 @@ const sizeConfig: Record<
   lg: { riukaFontSize: 48, aiFontSize: 22, taglineFontSize: 13, glowSize: 150 },
 };
 
-export default function RiukaLogo({ size = 'md', showTagline = false }: RiukaLogoProps) {
+export default function VexsoraLogo({ size = 'md', showTagline = false }: VexsoraLogoProps) {
   const glowOpacity = useSharedValue(0.35);
   const cfg = sizeConfig[size];
 

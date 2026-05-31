@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Riuka AI",
+    "name": "Vexsora",
     "slug": "riuka-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "riuka",
+    "scheme": "vexsora",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "backgroundColor": "#0A0A0C",
@@ -50,6 +50,14 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Vexsora uses the microphone so you can talk to your AI by voice.",
+          "speechRecognitionPermission": "Vexsora uses speech recognition to turn your voice into text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
       [
         "expo-build-properties",
         {

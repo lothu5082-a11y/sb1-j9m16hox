@@ -190,7 +190,7 @@ export default function SiriModal({ visible, isListening, transcript, onClose }:
           </View>
 
           <Text style={styles.hint}>
-            {isListening ? 'Listening for your command…' : 'Say "Hey Riuka" or tap the mic'}
+            {isListening ? 'Listening for your command…' : 'Say "Hey Vexsora" or tap the mic'}
           </Text>
 
           {/* Close */}

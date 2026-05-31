@@ -254,7 +254,7 @@ export default function SensorsScreen() {
         <Animated.View entering={FadeInUp.duration(600)} style={styles.header}>
           <View>
             <GeminiTitle text="SENSORS" />
-            <Text style={styles.headerSubtitle}>Riuka AI · Web Native · Live Data</Text>
+            <Text style={styles.headerSubtitle}>Vexsora AI · Web Native · Live Data</Text>
           </View>
           <View style={styles.liveBadge}>
             <PulsingDot color={Colors.secondary} />
@@ -417,7 +417,7 @@ export default function SensorsScreen() {
                 <Text style={styles.notifTitle}>Permission Status</Text>
                 <Text style={styles.notifSub}>
                   {notifPerm === 'granted'
-                    ? 'Riuka will notify you when you get a response while in another tab.'
+                    ? 'Vexsora will notify you when you get a response while in another tab.'
                     : 'Enable notifications in Settings → Browser Notifications.'}
                 </Text>
               </View>

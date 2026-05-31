@@ -104,7 +104,7 @@ export default function PremiumScreen() {
               <ChevronLeft color={Colors.textSecondary} size={24} />
             </TouchableOpacity>
             <Crown color={Colors.accent} size={36} />
-            <Text style={styles.headerTitle}>Riuka Pro</Text>
+            <Text style={styles.headerTitle}>Vexsora Pro</Text>
             <Text style={styles.headerSubtitle}>Unlock your AI potential</Text>
           </Animated.View>
 
@@ -199,7 +199,7 @@ export default function PremiumScreen() {
               style={styles.ctaButton}
             />
             <Text style={styles.ctaSubtext}>Cancel anytime. No commitments.</Text>
-            <Text style={styles.footerBrand}>Riuka AI v1.0.0</Text>
+            <Text style={styles.footerBrand}>Vexsora AI v1.0.0</Text>
           </Animated.View>
         </ScrollView>
       </LinearGradient>

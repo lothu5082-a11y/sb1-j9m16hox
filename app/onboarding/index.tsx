@@ -18,7 +18,7 @@ const { width } = Dimensions.get('window');
 
 const slides = [
   {
-    title: 'Riuka AI',
+    title: 'Vexsora AI',
     subtitle: 'The On-Device Jarvis',
     description:
       'An autonomous system-level executive assistant that operates entirely within your device. Zero cloud. Zero latency. Absolute privacy.',
@@ -29,7 +29,7 @@ const slides = [
     title: 'Sensor Layer',
     subtitle: 'Always-On Background Awareness',
     description:
-      'Riuka silently monitors your notification stream (WhatsApp, Telegram, Slack, SMS), clipboard buffer, and device context — continuously, in the background.',
+      'Vexsora silently monitors your notification stream (WhatsApp, Telegram, Slack, SMS), clipboard buffer, and device context — continuously, in the background.',
     icon: Bell,
     gradient: [Colors.background, '#0A0A1A'] as const,
   },
@@ -45,7 +45,7 @@ const slides = [
     title: 'Clipboard Engine',
     subtitle: 'Instant Copy Analysis',
     description:
-      'Copy a code snippet, tracking number, or contract text — Riuka wakes instantly and surfaces analysis in an overlay panel without interrupting your workflow.',
+      'Copy a code snippet, tracking number, or contract text — Vexsora wakes instantly and surfaces analysis in an overlay panel without interrupting your workflow.',
     icon: ClipboardList,
     gradient: [Colors.background, '#0A120A'] as const,
   },
@@ -61,7 +61,7 @@ const slides = [
     title: 'Privacy Fortress',
     subtitle: 'Zero Cloud Architecture',
     description:
-      'Riuka\'s on-device design makes data leakage structurally impossible. Your private communications and financial data stay on your hardware — always.',
+      'Vexsora\'s on-device design makes data leakage structurally impossible. Your private communications and financial data stay on your hardware — always.',
     icon: Shield,
     gradient: [Colors.background, '#0A1A12'] as const,
   },
@@ -163,7 +163,7 @@ export default function OnboardingScreen() {
             </>
           ) : (
             <GlowButton
-              title="Activate Riuka"
+              title="Activate Vexsora"
               onPress={handleGetStarted}
               size="lg"
               style={styles.getStartedButton}
