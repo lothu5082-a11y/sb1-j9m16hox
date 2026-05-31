@@ -1,0 +1,78 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.vexora.aiassistant'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.vexora.aiassistant"
+        minSdk 26          // MediaPipe LlmInference requires API 26+
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    // Required: abiFilters so the MediaPipe .so libs are included correctly.
+    // Remove any ABI you don't need to reduce APK size.
+    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a", "x86_64"
+            universalApk true
+        }
+    }
+
+    packagingOptions {
+        // Avoid duplicate-file conflicts from MediaPipe and other Google libs
+        pickFirst 'META-INF/LICENSE.md'
+        pickFirst 'META-INF/LICENSE-notice.md'
+    }
+}
+
+dependencies {
+    // ── Core Android ────────────────────────────────────────────────────────
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // ── Lifecycle / Coroutines ───────────────────────────────────────────────
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // ── Google MediaPipe — on-device LLM Inference ──────────────────────────
+    // Check https://developers.google.com/mediapipe/solutions/genai/llm_inference
+    // for the latest version tag before building.
+    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+
+    // ── Testing ──────────────────────────────────────────────────────────────
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
