@@ -38,6 +38,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Install NDK 27.1.12297006
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.1.12297006" || \
+          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager "ndk;27.1.12297006" || \
+          true
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -61,7 +69,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon \
+          ./gradlew assembleRelease --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=512m" \
             -Pandroid.injected.signing.store.file=$HOME/.android/vexsora-release.keystore \
             -Pandroid.injected.signing.store.password=vexsora2024 \
