@@ -38,11 +38,30 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Print Android environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "Available NDK versions:"
+          ls $ANDROID_HOME/ndk/ 2>/dev/null || echo "  none pre-installed"
+          echo "CMake:"
+          cmake --version 2>/dev/null || echo "  cmake not on PATH"
+          echo "Available cmake in SDK:"
+          ls $ANDROID_HOME/cmake/ 2>/dev/null || echo "  none"
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+
       - name: Install NDK 27.1.12297006
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.1.12297006" || \
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager "ndk;27.1.12297006" || \
-          true
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER="$ANDROID_HOME/tools/bin/sdkmanager"
+          fi
+          if [ -f "$SDKMANAGER" ]; then
+            echo "y" | "$SDKMANAGER" "ndk;27.1.12297006"
+          else
+            echo "sdkmanager not found, checking if NDK already present"
+            ls "$ANDROID_HOME/ndk/" 2>/dev/null || echo "no NDK at all"
+          fi
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
@@ -66,6 +85,7 @@ jobs:
 
       # ── Build release APK ────────────────────────────────────────────────────
       - name: Build release APK
+        id: build_apk
         run: |
           cd android
           chmod +x gradlew
@@ -74,7 +94,14 @@ jobs:
             -Pandroid.injected.signing.store.file=$HOME/.android/vexsora-release.keystore \
             -Pandroid.injected.signing.store.password=vexsora2024 \
             -Pandroid.injected.signing.key.alias=vexsora \
-            -Pandroid.injected.signing.key.password=vexsora2024
+            -Pandroid.injected.signing.key.password=vexsora2024 \
+            2>&1 | tee /tmp/gradle-build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "=== LAST 200 LINES OF BUILD LOG ==="
+            tail -200 /tmp/gradle-build.log
+            exit $BUILD_EXIT
+          fi
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
           ANDROID_HOME: /usr/local/lib/android/sdk
@@ -86,6 +113,14 @@ jobs:
           name: Vexsora-v${{ github.run_number }}.apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
+
+      - name: Upload build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log-v${{ github.run_number }}.txt
+          path: /tmp/gradle-build.log
+          retention-days: 7
 
       - name: APK build summary
         run: |
