@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vexora AI</string>
+    <string name="hint_input">Ask me anything…</string>
+    <string name="btn_send">Send</string>
+    <string name="status_loading">Loading model…</string>
+    <string name="status_thinking">Thinking…</string>
+    <string name="error_no_camera">No camera app found on this device.</string>
+    <string name="error_camera_denied">Camera permission denied.</string>
+</resources>

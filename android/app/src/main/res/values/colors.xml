@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background_dark">#0F0F13</color>
+    <color name="surface_dark">#1A1A24</color>
+    <color name="surface_input">#1E1E2E</color>
+    <color name="accent_purple">#4B4BFF</color>
+    <color name="text_primary">#E0E0FF</color>
+    <color name="text_secondary">#D0D0E8</color>
+    <color name="text_hint">#44446A</color>
+    <color name="status_color">#7C7CFF</color>
+    <color name="divider">#2A2A3A</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- Required by Material theme -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+</resources>
