@@ -122,6 +122,25 @@ jobs:
           path: /tmp/gradle-build.log
           retention-days: 7
 
+      - name: Post failure details as PR comment
+        if: failure()
+        run: |
+          if [ ! -f /tmp/gradle-build.log ]; then
+            echo "No build log found" > /tmp/gradle-build.log
+          fi
+          # Extract the relevant failure section (last 120 lines, trimmed to fit comment)
+          TAIL=$(grep -E "error:|FAILED|Exception|Error:|BUILD FAILED|Caused by:" /tmp/gradle-build.log | tail -60)
+          if [ -z "$TAIL" ]; then
+            TAIL=$(tail -80 /tmp/gradle-build.log)
+          fi
+          # Escape for JSON
+          BODY=$(printf '%s' "## ❌ Build failure (run ${{ github.run_number }})\n\`\`\`\n${TAIL}\n\`\`\`" | head -c 60000 | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/4/comments" \
+            -d "{\"body\": ${BODY}}" || echo "Failed to post comment"
+
       - name: APK build summary
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
