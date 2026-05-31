@@ -20,10 +20,11 @@ import Animated, {
   Easing,
   FadeInUp,
 } from 'react-native-reanimated';
-import { Plus, Mic, Send, ChevronDown, Settings } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { Plus, Mic, Send, ChevronDown, Settings, Cpu, Lock } from 'lucide-react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { setPendingCommand } from './chat';
+import { llamaService, MODELS } from '../../lib/llamaService';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -203,6 +204,17 @@ function InputBar({ value, onChange, onSend, onMic }: {
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function AskScreen() {
   const [text, setText] = useState('');
+  const [activeModelId, setActiveModelId] = useState<string | null>(llamaService.getLoadedModelId());
+
+  // On-device AI only runs in the installed native app. Refresh status whenever
+  // the home tab regains focus (e.g. after activating a model in Settings).
+  const showOfflineBanner = Platform.OS !== 'web';
+  useFocusEffect(
+    React.useCallback(() => {
+      setActiveModelId(llamaService.getLoadedModelId());
+    }, [])
+  );
+  const activeModel = MODELS.find((m) => m.id === activeModelId);
 
   const send = () => {
     const q = text.trim();
@@ -259,6 +271,28 @@ export default function AskScreen() {
         <RotatingPrompt />
       </View>
 
+      {/* Offline AI status (native app only) */}
+      {showOfflineBanner && (
+        <Animated.View entering={FadeInUp.duration(450).delay(120)} style={st.offlineWrap}>
+          <TouchableOpacity
+            style={[st.offlineBanner, activeModel ? st.offlineActive : st.offlineIdle]}
+            activeOpacity={0.8}
+            onPress={() => router.push('/settings' as any)}
+          >
+            {activeModel ? (
+              <Lock color={Colors.secondary} size={15} />
+            ) : (
+              <Cpu color={Colors.accent} size={15} />
+            )}
+            <Text style={st.offlineText}>
+              {activeModel
+                ? `Offline AI active · ${activeModel.name}`
+                : 'Tap to set up Offline AI (private, on-device)'}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* Suggestion chips */}
       <Animated.View entering={FadeInUp.duration(500).delay(150)} style={st.chipsWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chipsRow}>
@@ -301,6 +335,14 @@ const st = StyleSheet.create({
   hLine: { width: 20, height: 1.5, backgroundColor: 'rgba(255,255,255,0.45)', borderRadius: 1 },
   modelPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   modelText: { fontSize: FontSizes.md, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  offlineWrap: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'center',
+    paddingVertical: 8, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.full, borderWidth: 1,
+  },
+  offlineActive: { backgroundColor: Colors.secondary + '14', borderColor: Colors.secondary + '55' },
+  offlineIdle: { backgroundColor: Colors.accent + '12', borderColor: Colors.accent + '45' },
+  offlineText: { fontSize: FontSizes.sm, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
   editBtn: { padding: 6 },
 
   center: {

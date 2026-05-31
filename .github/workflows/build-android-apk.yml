@@ -1,9 +1,9 @@
-name: Build Riuka AI APK
+name: Build Vexsora APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, claude/ai-chat-app-ui-h0DGq]
     paths:
       - 'app/**'
       - 'lib/**'
@@ -11,6 +11,7 @@ on:
       - 'constants/**'
       - 'package.json'
       - 'app.json'
+      - '.github/workflows/build-android-apk.yml'
 
 jobs:
   build:
@@ -44,24 +45,27 @@ jobs:
         run: |
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/release.keystore \
-            -storepass riukaai -alias riukaai -keypass riukaai \
+            -storepass vexsora -alias vexsora -keypass vexsora \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Riuka AI,O=Riuka,C=US"
+            -dname "CN=Vexsora,O=Vexsora,C=US"
 
+      # Build only arm64-v8a (every modern Android phone) so the native
+      # llama.cpp compile is fast and the APK stays small.
       - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=512m" \
+            -PreactNativeArchitectures=arm64-v8a \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" \
             -Pandroid.injected.signing.store.file=$HOME/.android/release.keystore \
-            -Pandroid.injected.signing.store.password=riukaai \
-            -Pandroid.injected.signing.key.alias=riukaai \
-            -Pandroid.injected.signing.key.password=riukaai
+            -Pandroid.injected.signing.store.password=vexsora \
+            -Pandroid.injected.signing.key.alias=vexsora \
+            -Pandroid.injected.signing.key.password=vexsora
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: riuka-ai-v${{ github.run_number }}.apk
+          name: vexsora-v${{ github.run_number }}.apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30

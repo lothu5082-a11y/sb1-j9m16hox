@@ -66,6 +66,7 @@
             "targetSdkVersion": 35,
             "minSdkVersion": 26,
             "buildToolsVersion": "35.0.0",
+            "ndkVersion": "27.1.12297006",
             "packagingOptions": {
               "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
             }
