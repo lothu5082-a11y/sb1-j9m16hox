@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Component } from 'react';
 import { Tabs } from 'expo-router';
 import { Sparkles, MessageSquare, Zap, Activity, Settings } from 'lucide-react-native';
 import { Colors, FontSizes } from '../../constants/theme';
@@ -44,6 +44,31 @@ function VexsoraTabIcon({ Icon, focused, size }: { Icon: any; focused: boolean; 
   );
 }
 
+// Error boundary so a reanimated JS crash falls back to a plain icon rather
+// than crashing the entire app.
+class SafeTabIcon extends Component<
+  { Icon: any; focused: boolean; size: number },
+  { error: boolean }
+> {
+  state = { error: false };
+  static getDerivedStateFromError() { return { error: true }; }
+  render() {
+    if (this.state.error) {
+      const { Icon, focused, size } = this.props;
+      return (
+        <View style={styles.wrap}>
+          <Icon
+            size={size}
+            color={focused ? Colors.primary : Colors.textMuted}
+            strokeWidth={focused ? 2 : 1.5}
+          />
+        </View>
+      );
+    }
+    return <VexsoraTabIcon {...this.props} />;
+  }
+}
+
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', gap: 2 },
   dot: {
@@ -83,7 +108,7 @@ export default function TabLayout() {
         options={{
           title: 'Vexsora',
           tabBarIcon: ({ size, focused }) => (
-            <VexsoraTabIcon Icon={Sparkles} focused={focused} size={size} />
+            <SafeTabIcon Icon={Sparkles} focused={focused} size={size} />
           ),
         }}
       />
@@ -92,7 +117,7 @@ export default function TabLayout() {
         options={{
           title: 'Chat',
           tabBarIcon: ({ size, focused }) => (
-            <VexsoraTabIcon Icon={MessageSquare} focused={focused} size={size} />
+            <SafeTabIcon Icon={MessageSquare} focused={focused} size={size} />
           ),
         }}
       />
@@ -101,7 +126,7 @@ export default function TabLayout() {
         options={{
           title: 'Automate',
           tabBarIcon: ({ size, focused }) => (
-            <VexsoraTabIcon Icon={Zap} focused={focused} size={size} />
+            <SafeTabIcon Icon={Zap} focused={focused} size={size} />
           ),
         }}
       />
@@ -110,7 +135,7 @@ export default function TabLayout() {
         options={{
           title: 'Hardware',
           tabBarIcon: ({ size, focused }) => (
-            <VexsoraTabIcon Icon={Activity} focused={focused} size={size} />
+            <SafeTabIcon Icon={Activity} focused={focused} size={size} />
           ),
         }}
       />
@@ -119,7 +144,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ size, focused }) => (
-            <VexsoraTabIcon Icon={Settings} focused={focused} size={size} />
+            <SafeTabIcon Icon={Settings} focused={focused} size={size} />
           ),
         }}
       />
