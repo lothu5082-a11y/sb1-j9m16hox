@@ -1,5 +1,7 @@
 package com.vexsora.modules
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -231,12 +233,41 @@ class VexsoraHardwareModule(private val reactContext: ReactApplicationContext) :
     fun getDiagnosticInfo(promise: Promise) {
         try {
             val prefs = reactContext.getSharedPreferences("vexsora_diag", Context.MODE_PRIVATE)
-            val crash = prefs.getString("crash", null)
+            val javaCrash = prefs.getString("crash", null)
             prefs.edit().remove("crash").apply()
-            promise.resolve(crash)
+
+            // On Android 11+ we can also query why the previous process died,
+            // which captures native signals (SIGABRT, SIGSEGV) that Java handlers miss.
+            val exitReason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                getLastExitReason()
+            } else null
+
+            val info = listOfNotNull(javaCrash, exitReason)
+                .joinToString("\n\n---\n\n")
+                .ifBlank { null }
+            promise.resolve(info)
         } catch (e: Exception) {
             promise.resolve(null)
         }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun getLastExitReason(): String? {
+        return try {
+            val am = reactContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return null
+            val pid = android.os.Process.myPid()
+            val reasons = am.getHistoricalProcessExitReasons(
+                reactContext.packageName, 0, 1
+            )
+            val last = reasons.firstOrNull() ?: return null
+            // Only report crash/signal reasons, not normal exits
+            if (last.reason == ApplicationExitInfo.REASON_CRASH ||
+                last.reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
+                last.reason == ApplicationExitInfo.REASON_SIGNAL_CAUGHT) {
+                "Native exit: reason=${last.reason} status=${last.status} desc=${last.description}"
+            } else null
+        } catch (_: Exception) { null }
     }
 
     // -------------------------------------------------------------------------
