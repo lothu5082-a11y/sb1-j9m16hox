@@ -218,28 +218,19 @@ export default function SettingsScreen() {
   // Load profile
   useEffect(() => {
     const loadProfile = async () => {
-      const mems = await memoryService.getMemories();
-      const nameM = mems.find((m) => m.tags.includes('profile_name'));
-      const cityM = mems.find((m) => m.tags.includes('profile_city'));
-      if (nameM) setProfileName(nameM.content.replace('Name: ', ''));
-      if (cityM) setProfileCity(cityM.content.replace('City: ', ''));
-      setMemoryCount(mems.length);
+      const profile = memoryService.getProfile();
+      if (profile.name) setProfileName(profile.name);
+      if (profile.city) setProfileCity(profile.city);
+      setMemoryCount(memoryService.getMemories().length);
     };
     loadProfile();
   }, []);
 
   const saveProfile = useCallback(async () => {
-    const mems = await memoryService.getMemories();
-    const nameM = mems.find((m) => m.tags.includes('profile_name'));
-    const cityM = mems.find((m) => m.tags.includes('profile_city'));
-    if (nameM) await memoryService.deleteMemory(nameM.id);
-    if (cityM) await memoryService.deleteMemory(cityM.id);
-    if (profileName.trim()) {
-      await memoryService.addMemory(`Name: ${profileName.trim()}`, 'preference', ['profile_name']);
-    }
-    if (profileCity.trim()) {
-      await memoryService.addMemory(`City: ${profileCity.trim()}`, 'preference', ['profile_city']);
-    }
+    await memoryService.updateProfile({
+      name: profileName.trim(),
+      city: profileCity.trim(),
+    });
     setUserLang(profileLang);
     Alert.alert('Saved', 'Profile updated.');
   }, [profileName, profileCity, profileLang]);

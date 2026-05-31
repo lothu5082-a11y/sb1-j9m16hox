@@ -236,6 +236,20 @@ class MemoryService {
     return [...this._memories];
   }
 
+  /** Remove a specific memory string. No-op if not found. */
+  async deleteMemory(entry: string): Promise<void> {
+    const idx = this._memories.indexOf(entry);
+    if (idx === -1) return;
+    this._memories.splice(idx, 1);
+    await _storage.setItem(KEY_MEMORIES, JSON.stringify(this._memories));
+  }
+
+  /** Wipe all stored memories. */
+  async clearAllMemories(): Promise<void> {
+    this._memories = [];
+    await _storage.removeItem(KEY_MEMORIES);
+  }
+
   // -------------------------------------------------------------------------
   // Context string for prompt injection
   // -------------------------------------------------------------------------

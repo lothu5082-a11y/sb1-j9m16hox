@@ -216,7 +216,7 @@ export default function OnboardingScreen() {
     if (currentSlide === 1 && profileName.trim()) {
       setSaving(true);
       try {
-        await memoryService.addMemory(`Name: ${profileName.trim()}`, 'preference', ['profile_name']);
+        await memoryService.updateProfile({ name: profileName.trim() });
       } catch {}
       setSaving(false);
     }
