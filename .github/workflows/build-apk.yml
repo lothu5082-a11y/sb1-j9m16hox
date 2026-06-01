@@ -64,11 +64,19 @@ jobs:
         working-directory: android
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      # ── 7. Upload ──────────────────────────────────────────────────────────
+      # ── 7. Locate APK (prints exact path so we can see it in the log) ────────
+      - name: Find APK
+        run: |
+          echo "=== Searching for APK files ==="
+          find . -name "*.apk" 2>/dev/null
+          echo "=== Build output tree ==="
+          find android/app/build/outputs -type f 2>/dev/null || echo "(outputs dir not found)"
+
+      # ── 8. Upload — wildcard catches any path variant ──────────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: VexoraAI-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: "**/*.apk"
           retention-days: 30
           if-no-files-found: error
