@@ -33,6 +33,7 @@ class SettingsActivity : AppCompatActivity() {
         val container = binding.cardContainer
         container.removeAllViews()
 
+        addAutoCard(container)
         addBuiltinCard(container)
         addGemmaCard(container)
         addApiKeyCard(container, ModelSettings.Provider.GEMINI,
@@ -44,6 +45,26 @@ class SettingsActivity : AppCompatActivity() {
         addApiKeyCard(container, ModelSettings.Provider.CLAUDE,
             "Anthropic Claude Haiku · Fast & very affordable",
             "sk-ant-…")
+    }
+
+    // ── Smart Auto card ────────────────────────────────────────────────────────
+
+    private fun addAutoCard(container: LinearLayout) {
+        val card = inflate(container)
+        val provider = ModelSettings.Provider.AUTO
+        card.findViewById<TextView>(R.id.tvProviderName).text = provider.displayName
+        card.findViewById<TextView>(R.id.tvProviderDesc).text =
+            "Recommended — Uses Gemini (if you added a key) when online, " +
+            "web search for facts, and built-in AI offline. Fully automatic."
+        card.findViewById<View>(R.id.keySection).visibility = View.GONE
+        card.findViewById<View>(R.id.downloadSection).visibility = View.GONE
+        styleActive(card, ModelSettings.getProvider(this) == provider)
+        card.setOnClickListener {
+            ModelSettings.setProvider(this, provider)
+            renderCards()
+            toast("Smart Auto Mode activated! ✨")
+        }
+        container.addView(card)
     }
 
     // ── Built-in card ──────────────────────────────────────────────────────────

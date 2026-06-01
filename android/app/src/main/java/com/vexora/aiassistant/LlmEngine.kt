@@ -55,6 +55,21 @@ object LlmEngine {
         val provider = ModelSettings.getProvider(context)
 
         return when (provider) {
+            ModelSettings.Provider.AUTO -> {
+                val online = WebSearchEngine.isOnline(context)
+                val geminiKey = ModelSettings.getKey(context, ModelSettings.Provider.GEMINI)
+                when {
+                    // Prefer Gemini if online + key set
+                    online && geminiKey.isNotBlank() ->
+                        ApiEngine.respond(context, ModelSettings.Provider.GEMINI, userInput, history)
+                    // Fall back to web search for factual queries
+                    online && WebSearchEngine.shouldSearch(userInput) ->
+                        WebSearchEngine.search(userInput) ?: VexoraEngine.respond(userInput)
+                    // Fully offline fallback
+                    else -> VexoraEngine.respond(userInput)
+                }
+            }
+
             ModelSettings.Provider.BUILTIN -> {
                 // When online, try fetching real data from the web first
                 if (WebSearchEngine.isOnline(context) && WebSearchEngine.shouldSearch(userInput)) {

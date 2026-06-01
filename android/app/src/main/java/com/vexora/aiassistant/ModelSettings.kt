@@ -7,6 +7,7 @@ object ModelSettings {
     private const val PREFS = "vexora_model_prefs"
 
     enum class Provider(val displayName: String) {
+        AUTO("✨ Smart Auto"),
         BUILTIN("Built-in AI"),
         GEMINI("Google Gemini"),
         OPENAI("OpenAI GPT"),

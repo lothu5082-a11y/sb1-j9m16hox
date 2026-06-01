@@ -187,9 +187,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Show web-search indicator if we'll be fetching live data
-        val willSearch = ModelSettings.getProvider(this) == ModelSettings.Provider.BUILTIN &&
-                         WebSearchEngine.isOnline(this) &&
-                         WebSearchEngine.shouldSearch(userInput)
+        val provider = ModelSettings.getProvider(this)
+        val online = WebSearchEngine.isOnline(this)
+        val willSearch = online && WebSearchEngine.shouldSearch(userInput) &&
+                (provider == ModelSettings.Provider.BUILTIN || provider == ModelSettings.Provider.AUTO)
         setUiBusy(true, if (willSearch) "🌐 Searching web…" else "Thinking…")
 
         lifecycleScope.launch(Dispatchers.Default) {
@@ -229,8 +230,16 @@ class MainActivity : AppCompatActivity() {
     // ── Service & permissions ─────────────────────────────────────────────────
 
     private fun requestPermissionsAndStartService() {
-        val missing = mutableListOf<String>()
-        if (!hasPerm(Manifest.permission.RECORD_AUDIO)) missing.add(Manifest.permission.RECORD_AUDIO)
+        val needed = listOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_PHONE_STATE
+        )
+        val missing = needed.filter { !hasPerm(it) }
         if (missing.isEmpty()) launchService() else multiPermLauncher.launch(missing.toTypedArray())
     }
 
@@ -290,9 +299,14 @@ class MainActivity : AppCompatActivity() {
     private fun updateModelStatusBar() {
         val provider = ModelSettings.getProvider(this)
         val online = WebSearchEngine.isOnline(this)
+        val hasGemini = ModelSettings.hasKey(this, ModelSettings.Provider.GEMINI)
         val statusText = when (provider) {
+            ModelSettings.Provider.AUTO ->
+                if (online && hasGemini) "● Smart Auto · Gemini Active 🌐"
+                else if (online) "● Smart Auto · Web Search 🌐"
+                else "● Smart Auto · Offline 📴"
             ModelSettings.Provider.BUILTIN ->
-                if (online) "● Built-in AI · Web Search Active 🌐" else "● Built-in AI · Offline 📴"
+                if (online) "● Built-in AI · Web Search 🌐" else "● Built-in AI · Offline 📴"
             ModelSettings.Provider.LOCAL_GEMMA -> "● Gemma 2B · Fully Offline"
             ModelSettings.Provider.GEMINI      -> "● Google Gemini · Cloud"
             ModelSettings.Provider.OPENAI      -> "● OpenAI GPT · Cloud"

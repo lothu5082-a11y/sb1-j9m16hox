@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/siri_panel_bg"
+    android:orientation="vertical"
+    android:paddingBottom="32dp"
+    android:paddingEnd="24dp"
+    android:paddingStart="24dp"
+    android:paddingTop="20dp">
+
+    <com.vexora.aiassistant.WaveAnimView
+        android:id="@+id/overlayWave"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"/>
+
+    <TextView
+        android:id="@+id/tvOverlayStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:maxLines="4"
+        android:text="🎤 Listening…"
+        android:textColor="#E0E0FF"
+        android:textSize="15sp"/>
+
+</LinearLayout>
