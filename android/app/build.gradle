@@ -9,10 +9,10 @@ android {
 
     defaultConfig {
         applicationId "com.vexora.aiassistant"
-        minSdk 26          // MediaPipe LlmInference requires API 26+
+        minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -36,42 +36,23 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-
-    // Required: abiFilters so the MediaPipe .so libs are included correctly.
-    // Remove any ABI you don't need to reduce APK size.
-    splits {
-        abi {
-            enable true
-            reset()
-            include "arm64-v8a", "x86_64"
-            universalApk true
-        }
-    }
-
-    packagingOptions {
-        // Avoid duplicate-file conflicts from MediaPipe and other Google libs
-        pickFirst 'META-INF/LICENSE.md'
-        pickFirst 'META-INF/LICENSE-notice.md'
-    }
 }
 
 dependencies {
-    // ── Core Android ────────────────────────────────────────────────────────
+    // ── Core Android ─────────────────────────────────────────────────────────
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // ── Lifecycle / Coroutines ───────────────────────────────────────────────
+    // ── Lifecycle / Coroutines ────────────────────────────────────────────────
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
-    // ── Google MediaPipe — on-device LLM Inference ──────────────────────────
-    // Check https://developers.google.com/mediapipe/solutions/genai/llm_inference
-    // for the latest version tag before building.
-    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+    // ── Google Gemini AI (free API — no model download needed) ───────────────
+    implementation 'com.google.ai.client.generativeai:generativeai:0.9.0'
 
-    // ── Testing ──────────────────────────────────────────────────────────────
+    // ── Testing ───────────────────────────────────────────────────────────────
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
