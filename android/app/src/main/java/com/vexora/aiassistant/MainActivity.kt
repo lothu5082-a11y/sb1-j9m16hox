@@ -30,11 +30,16 @@ class MainActivity : AppCompatActivity() {
     private val MODEL_FILENAME = "model.bin"
 
     // ── Model download URL ───────────────────────────────────────────────────
-    // Gemma 2B IT GPU INT4 — hosted on Google's MediaPipe model CDN.
-    // If this URL stops working, replace it with any MediaPipe-compatible .bin URL.
+    // Gemma 3 1B IT INT4 — LiteRT/MediaPipe format, hosted publicly on HuggingFace.
+    // Smaller than Gemma 2B (~1 GB) and loads faster on phones.
     private val MODEL_URL =
-        "https://storage.googleapis.com/mediapipe-models/llm_inference/" +
-        "gemma_2b_it_gpu-int4/float32/1/gemma_2b_it_gpu-int4.bin"
+        "https://huggingface.co/litert-community/Gemma3-1B-IT-int4/resolve/main/" +
+        "gemma3-1b-it-int4.bin"
+
+    // Backup URL tried automatically if the first one fails
+    private val MODEL_URL_FALLBACK =
+        "https://huggingface.co/litert-community/Gemma2-2b-it-CPU-INT8/resolve/main/" +
+        "gemma2-2b-it-cpu-int8.bin"
 
     private val SYSTEM_PROMPT = """
         You are a helpful, concise AI assistant running fully offline on this device.
@@ -111,57 +116,62 @@ class MainActivity : AppCompatActivity() {
 
     private fun downloadModel(dest: File) {
         showScreen(Screen.DOWNLOAD)
-        setDownloadStatus("Connecting…", 0, "")
-
+        setDownloadStatus("Connecting…", -1, "")
         lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val connection = URL(MODEL_URL).openConnection() as HttpURLConnection
-                connection.connectTimeout = 15_000
-                connection.readTimeout   = 30_000
-                connection.connect()
+            // Try primary URL, then backup URL automatically
+            val tried = mutableListOf<String>()
+            for (url in listOf(MODEL_URL, MODEL_URL_FALLBACK)) {
+                tried += url
+                val ok = tryDownload(url, dest)
+                if (ok) { withContext(Dispatchers.Main) { loadModel(dest) }; return@launch }
+                dest.delete()
+            }
+            withContext(Dispatchers.Main) {
+                showScreen(Screen.FALLBACK)
+                binding.tvFallbackMessage.text =
+                    "Auto-download failed from both servers.\n\n" +
+                    "Please download a MediaPipe .bin model file\n" +
+                    "to your phone's Downloads folder, then tap\n" +
+                    "the button below to select it."
+            }
+        }
+    }
 
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    throw Exception("Server error ${connection.responseCode}")
-                }
+    /** Returns true if download succeeded, false on any error. */
+    private suspend fun tryDownload(url: String, dest: File): Boolean {
+        return try {
+            withContext(Dispatchers.Main) { setDownloadStatus("Connecting to server…", -1, "") }
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 20_000
+                readTimeout    = 60_000
+                instanceFollowRedirects = true   // follow HuggingFace redirects
+                setRequestProperty("User-Agent", "VexoraAI/1.0")
+                connect()
+            }
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) return false
 
-                val totalBytes = connection.contentLengthLong
-                var downloaded = 0L
-                val buffer = ByteArray(8192)
+            val totalBytes = connection.contentLengthLong
+            var downloaded = 0L
+            val buffer = ByteArray(16_384)
 
-                connection.inputStream.use { input ->
-                    dest.outputStream().use { output ->
-                        var n: Int
-                        while (input.read(buffer).also { n = it } != -1) {
-                            output.write(buffer, 0, n)
-                            downloaded += n
-
-                            val pct = if (totalBytes > 0) (downloaded * 100 / totalBytes).toInt() else -1
-                            val dlMb  = downloaded / (1024 * 1024)
-                            val totMb = if (totalBytes > 0) totalBytes / (1024 * 1024) else 0
-                            val sizeText = if (totalBytes > 0) "${dlMb} MB / ${totMb} MB" else "${dlMb} MB"
-
-                            withContext(Dispatchers.Main) {
-                                setDownloadStatus("Downloading AI model…", pct, sizeText)
-                            }
+            connection.inputStream.use { input ->
+                dest.outputStream().use { output ->
+                    var n: Int
+                    while (input.read(buffer).also { n = it } != -1) {
+                        output.write(buffer, 0, n)
+                        downloaded += n
+                        val pct      = if (totalBytes > 0) (downloaded * 100 / totalBytes).toInt() else -1
+                        val dlMb     = downloaded / (1024 * 1024)
+                        val totMb    = if (totalBytes > 0) "${totalBytes / (1024 * 1024)} MB" else "?"
+                        val sizeText = "${dlMb} MB / $totMb"
+                        withContext(Dispatchers.Main) {
+                            setDownloadStatus("Downloading AI model…", pct, sizeText)
                         }
                     }
                 }
-
-                withContext(Dispatchers.Main) {
-                    loadModel(dest)
-                }
-
-            } catch (e: Exception) {
-                dest.delete()
-                withContext(Dispatchers.Main) {
-                    showScreen(Screen.FALLBACK)
-                    binding.tvFallbackMessage.text =
-                        "Auto-download failed:\n${e.localizedMessage}\n\n" +
-                        "Please download a MediaPipe .bin model file manually\n" +
-                        "and pick it using the button below."
-                }
             }
-        }
+            true
+        } catch (e: Exception) { false }
     }
 
     private fun setDownloadStatus(label: String, pct: Int, size: String) {
