@@ -12,14 +12,21 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.MobileAds
 import com.vexora.aiassistant.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var adapter: ChatAdapter
+    private val messages = mutableListOf<ChatMessage>()
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -31,7 +38,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        appendToChat("Vexora AI: Hey! I'm Vexora — your private offline AI assistant. I'm ready to chat, answer questions, do math, tell jokes, and more. How can I help you today?")
+        MobileAds.initialize(this)
+        binding.adView.loadAd(AdRequest.Builder().build())
+
+        setupChat()
 
         binding.btnSend.setOnClickListener {
             val text = binding.etInput.text.toString().trim()
@@ -41,19 +51,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupChat() {
+        adapter = ChatAdapter(messages)
+        binding.recyclerView.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
+        binding.recyclerView.adapter = adapter
+        addAiMessage("Hey! I'm Vexora — your private, fully offline AI assistant. Ask me anything: science, math, jokes, business tips, how to make money, life advice and more! 😊")
+    }
+
     private fun handleInput(userInput: String) {
-        appendToChat("You: $userInput")
+        addUserMessage(userInput)
         setUiBusy(true)
 
         lifecycleScope.launch(Dispatchers.Default) {
             val reply = VexoraEngine.respond(userInput)
             withContext(Dispatchers.Main) {
                 setUiBusy(false)
-                appendToChat("Vexora AI: $reply")
+                addAiMessage(reply)
                 parseAndExecuteActions(reply)
             }
         }
     }
+
+    private fun addAiMessage(text: String) {
+        adapter.addMessage(ChatMessage(text, false, nowTime()))
+        scrollBottom()
+    }
+
+    private fun addUserMessage(text: String) {
+        adapter.addMessage(ChatMessage(text, true, nowTime()))
+        scrollBottom()
+    }
+
+    private fun scrollBottom() = binding.recyclerView.post {
+        binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
+    }
+
+    private fun nowTime() = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
 
     // ── Action parser ────────────────────────────────────────────────────────
 
@@ -75,12 +108,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── UI helpers ───────────────────────────────────────────────────────────
-
-    private fun appendToChat(text: String) {
-        val cur = binding.tvResponse.text.toString()
-        binding.tvResponse.text = if (cur.isBlank()) text else "$cur\n\n$text"
-        binding.scrollView.post { binding.scrollView.fullScroll(View.FOCUS_DOWN) }
-    }
 
     private fun setUiBusy(busy: Boolean) {
         binding.btnSend.isEnabled = !busy
