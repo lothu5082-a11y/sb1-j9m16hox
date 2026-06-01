@@ -27,8 +27,9 @@ class SettingsActivity : AppCompatActivity() {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Enable WhatsApp & Telegram Reading?")
                 .setMessage(
-                    "To hear WhatsApp and Telegram messages read aloud, grant Notification Access:\n\n" +
-                    "Settings → Notification Access → Vexora AI → Allow\n\n" +
+                    "To hear WhatsApp and Telegram messages read aloud, grant Notification Access.\n\n" +
+                    "Tap 'Open Settings', find Vexora AI and enable it.\n\n" +
+                    "⚠️ If you see 'Restricted setting': Go to your phone's main Settings → Apps → Vexora AI → tap 'More' or '...' → Trust / Allow restricted settings. Then try again.\n\n" +
                     "This is optional — SMS reading works without it."
                 )
                 .setPositiveButton("Open Settings") { _, _ ->
@@ -116,6 +117,12 @@ class SettingsActivity : AppCompatActivity() {
 
         val active = ModelSettings.getProvider(this) == provider
         styleActive(card, active)
+
+        // Reset stale download state (download ID exists but nothing is running = it failed)
+        val staleId = ModelSettings.getDownloadId(this)
+        if (staleId != -1L && !ModelDownloadManager.isDownloading(this)) {
+            ModelSettings.setDownloadId(this, -1L)
+        }
 
         val modelExists = LlmEngine.findModel(this) != null
 

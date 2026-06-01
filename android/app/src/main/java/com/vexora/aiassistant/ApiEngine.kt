@@ -34,6 +34,13 @@ object ApiEngine {
         }
     }
 
+    private val GEMINI_MODELS = listOf(
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash"
+    )
+
     private fun callGemini(key: String, userInput: String, history: List<Pair<String, String>>): String {
         val contents = JSONArray()
         history.takeLast(5).forEach { (u, a) ->
@@ -51,34 +58,32 @@ object ApiEngine {
             put("parts", JSONArray().put(JSONObject().put("text", userInput)))
         })
 
-        val body = JSONObject()
-            .put("contents", contents)
-            .toString()
-            .toRequestBody(JSON)
+        val bodyStr = JSONObject().put("contents", contents).toString()
 
-        val req = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key")
-            .post(body)
-            .build()
-
-        return try {
-            val resp = client.newCall(req).execute()
-            val json = JSONObject(resp.body?.string() ?: "{}")
-            if (!resp.isSuccessful) {
-                val err = json.optJSONObject("error")?.optString("message") ?: "Unknown error"
-                "⚠️ Gemini error: $err"
-            } else {
-                json.getJSONArray("candidates")
+        for (model in GEMINI_MODELS) {
+            val body = bodyStr.toRequestBody(JSON)
+            val req = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key")
+                .post(body)
+                .build()
+            try {
+                val resp = client.newCall(req).execute()
+                val json = JSONObject(resp.body?.string() ?: "{}")
+                if (!resp.isSuccessful) {
+                    val err = json.optJSONObject("error")?.optString("message") ?: "Unknown error"
+                    if (err.contains("not found") || err.contains("not supported")) continue
+                    return "⚠️ Gemini error: $err"
+                }
+                return json.getJSONArray("candidates")
                     .getJSONObject(0)
                     .getJSONObject("content")
                     .getJSONArray("parts")
                     .getJSONObject(0)
                     .getString("text")
                     .trim()
-            }
-        } catch (e: Exception) {
-            "⚠️ Gemini request failed: ${e.message}"
+            } catch (_: Exception) { continue }
         }
+        return "⚠️ Gemini: No working model found. Check your API key at aistudio.google.com"
     }
 
     private fun callOpenAI(key: String, userInput: String, history: List<Pair<String, String>>): String {

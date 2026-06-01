@@ -16,7 +16,11 @@ object CommandInterceptor {
         val lo = input.lowercase().trim()
 
         // ── Flashlight / torch ─────────────────────────────────────────────────
-        if (lo.contains("flashlight") || lo.contains("torch")) {
+        val isFlashCmd = lo.contains("flashlight") || lo.contains("torch") ||
+            lo == "flash on" || lo == "flash off" || lo == "on flash" || lo == "off flash" ||
+            lo.startsWith("flash ") || lo.endsWith(" flash") ||
+            (lo.contains(" flash") && (lo.contains("on") || lo.contains("off") || lo.contains("turn")))
+        if (isFlashCmd) {
             val on = !(lo.contains("off") || lo.contains("disable") || lo.contains("turn off"))
             return flashlight(context, on)
         }
@@ -319,13 +323,38 @@ object CommandInterceptor {
         else "I couldn't find '$appName' on your device."
     }
 
+    private val browserFallbacks = mapOf(
+        "com.google.android.youtube"          to "https://youtube.com",
+        "com.twitter.android"                 to "https://twitter.com",
+        "com.instagram.android"               to "https://instagram.com",
+        "com.facebook.katana"                 to "https://facebook.com",
+        "com.netflix.mediaclient"             to "https://netflix.com",
+        "com.spotify.music"                   to "https://open.spotify.com",
+        "com.google.android.apps.maps"        to "https://maps.google.com",
+        "com.google.android.gm"               to "https://mail.google.com",
+        "com.amazon.mShop.android.shopping"   to "https://amazon.com",
+        "us.zoom.videomeetings"               to "https://zoom.us"
+    )
+
     private fun tryLaunch(context: Context, pkg: String, label: String): String {
         val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-            ?: return "Couldn't find '$label' on this device."
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return try {
-            context.startActivity(intent)
-            "🚀 Opening ${label.replaceFirstChar { it.uppercase() }}!"
-        } catch (e: Exception) { "Couldn't open '$label': ${e.message}" }
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(intent)
+                "🚀 Opening ${label.replaceFirstChar { it.uppercase() }}!"
+            } catch (e: Exception) { "Couldn't open '$label': ${e.message}" }
+        }
+        // App not installed — try browser fallback
+        val url = browserFallbacks[pkg]
+        if (url != null) {
+            return try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                "🌐 ${label.replaceFirstChar { it.uppercase() }} app not found — opening in browser!"
+            } catch (_: Exception) { "Couldn't find '$label' on this device." }
+        }
+        return "Couldn't find '$label' on this device."
     }
 }
