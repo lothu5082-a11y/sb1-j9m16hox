@@ -117,16 +117,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         addAiMessage(
-            "Hey! I'm **Vexora** — your offline Mini Jarvis 🤖\n\n" +
-            "**Device commands:**\n" +
-            "• *'Turn on flashlight'*\n" +
-            "• *'Set volume to 60%'*\n" +
-            "• *'Check battery'*\n" +
-            "• *'Open WhatsApp'*\n" +
-            "• *'Set brightness to 80%'*\n\n" +
-            "Tap 🎤 or say **\"Vexora\"** to use voice!\n\n" +
-            "💡 **Want real AI?** Tap ⚙️ → Google Gemini (free API key at ai.google.dev)"
+            "Hey! I'm **Vexora** — your AI assistant 🤖\n\n" +
+            "🎤 Say **\"Vexora\"** anytime to wake me up!\n\n" +
+            "**I can:**\n" +
+            "• *Call John / Text Sarah hello / Reply I'm busy*\n" +
+            "• *Turn on flashlight / Volume up / Silent mode*\n" +
+            "• *Open WhatsApp / Open YouTube*\n" +
+            "• *Check battery / Set brightness to 70%*\n" +
+            "• *Read my messages / Check messages*\n\n" +
+            "💡 Tap ⚙️ → **Smart Auto** for real Gemini AI + web search"
         )
+
+        // Prompt for Notification Access if not granted (needed for WhatsApp/Telegram reading)
+        if (!isNotificationAccessGranted()) {
+            addAiMessage(
+                "⚠️ **Optional: Enable Message Reading**\n\n" +
+                "To read WhatsApp & Telegram messages aloud, grant notification access:\n" +
+                "**Settings → Notification Access → Vexora AI → Allow**\n\n" +
+                "Tap the ⚙️ button in Settings if you want this feature."
+            )
+        }
     }
 
     private fun setupVoice() {
@@ -237,10 +247,18 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.CALL_PHONE,
-            Manifest.permission.READ_PHONE_STATE
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CALL_LOG
         )
         val missing = needed.filter { !hasPerm(it) }
         if (missing.isEmpty()) launchService() else multiPermLauncher.launch(missing.toTypedArray())
+    }
+
+    private fun isNotificationAccessGranted(): Boolean {
+        val flat = android.provider.Settings.Secure.getString(
+            contentResolver, "enabled_notification_listeners"
+        ) ?: return false
+        return flat.contains(packageName)
     }
 
     private fun launchService() {

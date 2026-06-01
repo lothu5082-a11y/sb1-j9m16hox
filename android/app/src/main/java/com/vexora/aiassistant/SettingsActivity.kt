@@ -22,6 +22,21 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
         binding.btnBack.setOnClickListener { finish() }
         renderCards()
+
+        if (!isNotifAccessGranted()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Enable WhatsApp & Telegram Reading?")
+                .setMessage(
+                    "To hear WhatsApp and Telegram messages read aloud, grant Notification Access:\n\n" +
+                    "Settings → Notification Access → Vexora AI → Allow\n\n" +
+                    "This is optional — SMS reading works without it."
+                )
+                .setPositiveButton("Open Settings") { _, _ ->
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+                .setNegativeButton("Later", null)
+                .show()
+        }
     }
 
     override fun onDestroy() {
@@ -269,6 +284,12 @@ class SettingsActivity : AppCompatActivity() {
         card.alpha = if (active) 1f else 0.72f
         card.findViewById<TextView>(R.id.tvActiveBadge).visibility =
             if (active) View.VISIBLE else View.GONE
+    }
+
+    private fun isNotifAccessGranted(): Boolean {
+        val flat = android.provider.Settings.Secure.getString(
+            contentResolver, "enabled_notification_listeners") ?: return false
+        return flat.contains(packageName)
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
