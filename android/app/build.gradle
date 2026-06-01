@@ -12,8 +12,8 @@ android {
         applicationId "com.vexora.aiassistant"
         minSdk 24
         targetSdk 34
-        versionCode 5
-        versionName "5.0"
+        versionCode 6
+        versionName "6.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -59,6 +59,9 @@ dependencies {
 
     // MediaPipe LLM Inference (Gemma on-device)
     implementation 'com.google.mediapipe:tasks-genai:0.10.14'
+
+    // HTTP client for cloud AI APIs
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

@@ -57,6 +57,16 @@
 
         </LinearLayout>
 
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Settings"
+            android:padding="8dp"
+            android:src="@drawable/ic_settings"
+            android:tint="#8888CC"/>
+
     </LinearLayout>
 
     <View

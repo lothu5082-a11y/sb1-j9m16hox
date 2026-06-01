@@ -51,6 +51,12 @@
             </intent-filter>
         </activity>
 
+        <!-- AI model settings activity -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
         <!-- Background foreground service (wake word + persistence) -->
         <service
             android:name=".VexoraService"

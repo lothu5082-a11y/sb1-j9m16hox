@@ -18,16 +18,18 @@ object LlmEngine {
     ).firstOrNull { it.exists() && it.length() > 100_000L }
 
     fun tryInit(context: Context, onReady: () -> Unit, onFail: (String) -> Unit) {
+        val provider = ModelSettings.getProvider(context)
+        if (provider != ModelSettings.Provider.LOCAL_GEMMA) {
+            onFail("")
+            return
+        }
+
         val model = findModel(context)
         if (model == null) {
             onFail(
-                "📥 **To enable the Gemma 2B AI:**\n\n" +
-                "1. Create a free account at **kaggle.com**\n" +
-                "2. Download **gemma-2b-it-gpu-int4.bin** from kaggle.com/models/google/gemma\n" +
-                "3. Copy it to your phone at:\n" +
-                "   `Android/data/com.vexora.aiassistant/files/`\n" +
-                "   (use Files or any file manager app)\n\n" +
-                "**Built-in AI is active in the meantime!** 😊"
+                "📥 **Gemma 2B not downloaded yet.**\n\n" +
+                "Go to **Settings → AI Model** and tap **Download Model** to get it, " +
+                "or switch to Gemini/OpenAI/Claude if you have an API key."
             )
             return
         }
@@ -50,19 +52,29 @@ object LlmEngine {
     }
 
     fun respond(context: Context, userInput: String, history: List<Pair<String, String>>): String {
-        val lm = llm ?: return VexoraEngine.respond(userInput)
-        return try {
-            val sysCtx = SystemContext.buildPrefix(context)
-            val histStr = history.takeLast(5).joinToString("\n") { (u, a) ->
-                "<start_of_turn>user\n$u<end_of_turn>\n<start_of_turn>model\n$a<end_of_turn>"
+        val provider = ModelSettings.getProvider(context)
+
+        return when (provider) {
+            ModelSettings.Provider.BUILTIN -> VexoraEngine.respond(userInput)
+
+            ModelSettings.Provider.LOCAL_GEMMA -> {
+                val lm = llm ?: return VexoraEngine.respond(userInput)
+                try {
+                    val sysCtx = SystemContext.buildPrefix(context)
+                    val histStr = history.takeLast(5).joinToString("\n") { (u, a) ->
+                        "<start_of_turn>user\n$u<end_of_turn>\n<start_of_turn>model\n$a<end_of_turn>"
+                    }
+                    val prompt = "$sysCtx$histStr\n<start_of_turn>user\n$userInput<end_of_turn>\n<start_of_turn>model\n"
+                    lm.generateResponse(prompt).trim()
+                        .removePrefix("<start_of_turn>model").trim()
+                        .substringBefore("<end_of_turn>").trim()
+                        .ifBlank { VexoraEngine.respond(userInput) }
+                } catch (e: Exception) {
+                    VexoraEngine.respond(userInput)
+                }
             }
-            val prompt = "$sysCtx$histStr\n<start_of_turn>user\n$userInput<end_of_turn>\n<start_of_turn>model\n"
-            lm.generateResponse(prompt).trim()
-                .removePrefix("<start_of_turn>model").trim()
-                .substringBefore("<end_of_turn>").trim()
-                .ifBlank { VexoraEngine.respond(userInput) }
-        } catch (e: Exception) {
-            VexoraEngine.respond(userInput)
+
+            else -> ApiEngine.respond(context, provider, userInput, history)
         }
     }
 

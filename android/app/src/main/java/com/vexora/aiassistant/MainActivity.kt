@@ -72,6 +72,8 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(wakeWordReceiver, IntentFilter(VexoraService.ACTION_WAKE_WORD))
         requestPermissionsAndStartService()
 
+        updateModelStatusBar()
+
         LlmEngine.tryInit(this,
             onReady = {
                 runOnUiThread {
@@ -79,8 +81,13 @@ class MainActivity : AppCompatActivity() {
                     binding.tvModelStatus.text = "● Gemma 2B · Fully Offline"
                 }
             },
-            onFail = { msg -> runOnUiThread { addAiMessage(msg) } }
+            onFail = { msg -> runOnUiThread { if (msg.isNotBlank()) addAiMessage(msg) } }
         )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateModelStatusBar()
     }
 
     override fun onDestroy() {
@@ -158,6 +165,9 @@ class MainActivity : AppCompatActivity() {
             processInput(text)
         }
         binding.btnMic.setOnClickListener { triggerVoice() }
+        binding.btnSettings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
     }
 
     // ── Core input pipeline ───────────────────────────────────────────────────
@@ -270,6 +280,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun nowTime() = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+
+    private fun updateModelStatusBar() {
+        val provider = ModelSettings.getProvider(this)
+        val statusText = when (provider) {
+            ModelSettings.Provider.BUILTIN     -> "● Built-in AI · Fully Offline"
+            ModelSettings.Provider.LOCAL_GEMMA -> "● Gemma 2B · Fully Offline"
+            ModelSettings.Provider.GEMINI      -> "● Google Gemini · Cloud"
+            ModelSettings.Provider.OPENAI      -> "● OpenAI GPT · Cloud"
+            ModelSettings.Provider.CLAUDE      -> "● Anthropic Claude · Cloud"
+        }
+        binding.tvModelStatus.text = statusText
+    }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }
