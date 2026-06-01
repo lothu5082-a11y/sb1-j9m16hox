@@ -235,15 +235,15 @@ object CommandInterceptor {
     }
 
     private fun replyToLast(message: String): String {
-        // Try WhatsApp/Telegram direct reply first (notification RemoteInput)
-        val listenerService = MessageListenerService.lastReplyAction
-        if (listenerService != null) {
+        // Try WhatsApp/Telegram direct reply via notification RemoteInput
+        val notifService = MessageListenerService.instance
+        if (notifService != null && MessageListenerService.lastReplyAction != null) {
             val name = MessageListenerService.lastSenderName
-            // We need a context reference to call replyViaNotification()
-            // Use SMS as fallback if number is available
+            val sent = notifService.replyViaNotification(message)
+            if (sent) return "✅ Reply sent to $name: \"$message\""
         }
 
-        // Try SMS reply
+        // Fall back to SMS reply
         val number = SmsHelper.lastSenderNumber
         val name = SmsHelper.lastSenderName.ifBlank { MessageListenerService.lastSenderName }
         if (number.isNotBlank()) {
@@ -252,7 +252,6 @@ object CommandInterceptor {
             else "⚠️ Couldn't send SMS — check SEND_SMS permission."
         }
 
-        // No reply target
         return if (name.isNotBlank())
             "Say **'WhatsApp $name $message'** to reply on WhatsApp, or I need a phone number to send SMS."
         else

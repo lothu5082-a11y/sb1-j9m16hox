@@ -9,7 +9,7 @@ import android.service.notification.StatusBarNotification
 class MessageListenerService : NotificationListenerService() {
 
     companion object {
-        // Stores the last notification action for direct in-notification replies
+        var instance: MessageListenerService? = null
         var lastReplyAction: Notification.Action? = null
         var lastSenderApp = ""
         var lastSenderName = ""
@@ -27,6 +27,9 @@ class MessageListenerService : NotificationListenerService() {
             "com.skype.raider"
         )
     }
+
+    override fun onListenerConnected() { super.onListenerConnected(); instance = this }
+    override fun onListenerDisconnected() { super.onListenerDisconnected(); instance = null }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in MESSAGING_APPS) return

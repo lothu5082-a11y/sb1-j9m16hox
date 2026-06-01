@@ -107,6 +107,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Boot receiver — restart wake-word service after device reboot -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
+
         <!-- Notification listener (reads WhatsApp/Telegram messages aloud) -->
         <service
             android:name=".MessageListenerService"
