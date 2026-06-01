@@ -186,7 +186,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        setUiBusy(true)
+        // Show web-search indicator if we'll be fetching live data
+        val willSearch = ModelSettings.getProvider(this) == ModelSettings.Provider.BUILTIN &&
+                         WebSearchEngine.isOnline(this) &&
+                         WebSearchEngine.shouldSearch(userInput)
+        setUiBusy(true, if (willSearch) "🌐 Searching web…" else "Thinking…")
+
         lifecycleScope.launch(Dispatchers.Default) {
             val reply = LlmEngine.respond(this@MainActivity, userInput, recentHistory.toList())
             persistToDb(userInput, reply)
@@ -270,12 +275,12 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
     }
 
-    private fun setUiBusy(busy: Boolean) {
+    private fun setUiBusy(busy: Boolean, statusText: String = "Thinking…") {
         binding.btnSend.isEnabled = !busy
         binding.etInput.isEnabled = !busy
         binding.btnMic.isEnabled = !busy
         if (!voice.isListening) {
-            binding.tvStatus.text = "Thinking…"
+            binding.tvStatus.text = statusText
             binding.tvStatus.visibility = if (busy) View.VISIBLE else View.GONE
         }
     }
@@ -284,8 +289,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateModelStatusBar() {
         val provider = ModelSettings.getProvider(this)
+        val online = WebSearchEngine.isOnline(this)
         val statusText = when (provider) {
-            ModelSettings.Provider.BUILTIN     -> "● Built-in AI · Fully Offline"
+            ModelSettings.Provider.BUILTIN ->
+                if (online) "● Built-in AI · Web Search Active 🌐" else "● Built-in AI · Offline 📴"
             ModelSettings.Provider.LOCAL_GEMMA -> "● Gemma 2B · Fully Offline"
             ModelSettings.Provider.GEMINI      -> "● Google Gemini · Cloud"
             ModelSettings.Provider.OPENAI      -> "● OpenAI GPT · Cloud"

@@ -55,7 +55,14 @@ object LlmEngine {
         val provider = ModelSettings.getProvider(context)
 
         return when (provider) {
-            ModelSettings.Provider.BUILTIN -> VexoraEngine.respond(userInput)
+            ModelSettings.Provider.BUILTIN -> {
+                // When online, try fetching real data from the web first
+                if (WebSearchEngine.isOnline(context) && WebSearchEngine.shouldSearch(userInput)) {
+                    val webResult = WebSearchEngine.search(userInput)
+                    if (webResult != null) return webResult
+                }
+                VexoraEngine.respond(userInput)
+            }
 
             ModelSettings.Provider.LOCAL_GEMMA -> {
                 val lm = llm ?: return VexoraEngine.respond(userInput)
