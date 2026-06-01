@@ -95,6 +95,13 @@ class VexoraService : Service() {
 
     // ── Wake word loop ─────────────────────────────────────────────────────────
 
+    private fun stopWakeWord() {
+        wakeWordEnabled = false
+        handler.removeCallbacksAndMessages(null)
+        recognizer?.destroy()
+        recognizer = null
+    }
+
     private fun scheduleWakeWord(delayMs: Long) {
         handler.postDelayed({ if (wakeWordEnabled) listenForWakeWord() }, delayMs)
     }
