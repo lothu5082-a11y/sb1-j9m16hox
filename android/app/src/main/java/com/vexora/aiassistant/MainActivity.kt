@@ -19,6 +19,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,6 +28,13 @@ class MainActivity : AppCompatActivity() {
     private var llmInference: LlmInference? = null
 
     private val MODEL_FILENAME = "model.bin"
+
+    // ── Model download URL ───────────────────────────────────────────────────
+    // Gemma 2B IT GPU INT4 — hosted on Google's MediaPipe model CDN.
+    // If this URL stops working, replace it with any MediaPipe-compatible .bin URL.
+    private val MODEL_URL =
+        "https://storage.googleapis.com/mediapipe-models/llm_inference/" +
+        "gemma_2b_it_gpu-int4/float32/1/gemma_2b_it_gpu-int4.bin"
 
     private val SYSTEM_PROMPT = """
         You are a helpful, concise AI assistant running fully offline on this device.
@@ -40,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         - Keep responses short and friendly.
     """.trimIndent()
 
-    // ── File picker: lets the user choose the .bin model from Downloads ──────
+    // ── File picker (fallback if auto-download fails) ────────────────────────
     private val modelPickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) copyModelFromUri(uri)
@@ -63,10 +72,12 @@ class MainActivity : AppCompatActivity() {
         setupUi()
 
         val modelFile = File(filesDir, MODEL_FILENAME)
-        if (modelFile.exists()) {
+        if (modelFile.exists() && modelFile.length() > 1_000_000L) {
+            // Model already downloaded from a previous launch — load it directly
             loadModel(modelFile)
         } else {
-            showModelSetupScreen()
+            // First launch: download automatically
+            downloadModel(modelFile)
         }
     }
 
@@ -76,47 +87,101 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // UI
+    // UI setup
     // ────────────────────────────────────────────────────────────────────────
 
     private fun setupUi() {
         binding.btnSend.setOnClickListener {
             val text = binding.etInput.text.toString().trim()
             if (text.isBlank()) return@setOnClickListener
-            if (llmInference == null) { showToast("Model not loaded yet."); return@setOnClickListener }
+            if (llmInference == null) { showToast("Model not ready yet."); return@setOnClickListener }
             binding.etInput.setText("")
             sendMessage(text)
         }
 
-        // "Choose Model File" button — opens the phone's file picker
+        // Fallback: let user pick their own model file if download fails
         binding.btnPickModel.setOnClickListener {
-            // "*/*" shows all files; the user should navigate to Downloads and pick the .bin file
             modelPickerLauncher.launch(arrayOf("*/*"))
         }
     }
 
-    private fun showModelSetupScreen() {
-        binding.layoutSetup.visibility = View.VISIBLE
-        binding.layoutChat.visibility = View.GONE
-        binding.tvSetupInstructions.text =
-            "No AI model found.\n\n" +
-            "1.  Download a MediaPipe .bin model file to your phone's Downloads folder using your browser.\n\n" +
-            "2.  Tap the button below and navigate to your Downloads folder.\n\n" +
-            "3.  Select the .bin file — the app will copy it and start automatically."
+    // ────────────────────────────────────────────────────────────────────────
+    // Auto-download model
+    // ────────────────────────────────────────────────────────────────────────
+
+    private fun downloadModel(dest: File) {
+        showScreen(Screen.DOWNLOAD)
+        setDownloadStatus("Connecting…", 0, "")
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val connection = URL(MODEL_URL).openConnection() as HttpURLConnection
+                connection.connectTimeout = 15_000
+                connection.readTimeout   = 30_000
+                connection.connect()
+
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                    throw Exception("Server error ${connection.responseCode}")
+                }
+
+                val totalBytes = connection.contentLengthLong
+                var downloaded = 0L
+                val buffer = ByteArray(8192)
+
+                connection.inputStream.use { input ->
+                    dest.outputStream().use { output ->
+                        var n: Int
+                        while (input.read(buffer).also { n = it } != -1) {
+                            output.write(buffer, 0, n)
+                            downloaded += n
+
+                            val pct = if (totalBytes > 0) (downloaded * 100 / totalBytes).toInt() else -1
+                            val dlMb  = downloaded / (1024 * 1024)
+                            val totMb = if (totalBytes > 0) totalBytes / (1024 * 1024) else 0
+                            val sizeText = if (totalBytes > 0) "${dlMb} MB / ${totMb} MB" else "${dlMb} MB"
+
+                            withContext(Dispatchers.Main) {
+                                setDownloadStatus("Downloading AI model…", pct, sizeText)
+                            }
+                        }
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    loadModel(dest)
+                }
+
+            } catch (e: Exception) {
+                dest.delete()
+                withContext(Dispatchers.Main) {
+                    showScreen(Screen.FALLBACK)
+                    binding.tvFallbackMessage.text =
+                        "Auto-download failed:\n${e.localizedMessage}\n\n" +
+                        "Please download a MediaPipe .bin model file manually\n" +
+                        "and pick it using the button below."
+                }
+            }
+        }
     }
 
-    private fun showChatScreen() {
-        binding.layoutSetup.visibility = View.GONE
-        binding.layoutChat.visibility = View.VISIBLE
+    private fun setDownloadStatus(label: String, pct: Int, size: String) {
+        binding.tvDownloadLabel.text = label
+        binding.tvDownloadSize.text  = size
+        if (pct in 0..100) {
+            binding.downloadProgress.isIndeterminate = false
+            binding.downloadProgress.progress = pct
+        } else {
+            binding.downloadProgress.isIndeterminate = true
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Model: copy from URI then load
+    // Manual fallback: copy from URI
     // ────────────────────────────────────────────────────────────────────────
 
     private fun copyModelFromUri(uri: Uri) {
-        binding.tvSetupInstructions.text = "Copying model file… this may take a few minutes."
-        binding.btnPickModel.isEnabled = false
+        showScreen(Screen.DOWNLOAD)
+        setDownloadStatus("Copying model file…", -1, "")
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -124,22 +189,23 @@ class MainActivity : AppCompatActivity() {
                 contentResolver.openInputStream(uri)?.use { input ->
                     dest.outputStream().use { output -> input.copyTo(output) }
                 }
-                withContext(Dispatchers.Main) {
-                    loadModel(dest)
-                }
+                withContext(Dispatchers.Main) { loadModel(dest) }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    binding.btnPickModel.isEnabled = true
-                    binding.tvSetupInstructions.text =
-                        "Copy failed: ${e.localizedMessage}\n\nPlease try again."
+                    showScreen(Screen.FALLBACK)
+                    binding.tvFallbackMessage.text = "Copy failed: ${e.localizedMessage}"
                 }
             }
         }
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // Load model into MediaPipe
+    // ────────────────────────────────────────────────────────────────────────
+
     private fun loadModel(modelFile: File) {
-        showChatScreen()
-        setUiBusy(true, "Loading AI model… please wait")
+        showScreen(Screen.DOWNLOAD)
+        setDownloadStatus("Loading AI into memory… (first time takes ~30s)", -1, "")
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -154,13 +220,16 @@ class MainActivity : AppCompatActivity() {
                 llmInference = LlmInference.createFromOptions(this@MainActivity, options)
 
                 withContext(Dispatchers.Main) {
-                    setUiBusy(false)
+                    showScreen(Screen.CHAT)
                     appendToChat("AI is ready! How can I help you?")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    setUiBusy(false)
-                    appendToChat("Failed to load model: ${e.localizedMessage}")
+                    showScreen(Screen.FALLBACK)
+                    binding.tvFallbackMessage.text =
+                        "Failed to load model: ${e.localizedMessage}\n\n" +
+                        "The downloaded file may be corrupted. Try again."
+                    File(filesDir, MODEL_FILENAME).delete()
                 }
             }
         }
@@ -176,9 +245,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val prompt = buildPrompt(userInput)
-                val response = llmInference!!.generateResponse(prompt)
-
+                val response = llmInference!!.generateResponse(buildPrompt(userInput))
                 withContext(Dispatchers.Main) {
                     setUiBusy(false)
                     appendToChat("AI: $response")
@@ -209,37 +276,47 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleCameraAction() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED) {
-            launchCamera()
-        } else {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
+            == PackageManager.PERMISSION_GRANTED) launchCamera()
+        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     private fun launchCamera() {
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        if (intent.resolveActivity(packageManager) != null) startActivity(intent)
+        val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (i.resolveActivity(packageManager) != null) startActivity(i)
         else showToast("No camera app found.")
     }
 
     private fun handleSettingsAction() = startActivity(Intent(Settings.ACTION_SETTINGS))
 
     // ────────────────────────────────────────────────────────────────────────
-    // UI helpers
+    // Screen switcher
+    // ────────────────────────────────────────────────────────────────────────
+
+    private enum class Screen { DOWNLOAD, FALLBACK, CHAT }
+
+    private fun showScreen(s: Screen) {
+        binding.layoutDownload.visibility = if (s == Screen.DOWNLOAD) View.VISIBLE else View.GONE
+        binding.layoutFallback.visibility = if (s == Screen.FALLBACK) View.VISIBLE else View.GONE
+        binding.layoutChat.visibility     = if (s == Screen.CHAT)     View.VISIBLE else View.GONE
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Chat UI helpers
     // ────────────────────────────────────────────────────────────────────────
 
     private fun appendToChat(text: String) {
-        val current = binding.tvResponse.text.toString()
-        binding.tvResponse.text = if (current.isBlank()) text else "$current\n\n$text"
+        val cur = binding.tvResponse.text.toString()
+        binding.tvResponse.text = if (cur.isBlank()) text else "$cur\n\n$text"
         binding.scrollView.post { binding.scrollView.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun setUiBusy(busy: Boolean, hint: String = "") {
-        binding.btnSend.isEnabled = !busy
-        binding.etInput.isEnabled = !busy
+        binding.btnSend.isEnabled  = !busy
+        binding.etInput.isEnabled  = !busy
         binding.tvStatus.visibility = if (busy) View.VISIBLE else View.GONE
         binding.tvStatus.text = hint
     }
 
-    private fun showToast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun showToast(msg: String) =
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

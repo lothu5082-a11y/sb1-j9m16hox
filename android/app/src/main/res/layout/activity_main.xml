@@ -8,14 +8,14 @@
     android:background="#0F0F13"
     tools:context=".MainActivity">
 
-    <!-- ── Title ────────────────────────────────────────────────────────── -->
+    <!-- ── App title ────────────────────────────────────────────────────── -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="20dp"
         android:layout_marginTop="20dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginEnd="20dp"
         android:text="Vexora AI  •  Offline"
         android:textColor="#E0E0FF"
         android:textSize="20sp"
@@ -24,19 +24,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         SETUP SCREEN  — shown when no model is present
-    ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════════
+         SCREEN 1: AUTO-DOWNLOAD / LOADING PROGRESS
+    ═══════════════════════════════════════════════════════════════════ -->
     <LinearLayout
-        android:id="@+id/layoutSetup"
+        android:id="@+id/layoutDownload"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="24dp"
-        android:orientation="vertical"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
         android:gravity="center"
+        android:orientation="vertical"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -44,45 +42,114 @@
         app:layout_constraintTop_toBottomOf="@id/tvTitle"
         tools:visibility="visible">
 
+        <!-- Spinning robot icon area -->
         <ImageView
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginBottom="20dp"
-            android:src="@android:drawable/ic_menu_upload"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="24dp"
+            android:src="@android:drawable/stat_sys_download"
             android:tint="#4B4BFF"
-            android:contentDescription="Upload model" />
+            android:contentDescription="Downloading" />
 
         <TextView
-            android:id="@+id/tvSetupInstructions"
+            android:id="@+id/tvDownloadLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:gravity="center"
+            android:text="Downloading AI model…"
+            android:textColor="#E0E0FF"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <!-- Progress bar — indeterminate while connecting, fills during download -->
+        <ProgressBar
+            android:id="@+id/downloadProgress"
+            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:lineSpacingMultiplier="1.5"
-            android:textColor="#C0C0E0"
-            android:textSize="15sp"
+            android:layout_marginBottom="8dp"
+            android:indeterminate="true"
+            android:max="100"
+            android:progressTint="#4B4BFF"
+            android:indeterminateTint="#4B4BFF" />
+
+        <TextView
+            android:id="@+id/tvDownloadSize"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text=""
+            android:textColor="#888899"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:gravity="center"
-            android:layout_marginBottom="32dp"
-            tools:text="Instructions appear here" />
+            android:text="This only happens once.\nAfter this the app works 100% offline."
+            android:textColor="#555577"
+            android:textSize="12sp"
+            android:lineSpacingMultiplier="1.4" />
+
+    </LinearLayout>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         SCREEN 2: FALLBACK — shown only if auto-download fails
+    ═══════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+        android:id="@+id/layoutFallback"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle">
+
+        <ImageView
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginBottom="20dp"
+            android:src="@android:drawable/ic_dialog_alert"
+            android:tint="#FF6B6B"
+            android:contentDescription="Error" />
+
+        <TextView
+            android:id="@+id/tvFallbackMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="28dp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.4"
+            android:textColor="#C0C0E0"
+            android:textSize="14sp"
+            tools:text="Auto-download failed. Please pick your model file manually." />
 
         <Button
             android:id="@+id/btnPickModel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Choose Model File (.bin)"
-            android:textColor="#FFFFFF"
             android:backgroundTint="#4B4BFF"
             android:paddingStart="28dp"
-            android:paddingEnd="28dp" />
+            android:paddingEnd="28dp"
+            android:text="Choose Model File (.bin)"
+            android:textColor="#FFFFFF" />
 
     </LinearLayout>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         CHAT SCREEN  — shown once model is loaded
-    ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════════════════════════════
+         SCREEN 3: CHAT — shown once model is loaded
+    ═══════════════════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/layoutChat"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:orientation="vertical"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -91,7 +158,7 @@
         app:layout_constraintTop_toBottomOf="@id/tvTitle"
         tools:visibility="visible">
 
-        <!-- Status label (Thinking… / Loading…) -->
+        <!-- "Thinking…" label -->
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
@@ -99,12 +166,12 @@
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="4dp"
-            android:text="Loading AI model… please wait"
+            android:text="Thinking…"
             android:textColor="#7C7CFF"
             android:textSize="13sp"
-            android:visibility="visible" />
+            android:visibility="gone" />
 
-        <!-- Scrollable response area -->
+        <!-- Response area -->
         <ScrollView
             android:id="@+id/scrollView"
             android:layout_width="match_parent"
@@ -120,16 +187,15 @@
                 android:id="@+id/tvResponse"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingMultiplier="1.4"
-                android:textColor="#D0D0E8"
-                android:textSize="15sp"
                 android:fontFamily="monospace"
                 android:hint="Responses will appear here…"
+                android:lineSpacingMultiplier="1.4"
+                android:textColor="#D0D0E8"
                 android:textColorHint="#444466"
-                tools:text="AI: Hello! How can I help you?" />
+                android:textSize="15sp"
+                tools:text="AI: Hello! How can I help?" />
         </ScrollView>
 
-        <!-- Divider -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -149,28 +215,28 @@
                 android:id="@+id/etInput"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:layout_marginEnd="8dp"
+                android:layout_weight="1"
                 android:background="#1E1E2E"
                 android:hint="Ask me anything…"
-                android:textColor="#E0E0FF"
-                android:textColorHint="#44446A"
-                android:textSize="15sp"
-                android:padding="12dp"
                 android:imeOptions="actionSend"
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="4"
-                android:minLines="1" />
+                android:minLines="1"
+                android:padding="12dp"
+                android:textColor="#E0E0FF"
+                android:textColorHint="#44446A"
+                android:textSize="15sp" />
 
             <Button
                 android:id="@+id/btnSend"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Send"
-                android:textColor="#FFFFFF"
                 android:backgroundTint="#4B4BFF"
                 android:paddingStart="20dp"
-                android:paddingEnd="20dp" />
+                android:paddingEnd="20dp"
+                android:text="Send"
+                android:textColor="#FFFFFF" />
 
         </LinearLayout>
 

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Camera permission so the ACTION_IMAGE_CAPTURE intent works -->
+    <!-- Internet: one-time model download on first launch only -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Camera: opened when AI responds with [ACTION: CAMERA] -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
