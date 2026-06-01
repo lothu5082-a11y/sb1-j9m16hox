@@ -1,7 +1,7 @@
 package com.vexora.aiassistant
 
 import android.Manifest
-import android.content.Intent
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.MediaStore
@@ -27,11 +27,36 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: ChatAdapter
     private val messages = mutableListOf<ChatMessage>()
+    private lateinit var voice: VoiceHelper
+    private lateinit var overlay: OverlayManager
+    private val recentHistory = mutableListOf<Pair<String, String>>()
+    private val db by lazy { ChatDatabase.get(this) }
 
-    private val cameraPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) launchCamera() else showToast("Camera permission denied.")
+    // ── Permission launchers ──────────────────────────────────────────────────
+
+    private val cameraPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { if (it) launchCamera() else toast("Camera permission denied.") }
+
+    private val micPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { if (it) voice.startListening() else toast("Microphone permission needed for voice input.") }
+
+    private val multiPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        if (perms[Manifest.permission.RECORD_AUDIO] == true) launchService()
+    }
+
+    // ── Wake word broadcast ───────────────────────────────────────────────────
+
+    private val wakeWordReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            if (intent?.action == VexoraService.ACTION_WAKE_WORD) triggerVoice()
         }
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,35 +67,183 @@ class MainActivity : AppCompatActivity() {
         binding.adView.loadAd(AdRequest.Builder().build())
 
         setupChat()
+        setupVoice()
+        setupButtons()
+        registerReceiver(wakeWordReceiver, IntentFilter(VexoraService.ACTION_WAKE_WORD))
+        requestPermissionsAndStartService()
 
-        binding.btnSend.setOnClickListener {
-            val text = binding.etInput.text.toString().trim()
-            if (text.isBlank()) return@setOnClickListener
-            binding.etInput.setText("")
-            handleInput(text)
-        }
+        LlmEngine.tryInit(this,
+            onReady = {
+                runOnUiThread {
+                    addAiMessage("🧠 Gemma 2B AI loaded — real intelligence active!")
+                    binding.tvModelStatus.text = "● Gemma 2B · Fully Offline"
+                }
+            },
+            onFail = { msg -> runOnUiThread { addAiMessage(msg) } }
+        )
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        voice.destroy()
+        LlmEngine.shutdown()
+        try { unregisterReceiver(wakeWordReceiver) } catch (_: Exception) {}
+    }
+
+    // ── Setup ─────────────────────────────────────────────────────────────────
 
     private fun setupChat() {
         adapter = ChatAdapter(messages)
         binding.recyclerView.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
         binding.recyclerView.adapter = adapter
-        addAiMessage("Hey! I'm Vexora — your private, fully offline AI assistant. Ask me anything: science, math, jokes, business tips, how to make money, life advice and more! 😊")
+
+        // Restore LLM context from DB (not shown in UI — just feeds memory)
+        lifecycleScope.launch(Dispatchers.IO) {
+            val recent = db.chatDao().getRecent(10).reversed()
+            var lastUser = ""
+            recent.forEach { msg ->
+                if (msg.isUser) lastUser = msg.text
+                else if (lastUser.isNotEmpty()) {
+                    recentHistory.add(Pair(lastUser, msg.text)); lastUser = ""
+                }
+            }
+        }
+
+        addAiMessage(
+            "Hey! I'm **Vexora** — your offline Mini Jarvis 🤖\n\n" +
+            "Try these commands:\n" +
+            "• *'Turn on flashlight'*\n" +
+            "• *'Set volume to 60%'*\n" +
+            "• *'Check battery'*\n" +
+            "• *'Open WhatsApp'*\n" +
+            "• *'Set brightness to 80%'*\n\n" +
+            "Tap 🎤 or say **\"Vexora\"** to use voice! 😊"
+        )
     }
 
-    private fun handleInput(userInput: String) {
-        addUserMessage(userInput)
-        setUiBusy(true)
+    private fun setupVoice() {
+        voice = VoiceHelper(
+            context = this,
+            onResult = { text -> processInput(text) },
+            onListeningStart = {
+                binding.waveView.visibility = View.VISIBLE
+                binding.waveView.startPulsing()
+                binding.inputRow.visibility = View.INVISIBLE
+                binding.tvStatus.visibility = View.GONE
+                binding.btnMic.setBackgroundResource(R.drawable.circle_mic_active)
+            },
+            onListeningEnd = {
+                binding.waveView.stopPulsing()
+                binding.waveView.visibility = View.GONE
+                binding.inputRow.visibility = View.VISIBLE
+                binding.btnMic.setBackgroundResource(R.drawable.circle_mic)
+            },
+            onError = { msg ->
+                binding.waveView.stopPulsing()
+                binding.waveView.visibility = View.GONE
+                binding.inputRow.visibility = View.VISIBLE
+                binding.btnMic.setBackgroundResource(R.drawable.circle_mic)
+                binding.tvStatus.visibility = View.GONE
+                toast(msg)
+            }
+        )
+        overlay = OverlayManager(this)
+    }
 
+    private fun setupButtons() {
+        binding.btnSend.setOnClickListener {
+            val text = binding.etInput.text.toString().trim()
+            if (text.isBlank()) return@setOnClickListener
+            binding.etInput.setText("")
+            processInput(text)
+        }
+        binding.btnMic.setOnClickListener { triggerVoice() }
+    }
+
+    // ── Core input pipeline ───────────────────────────────────────────────────
+
+    private fun processInput(userInput: String) {
+        addUserMessage(userInput)
+
+        // System commands execute immediately — no LLM needed
+        val cmdResult = CommandInterceptor.handle(this, userInput)
+        if (cmdResult != null) {
+            addAiMessage(cmdResult)
+            voice.speak(cmdResult)
+            parseAndExecuteActions(cmdResult)
+            persistToDb(userInput, cmdResult)
+            return
+        }
+
+        setUiBusy(true)
         lifecycleScope.launch(Dispatchers.Default) {
-            val reply = VexoraEngine.respond(userInput)
+            val reply = LlmEngine.respond(this@MainActivity, userInput, recentHistory.toList())
+            persistToDb(userInput, reply)
+            recentHistory.add(Pair(userInput, reply))
+            if (recentHistory.size > 10) recentHistory.removeFirst()
+
             withContext(Dispatchers.Main) {
                 setUiBusy(false)
                 addAiMessage(reply)
+                voice.speak(reply)
                 parseAndExecuteActions(reply)
             }
         }
     }
+
+    private fun persistToDb(user: String, ai: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            db.chatDao().insert(ChatEntity(text = user, isUser = true))
+            db.chatDao().insert(ChatEntity(text = ai, isUser = false))
+        }
+    }
+
+    // ── Voice ─────────────────────────────────────────────────────────────────
+
+    private fun triggerVoice() {
+        if (voice.isListening) { voice.stopListening(); return }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
+            voice.startListening()
+        } else {
+            micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // ── Service & permissions ─────────────────────────────────────────────────
+
+    private fun requestPermissionsAndStartService() {
+        val missing = mutableListOf<String>()
+        if (!hasPerm(Manifest.permission.RECORD_AUDIO)) missing.add(Manifest.permission.RECORD_AUDIO)
+        if (missing.isEmpty()) launchService() else multiPermLauncher.launch(missing.toTypedArray())
+    }
+
+    private fun launchService() {
+        startForegroundService(Intent(this, VexoraService::class.java))
+    }
+
+    private fun hasPerm(p: String) =
+        ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
+
+    // ── Action dispatch ───────────────────────────────────────────────────────
+
+    private fun parseAndExecuteActions(response: String) {
+        if (response.contains("[ACTION: CAMERA]"))   handleCameraAction()
+        if (response.contains("[ACTION: SETTINGS]")) startActivity(Intent(Settings.ACTION_SETTINGS))
+    }
+
+    private fun handleCameraAction() {
+        if (hasPerm(Manifest.permission.CAMERA)) launchCamera()
+        else cameraPermLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    private fun launchCamera() {
+        val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (i.resolveActivity(packageManager) != null) startActivity(i)
+        else toast("No camera app found.")
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
 
     private fun addAiMessage(text: String) {
         adapter.addMessage(ChatMessage(text, false, nowTime()))
@@ -86,34 +259,17 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerView.scrollToPosition(adapter.itemCount - 1)
     }
 
-    private fun nowTime() = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
-
-    // ── Action parser ────────────────────────────────────────────────────────
-
-    private fun parseAndExecuteActions(response: String) {
-        if (response.contains("[ACTION: CAMERA]"))   handleCameraAction()
-        if (response.contains("[ACTION: SETTINGS]")) startActivity(Intent(Settings.ACTION_SETTINGS))
-    }
-
-    private fun handleCameraAction() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED) launchCamera()
-        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
-    private fun launchCamera() {
-        val i = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        if (i.resolveActivity(packageManager) != null) startActivity(i)
-        else showToast("No camera app found.")
-    }
-
-    // ── UI helpers ───────────────────────────────────────────────────────────
-
     private fun setUiBusy(busy: Boolean) {
         binding.btnSend.isEnabled = !busy
         binding.etInput.isEnabled = !busy
-        binding.tvStatus.visibility = if (busy) View.VISIBLE else View.GONE
+        binding.btnMic.isEnabled = !busy
+        if (!voice.isListening) {
+            binding.tvStatus.text = "Thinking…"
+            binding.tvStatus.visibility = if (busy) View.VISIBLE else View.GONE
+        }
     }
 
-    private fun showToast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+    private fun nowTime() = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
+
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

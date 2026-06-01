@@ -1,0 +1,167 @@
+package com.vexora.aiassistant
+
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
+import android.os.BatteryManager
+import android.provider.Settings
+
+object CommandInterceptor {
+
+    fun handle(context: Context, input: String): String? {
+        val lo = input.lowercase().trim()
+
+        // Flashlight / torch
+        if (lo.contains("flashlight") || lo.contains("torch")) {
+            val on = !(lo.contains("off") || lo.contains("disable") || lo.contains("turn off"))
+            return flashlight(context, on)
+        }
+
+        // Battery
+        if (lo.contains("battery") || lo.contains("charge level") || lo.contains("how much battery"))
+            return battery(context)
+
+        // Volume
+        if (lo.contains("mute") && !lo.contains("unmute") && !lo.contains("un-mute"))
+            return volume(context, -1)
+        if (lo.contains("unmute") || lo.contains("un-mute"))
+            return volume(context, -2)
+
+        val volPct = Regex("(?:volume|vol)[^\\d]*(\\d{1,3})").find(lo)?.groupValues?.get(1)?.toIntOrNull()
+            ?: Regex("(\\d{1,3})\\s*%?\\s*(?:volume|vol)").find(lo)?.groupValues?.get(1)?.toIntOrNull()
+        if (lo.contains("max volume") || lo.contains("volume max") || lo.contains("full volume")) return volume(context, 100)
+        if (volPct != null) return volume(context, volPct.coerceIn(0, 100))
+
+        // Brightness
+        if (lo.contains("brightness") || lo.contains("screen bright")) {
+            if (lo.contains("max") || lo.contains("full")) return brightness(context, 100)
+            if (lo.contains("min") || lo.contains("dim") || lo.contains("low")) return brightness(context, 15)
+            val bPct = Regex("(\\d{1,3})").find(lo)?.value?.toIntOrNull()
+            if (bPct != null) return brightness(context, bPct.coerceIn(0, 100))
+        }
+
+        // App launch — must check LAST to not swallow other commands
+        val appMatch = Regex("(?:open|launch|start|run)\\s+(.+)", RegexOption.IGNORE_CASE).find(input)
+        if (appMatch != null && !lo.contains("settings") && !lo.contains("camera")) {
+            return launchApp(context, appMatch.groupValues[1].trim())
+        }
+        if (lo.contains("open settings") || lo.contains("phone settings"))
+            return "[ACTION: SETTINGS]\nOpening device settings! ⚙️"
+        if (lo.contains("open camera") || lo.contains("take photo") || lo.contains("take picture"))
+            return "[ACTION: CAMERA]\nOpening your camera! 📷"
+
+        return null
+    }
+
+    private fun flashlight(context: Context, on: Boolean): String = try {
+        val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val id = cm.cameraIdList.firstOrNull {
+            cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        }
+        if (id != null) {
+            cm.setTorchMode(id, on)
+            if (on) "🔦 Flashlight is ON!" else "🔦 Flashlight is OFF!"
+        } else "No flashlight hardware found on this device."
+    } catch (e: Exception) { "Flashlight error: ${e.message}" }
+
+    private fun volume(context: Context, pct: Int): String {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return when (pct) {
+            -1 -> {
+                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+                "🔇 Volume muted!"
+            }
+            -2 -> {
+                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+                "🔊 Volume unmuted!"
+            }
+            else -> {
+                val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val target = (pct / 100f * max).toInt().coerceIn(0, max)
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
+                "🔊 Volume set to $pct%!"
+            }
+        }
+    }
+
+    private fun brightness(context: Context, pct: Int): String {
+        return if (Settings.System.canWrite(context)) {
+            try {
+                val value = (pct / 100f * 255).toInt().coerceIn(1, 255)
+                Settings.System.putInt(
+                    context.contentResolver,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+                )
+                Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, value)
+                "☀️ Screen brightness set to $pct%!"
+            } catch (e: Exception) {
+                "Couldn't set brightness: ${e.message}"
+            }
+        } else {
+            "⚙️ To control brightness, grant **Modify system settings** permission:\nSettings → Apps → Vexora AI → Modify system settings"
+        }
+    }
+
+    private fun battery(context: Context): String {
+        val i = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val lvl = i?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scl = i?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val plug = i?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: 0
+        return if (lvl >= 0 && scl > 0) {
+            val pct = (lvl * 100f / scl).toInt()
+            val icon = if (pct > 80) "🔋" else if (pct > 25) "🔋" else "⚠️"
+            "$icon Battery: **$pct%** ${if (plug != 0) "(charging ⚡)" else "(not charging)"}"
+        } else "Couldn't read battery info."
+    }
+
+    private fun launchApp(context: Context, appName: String): String {
+        val lo = appName.lowercase().trim()
+        val pm = context.packageManager
+
+        // Known app shortcuts
+        val knownPkgs = mapOf(
+            "whatsapp" to "com.whatsapp", "youtube" to "com.google.android.youtube",
+            "spotify" to "com.spotify.music", "instagram" to "com.instagram.android",
+            "twitter" to "com.twitter.android", "x" to "com.twitter.android",
+            "tiktok" to "com.zhiliaoapp.musically", "facebook" to "com.facebook.katana",
+            "gmail" to "com.google.android.gm", "maps" to "com.google.android.apps.maps",
+            "google maps" to "com.google.android.apps.maps",
+            "chrome" to "com.android.chrome", "calculator" to "com.android.calculator2",
+            "termux" to "com.termux", "acode" to "com.foxdebug.acode",
+            "telegram" to "org.telegram.messenger", "netflix" to "com.netflix.mediaclient",
+            "photos" to "com.google.android.apps.photos", "clock" to "com.android.deskclock",
+            "contacts" to "com.android.contacts", "calendar" to "com.android.calendar",
+            "files" to "com.google.android.documentsui", "play store" to "com.android.vending",
+            "zoom" to "us.zoom.videomeetings", "discord" to "com.discord",
+            "reddit" to "com.reddit.frontpage", "snapchat" to "com.snapchat.android"
+        )
+
+        for ((key, pkg) in knownPkgs) {
+            if (lo.contains(key)) return tryLaunch(context, pkg, appName)
+        }
+
+        // Fuzzy search installed apps
+        val match = pm.getInstalledApplications(0).firstOrNull { app ->
+            val label = pm.getApplicationLabel(app).toString().lowercase()
+            label.contains(lo) || lo.contains(label.split(" ").first())
+        }
+        return if (match != null) tryLaunch(context, match.packageName, appName)
+        else "I couldn't find '$appName' installed on your device."
+    }
+
+    private fun tryLaunch(context: Context, pkg: String, label: String): String {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            ?: return "Couldn't find '$label' on this device."
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            "🚀 Opening ${label.split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }}!"
+        } catch (e: Exception) {
+            "Couldn't open '$label': ${e.message}"
+        }
+    }
+}

@@ -48,9 +48,10 @@
                 android:textStyle="bold"/>
 
             <TextView
+                android:id="@+id/tvModelStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="● Online · Fully Private"
+                android:text="● Built-in AI · Fully Offline"
                 android:textColor="#5A5ADF"
                 android:textSize="12sp"/>
 
@@ -67,7 +68,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/header"/>
 
-    <!-- Chat RecyclerView -->
+    <!-- Chat -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="0dp"
@@ -75,19 +76,29 @@
         android:clipToPadding="false"
         android:paddingBottom="4dp"
         android:paddingTop="4dp"
-        app:layout_constraintBottom_toTopOf="@id/tvStatus"
+        app:layout_constraintBottom_toTopOf="@id/waveView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/dividerTop"/>
 
-    <!-- Typing indicator -->
+    <!-- Voice wave animation (shown while listening) -->
+    <com.vexora.aiassistant.WaveAnimView
+        android:id="@+id/waveView"
+        android:layout_width="0dp"
+        android:layout_height="100dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/tvStatus"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+    <!-- Status (thinking / listening) -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="2dp"
         android:layout_marginStart="20dp"
-        android:text="Vexora is thinking…"
+        android:text="Thinking…"
         android:textColor="#5A5ADF"
         android:textSize="12sp"
         android:visibility="gone"
@@ -124,7 +135,7 @@
             android:id="@+id/etInput"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="6dp"
             android:layout_weight="1"
             android:background="@drawable/input_background"
             android:hint="Message Vexora…"
@@ -140,6 +151,18 @@
             android:textColorHint="#44446A"
             android:textSize="15sp"/>
 
+        <!-- Mic button -->
+        <ImageButton
+            android:id="@+id/btnMic"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/circle_mic"
+            android:contentDescription="Voice input"
+            android:padding="10dp"
+            android:src="@drawable/ic_mic"/>
+
+        <!-- Send button -->
         <Button
             android:id="@+id/btnSend"
             style="@style/Widget.AppCompat.Button"
@@ -153,7 +176,7 @@
 
     </LinearLayout>
 
-    <!-- Banner Ad (test ID — replace with your real AdMob unit ID) -->
+    <!-- AdMob banner (test IDs — replace at admob.google.com) -->
     <com.google.android.gms.ads.AdView
         android:id="@+id/adView"
         android:layout_width="match_parent"
