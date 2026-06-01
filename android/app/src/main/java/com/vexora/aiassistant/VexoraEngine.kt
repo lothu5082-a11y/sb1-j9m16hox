@@ -354,7 +354,84 @@ object VexoraEngine {
                 "Go ahead! Ask me something — I know a lot of things. 😄"
             )
 
+        // ── Generic topic extractor (catches "what is X", "who is X", "explain X", etc.) ──
+        val topicExtract = Regex(
+            """(?:what (?:is|are|was|were)|who (?:is|was|are|were)|explain|tell me about|how (?:does|do|did)|describe|define|i want to know about|info on)\s+(?:the |a |an |about )?(.{3,60})""",
+            RegexOption.IGNORE_CASE
+        ).find(raw.trim())
+        if (topicExtract != null) return smartTopicResponse(topicExtract.groupValues[1].trim(), lo)
+
+        // ── Questions ending with "?" ─────────────────────────────────────────
+        if (lo.trimEnd().endsWith("?") && lo.length > 10)
+            return smartFallback(raw)
+
         return fallback(raw)
+    }
+
+    private fun smartTopicResponse(topic: String, lo: String): String {
+        val t = topic.lowercase().trim().trimEnd('?', '.', '!')
+        return when {
+            // Countries
+            t.length < 30 && (lo.contains("country") || lo.contains("nation")) ->
+                "I know facts about many countries! Try asking 'capital of [country]', 'largest country', or 'most populated country'."
+            // People / historical figures
+            t.startsWith("elon") || t.contains("musk") ->
+                "🚀 **Elon Musk** is the CEO of Tesla and SpaceX. He's famous for revolutionising electric vehicles, founding SpaceX to make humanity multi-planetary, and acquiring Twitter (now X). He's one of the wealthiest people in history."
+            t.contains("trump") ->
+                "🇺🇸 **Donald Trump** is an American businessman and politician who served as the 45th President of the United States (2017–2021) and was elected the 47th President in 2024. Before politics he was a real estate developer and TV personality."
+            t.contains("messi") || t.startsWith("lionel") ->
+                "⚽ **Lionel Messi** is widely considered the greatest footballer of all time. The Argentine legend won the FIFA World Cup in 2022 and holds the record for most Ballon d'Or awards (8). He's played for Barcelona, PSG, and Inter Miami."
+            t.contains("ronaldo") ->
+                "⚽ **Cristiano Ronaldo** is one of football's greatest ever players. He's won 5 Ballon d'Or awards, 5 Champions League titles, and holds the record for most international goals. He plays for Al Nassr in Saudi Arabia."
+            t.contains("python") && !t.contains("snake") ->
+                "🐍 **Python** is one of the world's most popular programming languages. It's known for simple, readable syntax and is used in AI/ML, web development (Django/Flask), data science, automation, and scripting. Great first language for beginners!"
+            t.contains("javascript") || t.contains("js") ->
+                "🌐 **JavaScript** is the language of the web — it runs in every browser. It's used for interactive websites, web apps (React, Vue), servers (Node.js), and even mobile apps (React Native). One of the most in-demand programming skills."
+            t.contains("kotlin") ->
+                "🤖 **Kotlin** is Google's preferred language for Android development (this app is written in Kotlin!). It's modern, concise, and 100% interoperable with Java. It also works for servers (Spring) and even web frontends (Kotlin/JS)."
+            t.contains("java") && !t.contains("script") ->
+                "☕ **Java** is one of the oldest and most widely used programming languages. It runs on billions of devices via the JVM (Java Virtual Machine). Used heavily in enterprise software, Android (historically), and big data systems."
+            t.contains("machine learning") || t.contains("ml") ->
+                "🤖 **Machine Learning** is teaching computers to learn from data instead of explicit rules. The computer finds patterns and improves automatically. It powers recommendation systems (Netflix, YouTube), spam filters, image recognition, and language models like ChatGPT."
+            t.contains("neural network") ->
+                "🧠 **Neural networks** are computing systems loosely inspired by the brain. They consist of layers of interconnected nodes (neurons). Each connection has a 'weight' that gets adjusted during training. Deep neural networks (many layers) power modern AI — image recognition, language models, voice assistants."
+            t.contains("chatgpt") || t.contains("gpt-4") || t.contains("openai") ->
+                "🤖 **ChatGPT** by OpenAI is a large language model trained on massive amounts of text. It can write, code, analyse, and converse on almost any topic. GPT-4 is their most capable model. You can access similar AI through this app — go to ⚙️ Settings and add an OpenAI API key!"
+            t.contains("gemini") && !t.contains("zodiac") ->
+                "✨ **Google Gemini** is Google's AI model — multimodal (understands text, images, code). Gemini 1.5 Flash is free to use via API. You can connect it to this very app — tap ⚙️ Settings → Google Gemini and add your free API key from ai.google.dev!"
+            t.contains("iphone") || t.contains("ios") ->
+                "📱 **iPhone/iOS** is Apple's mobile ecosystem. iOS is known for strong security, tight hardware-software integration, and excellent app quality. iPhones are premium-priced but hold resale value well. The App Store has stricter guidelines than Google Play."
+            t.contains("climate") || t.contains("global warming") ->
+                "🌡️ Climate change is the long-term shift in global temperatures, primarily driven by human CO₂ emissions since industrialisation. Consequences include rising sea levels, more extreme weather, biodiversity loss. Solutions include renewable energy, carbon capture, and changing consumption patterns."
+            t.contains("cryptocurrency") || t.contains("crypto") ->
+                "₿ **Cryptocurrency** is digital money secured by cryptography on a decentralised blockchain. Bitcoin (2009) was first. Ethereum added programmable 'smart contracts'. The market is highly volatile — values can change 50%+ in weeks. Always research thoroughly before investing."
+            t.contains("meditation") ->
+                "🧘 **Meditation** is the practice of focused attention to train awareness. Even 10 minutes daily reduces cortisol, improves focus, and builds emotional resilience. Start with box breathing (4-4-4-4) or just observe your breathing without changing it. Apps like Headspace or Calm can guide beginners."
+            t.contains("resume") || t.contains("cv") ->
+                "📄 **Resume/CV tips:**\n• One page for under 10 years experience\n• Lead with your most impressive achievement\n• Use numbers ('grew sales 40%' not 'improved sales')\n• Tailor keywords to each job description\n• ATS (applicant tracking systems) scan for exact keywords — match them\n• Clean formatting beats fancy design"
+            t.contains("interview") ->
+                "🎯 **Job interview tips:**\n• Research the company deeply (products, news, culture)\n• Prepare STAR stories (Situation, Task, Action, Result)\n• Have 3 strong questions ready for them\n• Salary: let them go first or give a researched range\n• Follow up with a thank-you email within 24 hours\n• Body language: eye contact, upright posture, genuine smile"
+            t.contains("depression") || t.contains("mental illness") ->
+                "💙 Depression is a real medical condition, not weakness. Signs include persistent low mood, loss of interest, fatigue, and changes in sleep/appetite. **Please talk to a doctor or mental health professional** — effective treatments exist (therapy, medication, or both). You don't have to manage this alone."
+            t.contains("relationship") || t.contains("partner") ->
+                "💙 Healthy relationships are built on **communication, trust, and mutual respect**. Research shows the top predictors of relationship success: responding positively to small bids for connection, fair conflict resolution, and maintaining genuine friendship. The Gottman Institute has great evidence-based resources."
+            t.contains("memory") && (lo.contains("improve") || lo.contains("better")) ->
+                "🧠 **Memory improvement techniques:**\n• **Spaced repetition** — review material at increasing intervals\n• **Active recall** — test yourself instead of re-reading\n• **Sleep** — memories consolidate during deep sleep\n• **Exercise** — increases BDNF, a brain growth factor\n• **Teach it** — explaining something to others cements it\n• **Chunking** — group related info (phone numbers work this way)"
+            else ->
+                pick(
+                    "**${topic.replaceFirstChar { it.uppercase() }}** — that's a topic I'd love to fully explain, but my offline knowledge doesn't cover it in detail.\n\n💡 For a real AI answer: tap **⚙️ Settings** → **Google Gemini** (free API key from ai.google.dev) and you'll get an instant, detailed response!",
+                    "Interesting question about **${topic.replaceFirstChar { it.uppercase() }}**! My built-in knowledge covers science, history, maths, tech, health, and more — but not every topic in depth.\n\n🎯 **Free tip**: the Gemini API is free to start — go to ⚙️ Settings, add your key, and get real AI answers on anything!",
+                    "I want to give you a proper answer about **${topic.replaceFirstChar { it.uppercase() }}**, but my offline database doesn't have it.\n\nTry:\n• Rephrasing — I might know it under a different angle\n• Type **'what can you do'** to see all my topics\n• Or get free real AI: ⚙️ Settings → Gemini"
+                )
+        }
+    }
+
+    private fun smartFallback(raw: String): String {
+        return pick(
+            "That's a great question! I thought hard about it, but I'm not confident I have the right answer in my offline database.\n\n💡 For accurate AI answers, tap **⚙️ Settings** → **Google Gemini** — it's free to start at ai.google.dev!",
+            "Hmm, that one goes beyond my offline knowledge. I cover science, maths, history, tech, business, and casual chat really well — but this needs a deeper AI.\n\n🎯 The good news: **Gemini free tier** in ⚙️ Settings gives you Google's full AI for free!",
+            "Good question — and an honest answer: I'm not sure I can do it justice with my built-in knowledge. For this kind of question, a real AI like Gemini or Claude would give you a much better answer. Tap ⚙️ Settings to connect one — Gemini has a free tier!"
+        )
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -1001,10 +1078,10 @@ object VexoraEngine {
     )
 
     private fun fallback(raw: String) = pick(
-        "That's an interesting one! I don't have a perfect answer for '${raw.take(40).trim()}', but ask me about science, history, math, technology, business, jokes, health, or just have a chat — those are my strongest areas!",
-        "Hmm, I'm not sure I have a great response for that. Try asking me something like:\n• 'tell me a fun fact'\n• 'how do I make money'\n• 'tell me a joke'\n• 'what is black holes'\n• 'motivate me'\nI cover hundreds of topics!",
-        "I don't have that one in my knowledge base yet! Say **'what can you do'** to see everything I know, or just try asking something else — I know a LOT.",
-        "Great question — I want to give you a real answer but I need a bit more context. Could you rephrase that or ask something more specific?"
+        "I want to give you a good answer for '${raw.take(35).trim()}…' but I'm not confident I have it right offline. Try asking about science, history, maths, tech, health, business, or jokes — those are my strongest areas! Or tap ⚙️ **Settings → Gemini** for real AI (free).",
+        "Hmm, that's at the edge of my offline knowledge! Try rephrasing, or ask me something like:\n• 'tell me a fun fact'\n• 'how do I make money'\n• 'explain black holes'\n• 'motivate me'\n\nFor unlimited real AI: ⚙️ Settings → Google Gemini (free tier).",
+        "I don't have a confident answer for that one. Type **'what can you do'** to see all my topics — I cover a lot! Or connect a free AI: ⚙️ Settings → **Google Gemini**.",
+        "That needs more knowledge than I have offline. Could you rephrase or be more specific? I'm also always happy to tell you a fact, a joke, or give you advice on something else!"
     )
 }
 

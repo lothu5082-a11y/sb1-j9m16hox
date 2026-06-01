@@ -118,13 +118,14 @@ class MainActivity : AppCompatActivity() {
 
         addAiMessage(
             "Hey! I'm **Vexora** — your offline Mini Jarvis 🤖\n\n" +
-            "Try these commands:\n" +
+            "**Device commands:**\n" +
             "• *'Turn on flashlight'*\n" +
             "• *'Set volume to 60%'*\n" +
             "• *'Check battery'*\n" +
             "• *'Open WhatsApp'*\n" +
             "• *'Set brightness to 80%'*\n\n" +
-            "Tap 🎤 or say **\"Vexora\"** to use voice! 😊"
+            "Tap 🎤 or say **\"Vexora\"** to use voice!\n\n" +
+            "💡 **Want real AI?** Tap ⚙️ → Google Gemini (free API key at ai.google.dev)"
         )
     }
 

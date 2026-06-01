@@ -20,9 +20,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         binding.btnBack.setOnClickListener { finish() }
-
         renderCards()
     }
 
@@ -35,52 +33,30 @@ class SettingsActivity : AppCompatActivity() {
         val container = binding.cardContainer
         container.removeAllViews()
 
-        // ── Built-in card ──────────────────────────────────────────────────────
-        addSimpleCard(
-            container,
-            provider = ModelSettings.Provider.BUILTIN,
-            description = "Offline rule-based engine. No internet or API key required.",
-            hasKey = false
-        )
-
-        // ── Gemma 2B local card ────────────────────────────────────────────────
+        addBuiltinCard(container)
         addGemmaCard(container)
-
-        // ── Cloud API cards ────────────────────────────────────────────────────
-        addApiKeyCard(
-            container,
-            provider = ModelSettings.Provider.GEMINI,
-            description = "Google Gemini 1.5 Flash · Free tier available",
-            hint = "AIza…"
-        )
-        addApiKeyCard(
-            container,
-            provider = ModelSettings.Provider.OPENAI,
-            description = "OpenAI GPT-3.5-turbo · Pay-per-use",
-            hint = "sk-…"
-        )
-        addApiKeyCard(
-            container,
-            provider = ModelSettings.Provider.CLAUDE,
-            description = "Anthropic Claude Haiku · Fast & affordable",
-            hint = "sk-ant-…"
-        )
+        addApiKeyCard(container, ModelSettings.Provider.GEMINI,
+            "Google Gemini 1.5 Flash · FREE tier — no cost to start",
+            "AIza…")
+        addApiKeyCard(container, ModelSettings.Provider.OPENAI,
+            "OpenAI GPT-3.5-turbo · Pay-per-use (low cost)",
+            "sk-…")
+        addApiKeyCard(container, ModelSettings.Provider.CLAUDE,
+            "Anthropic Claude Haiku · Fast & very affordable",
+            "sk-ant-…")
     }
 
-    private fun addSimpleCard(
-        container: LinearLayout,
-        provider: ModelSettings.Provider,
-        description: String,
-        hasKey: Boolean
-    ) {
-        val card = LayoutInflater.from(this).inflate(R.layout.item_model_card, container, false)
+    // ── Built-in card ──────────────────────────────────────────────────────────
+
+    private fun addBuiltinCard(container: LinearLayout) {
+        val card = inflate(container)
+        val provider = ModelSettings.Provider.BUILTIN
         card.findViewById<TextView>(R.id.tvProviderName).text = provider.displayName
-        card.findViewById<TextView>(R.id.tvProviderDesc).text = description
-        card.findViewById<View>(R.id.keySection).visibility = if (hasKey) View.VISIBLE else View.GONE
-
-        val activeProvider = ModelSettings.getProvider(this)
-        styleActive(card, activeProvider == provider)
-
+        card.findViewById<TextView>(R.id.tvProviderDesc).text =
+            "Works offline, no internet or key required. Covers science, math, jokes, advice & more."
+        card.findViewById<View>(R.id.keySection).visibility = View.GONE
+        card.findViewById<View>(R.id.downloadSection).visibility = View.GONE
+        styleActive(card, ModelSettings.getProvider(this) == provider)
         card.setOnClickListener {
             ModelSettings.setProvider(this, provider)
             renderCards()
@@ -89,165 +65,189 @@ class SettingsActivity : AppCompatActivity() {
         container.addView(card)
     }
 
+    // ── Gemma local card ───────────────────────────────────────────────────────
+
+    private fun addGemmaCard(container: LinearLayout) {
+        val card = inflate(container)
+        val provider = ModelSettings.Provider.LOCAL_GEMMA
+        card.findViewById<TextView>(R.id.tvProviderName).text = provider.displayName
+        card.findViewById<View>(R.id.keySection).visibility = View.GONE
+        val dlSection = card.findViewById<View>(R.id.downloadSection)
+        val btnDownload = card.findViewById<Button>(R.id.btnDownload)
+        val progressBar = card.findViewById<ProgressBar>(R.id.downloadProgress)
+        val tvProgress = card.findViewById<TextView>(R.id.tvDownloadProgress)
+        dlSection.visibility = View.VISIBLE
+
+        val active = ModelSettings.getProvider(this) == provider
+        styleActive(card, active)
+
+        val modelExists = LlmEngine.findModel(this) != null
+
+        if (modelExists) {
+            card.findViewById<TextView>(R.id.tvProviderDesc).text =
+                "✓ Model installed — runs 100% offline on your device."
+            btnDownload.text = "✓ Model Ready"
+            btnDownload.isEnabled = false
+            progressBar.visibility = View.GONE
+            tvProgress.visibility = View.GONE
+            card.setOnClickListener {
+                if (!active) { ModelSettings.setProvider(this, provider); renderCards() }
+            }
+        } else {
+            card.findViewById<TextView>(R.id.tvProviderDesc).text =
+                "Runs 100% offline. Requires a free ~1.5 GB model file from Kaggle."
+            updateGemmaButton(btnDownload, progressBar, tvProgress)
+
+            btnDownload.setOnClickListener {
+                when (btnDownload.text) {
+                    "Cancel" -> {
+                        AlertDialog.Builder(this)
+                            .setTitle("Cancel Download?")
+                            .setMessage("Stop downloading the Gemma model?")
+                            .setPositiveButton("Yes") { _, _ ->
+                                progressRunnable?.let { handler.removeCallbacks(it) }
+                                ModelDownloadManager.cancelDownload(this)
+                                renderCards()
+                            }
+                            .setNegativeButton("No", null).show()
+                    }
+                    "📋 How to Install" -> showGemmaGuide()
+                    else -> startGemmaDownload(btnDownload, progressBar, tvProgress)
+                }
+            }
+        }
+        container.addView(card)
+    }
+
+    private fun updateGemmaButton(btn: Button, pb: ProgressBar, tv: TextView) {
+        when {
+            ModelDownloadManager.isDownloading(this) -> {
+                btn.text = "Cancel"
+                pb.visibility = View.VISIBLE
+                tv.visibility = View.VISIBLE
+                val pct = ModelDownloadManager.getProgress(this)
+                if (pct >= 0) { pb.progress = pct; tv.text = "$pct%" }
+            }
+            else -> {
+                btn.text = "⬇️ Auto-Download (~1.5 GB)"
+                btn.isEnabled = true
+                pb.visibility = View.GONE
+                tv.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun startGemmaDownload(btn: Button, pb: ProgressBar, tv: TextView) {
+        btn.isEnabled = false
+        btn.text = "Starting…"
+        pb.visibility = View.VISIBLE
+        tv.visibility = View.VISIBLE
+        tv.text = "0%"
+
+        ModelDownloadManager.startDownload(this) { success ->
+            runOnUiThread {
+                progressRunnable?.let { handler.removeCallbacks(it) }
+                if (success) {
+                    toast("✓ Model downloaded! Tap the card to activate Gemma.")
+                    renderCards()
+                } else {
+                    ModelSettings.setDownloadId(this, -1L)
+                    toast("Download failed — try the manual install guide.")
+                    btn.text = "📋 How to Install"
+                    btn.isEnabled = true
+                    pb.visibility = View.GONE
+                    tv.visibility = View.GONE
+                }
+            }
+        }
+
+        progressRunnable = object : Runnable {
+            override fun run() {
+                val pct = ModelDownloadManager.getProgress(this@SettingsActivity)
+                if (pct >= 0) { pb.progress = pct; tv.text = "$pct%" }
+                if (ModelDownloadManager.isDownloading(this@SettingsActivity))
+                    handler.postDelayed(this, 1000)
+            }
+        }
+        handler.postDelayed(progressRunnable!!, 1500)
+    }
+
+    private fun showGemmaGuide() {
+        AlertDialog.Builder(this)
+            .setTitle("How to Install Gemma 2B")
+            .setMessage(
+                "1. Open kaggle.com on your phone (free account needed)\n\n" +
+                "2. Search for:\n" +
+                "   'google/gemma/tfLite/gemma-2b-it-gpu-int4'\n\n" +
+                "3. Download the file:\n" +
+                "   gemma-2b-it-gpu-int4.bin\n\n" +
+                "4. Move that file to:\n" +
+                "   Android/data/com.vexora.aiassistant/files/\n" +
+                "   (use your Files app)\n\n" +
+                "5. Come back here and tap the Gemma card to activate!\n\n" +
+                "Tip: Do this over Wi-Fi — the file is ~1.5 GB."
+            )
+            .setPositiveButton("Got it!") { _, _ -> renderCards() }
+            .setNeutralButton("Try Auto-Download") { _, _ ->
+                renderCards()
+            }
+            .show()
+    }
+
+    // ── API key cards ──────────────────────────────────────────────────────────
+
     private fun addApiKeyCard(
         container: LinearLayout,
         provider: ModelSettings.Provider,
         description: String,
         hint: String
     ) {
-        val card = LayoutInflater.from(this).inflate(R.layout.item_model_card, container, false)
+        val card = inflate(container)
         card.findViewById<TextView>(R.id.tvProviderName).text = provider.displayName
         card.findViewById<TextView>(R.id.tvProviderDesc).text = description
+        card.findViewById<View>(R.id.downloadSection).visibility = View.GONE
 
         val keySection = card.findViewById<View>(R.id.keySection)
         val etKey = card.findViewById<EditText>(R.id.etApiKey)
         val btnSave = card.findViewById<Button>(R.id.btnSaveKey)
-
         keySection.visibility = View.VISIBLE
         etKey.hint = hint
-        val existing = ModelSettings.getKey(this, provider)
-        if (existing.isNotEmpty()) {
-            etKey.setText(existing.take(8) + "…")
-        }
 
-        val activeProvider = ModelSettings.getProvider(this)
-        styleActive(card, activeProvider == provider)
+        val existing = ModelSettings.getKey(this, provider)
+        if (existing.isNotEmpty()) etKey.setText(existing.take(8) + "…")
+
+        val active = ModelSettings.getProvider(this) == provider
+        styleActive(card, active)
 
         btnSave.setOnClickListener {
-            val rawText = etKey.text.toString().trim()
-            val key = if (rawText.endsWith("…")) existing else rawText
-            if (key.isBlank()) { toast("Enter your API key first"); return@setOnClickListener }
+            val raw = etKey.text.toString().trim()
+            val key = if (raw.endsWith("…")) existing else raw
+            if (key.isBlank()) { toast("Paste your API key first"); return@setOnClickListener }
             ModelSettings.setKey(this, provider, key)
             ModelSettings.setProvider(this, provider)
             renderCards()
-            toast("${provider.displayName} activated!")
+            toast("${provider.displayName} activated! ✓")
         }
 
         card.setOnClickListener {
-            if (activeProvider != provider) {
-                if (ModelSettings.hasKey(this, provider)) {
-                    ModelSettings.setProvider(this, provider)
-                    renderCards()
-                    toast("Switched to ${provider.displayName}")
-                } else {
-                    etKey.requestFocus()
-                    toast("Enter your API key first")
-                }
-            }
-        }
-
-        container.addView(card)
-    }
-
-    private fun addGemmaCard(container: LinearLayout) {
-        val card = LayoutInflater.from(this).inflate(R.layout.item_model_card, container, false)
-        val provider = ModelSettings.Provider.LOCAL_GEMMA
-        card.findViewById<TextView>(R.id.tvProviderName).text = provider.displayName
-        card.findViewById<TextView>(R.id.tvProviderDesc).text =
-            "Runs fully offline on your device. ~1.5 GB download required."
-
-        card.findViewById<View>(R.id.keySection).visibility = View.GONE
-
-        val downloadSection = card.findViewById<View>(R.id.downloadSection)
-        val btnDownload = card.findViewById<Button>(R.id.btnDownload)
-        val progressBar = card.findViewById<ProgressBar>(R.id.downloadProgress)
-        val tvProgress = card.findViewById<TextView>(R.id.tvDownloadProgress)
-        downloadSection.visibility = View.VISIBLE
-
-        val activeProvider = ModelSettings.getProvider(this)
-        styleActive(card, activeProvider == provider)
-
-        val modelExists = LlmEngine.findModel(this) != null
-
-        fun refreshDownloadUi() {
-            when {
-                modelExists -> {
-                    btnDownload.text = "✓ Model Ready"
-                    btnDownload.isEnabled = false
-                    progressBar.visibility = View.GONE
-                    tvProgress.visibility = View.GONE
-                }
-                ModelDownloadManager.isDownloading(this) -> {
-                    btnDownload.text = "Cancel"
-                    progressBar.visibility = View.VISIBLE
-                    tvProgress.visibility = View.VISIBLE
-                    val pct = ModelDownloadManager.getProgress(this)
-                    if (pct >= 0) {
-                        progressBar.progress = pct
-                        tvProgress.text = "$pct%"
-                    }
-                }
-                else -> {
-                    btnDownload.text = "Download Model (~1.5 GB)"
-                    btnDownload.isEnabled = true
-                    progressBar.visibility = View.GONE
-                    tvProgress.visibility = View.GONE
-                }
-            }
-        }
-        refreshDownloadUi()
-
-        btnDownload.setOnClickListener {
-            if (ModelDownloadManager.isDownloading(this)) {
-                AlertDialog.Builder(this)
-                    .setTitle("Cancel Download?")
-                    .setMessage("Cancel the Gemma model download?")
-                    .setPositiveButton("Yes") { _, _ ->
-                        ModelDownloadManager.cancelDownload(this)
-                        refreshDownloadUi()
-                    }
-                    .setNegativeButton("No", null)
-                    .show()
-            } else {
-                btnDownload.isEnabled = false
-                btnDownload.text = "Starting…"
-                progressBar.visibility = View.VISIBLE
-                tvProgress.visibility = View.VISIBLE
-
-                ModelDownloadManager.startDownload(this) { success ->
-                    runOnUiThread {
-                        if (success) {
-                            progressRunnable?.let { handler.removeCallbacks(it) }
-                            toast("✓ Model downloaded! Tap to activate.")
-                            renderCards()
-                        } else {
-                            toast("Download failed. Check your internet connection.")
-                            refreshDownloadUi()
-                        }
-                    }
-                }
-
-                progressRunnable = object : Runnable {
-                    override fun run() {
-                        val pct = ModelDownloadManager.getProgress(this@SettingsActivity)
-                        if (pct >= 0) {
-                            progressBar.progress = pct
-                            tvProgress.text = "$pct%"
-                        }
-                        if (ModelDownloadManager.isDownloading(this@SettingsActivity)) {
-                            handler.postDelayed(this, 1000)
-                        }
-                    }
-                }
-                handler.postDelayed(progressRunnable!!, 1000)
-            }
-        }
-
-        card.setOnClickListener {
-            if (modelExists && activeProvider != provider) {
+            if (!active && ModelSettings.hasKey(this, provider)) {
                 ModelSettings.setProvider(this, provider)
                 renderCards()
                 toast("Switched to ${provider.displayName}")
             }
         }
-
         container.addView(card)
     }
 
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private fun inflate(parent: LinearLayout): View =
+        LayoutInflater.from(this).inflate(R.layout.item_model_card, parent, false)
+
     private fun styleActive(card: View, active: Boolean) {
         card.alpha = if (active) 1f else 0.72f
-        val badge = card.findViewById<TextView>(R.id.tvActiveBadge)
-        badge.visibility = if (active) View.VISIBLE else View.GONE
+        card.findViewById<TextView>(R.id.tvActiveBadge).visibility =
+            if (active) View.VISIBLE else View.GONE
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
