@@ -17,7 +17,9 @@ index.js  ──▶  App.tsx (composition root: fonts, providers, status bar)
                   │
                   ▼
         components/VexsoraTerminal.tsx   ← UI layer (Void Black terminal)
-                  │  (imports only the client + theme)
+                  │            │
+                  │            └────────────▶ utils/actionRouter.ts  ← local tools
+                  │  (imports the client, theme, and action router)
                   ▼
             lib/vexsoraClient.ts         ← transport + error boundaries
                   │
@@ -33,6 +35,7 @@ index.js  ──▶  App.tsx (composition root: fonts, providers, status bar)
 | Root | `App.tsx` | Fonts, `SafeAreaProvider`, `GestureHandlerRootView`, status bar, mounts the terminal. Intentionally thin. |
 | UI | `components/VexsoraTerminal.tsx` | All view primitives, chat list, composer, status pill, diagnostics. Calls **only** `vexsoraClient`. |
 | Client | `lib/vexsoraClient.ts` | The single bridge to the engine. Owns the loopback endpoint, request shape, timeouts, and **all error handling**. |
+| Actions | `utils/actionRouter.ts` | Local tool registry: schema, directive parser, dispatcher, and built-in on-device actions. |
 | Theme | `constants/vexsoraTheme.ts` | The "Void Black" design tokens (colors, spacing, radii, glows, mono font). |
 
 ### Why the UI is decoupled from transport
@@ -68,6 +71,32 @@ different local port) without touching the UI.
 - **Timeouts:** `fetchWithTimeout` composes the caller's `AbortSignal` with an
   internal timer (health probe ~2.5s, chat ~120s) so requests can't hang.
 - **No cloud dependencies** — only the platform `fetch` + `AbortController`.
+
+---
+
+## Local Action / Tool Registry (`utils/actionRouter.ts`)
+
+Turns Vexsora from a chatbot into a system assistant. Strictly local, no new
+dependencies (only `Platform` + the existing `expo-file-system`).
+
+- **Registry:** `actionRouter.register({ name, label, description, params, run })`.
+  Built-ins: `create_file`, `toggle_state`, `run_shell`. `describeActions()`
+  feeds the action catalog into the system prompt so the engine knows the syntax.
+- **Directive parsing:** the engine can request an action two ways —
+  - bracket syntax: `[[EXEC: create_file name="notes.txt" content="hi"]]`
+  - a JSON tool-call payload (`{ "action": "...", "params": { ... } }`).
+  `extractActions(text)` returns `{ cleanedText, actions }`; bracket directives
+  win over JSON to avoid double-triggering.
+- **Suppression:** `sanitizeStreaming(text)` strips completed directives and
+  hides any in-progress directive (unterminated `[[…` tail or a JSON payload)
+  so raw command syntax never flashes in the chat window.
+- **Dispatch + fallback:** `actionRouter.dispatch(invocation)` runs the handler
+  and **always** resolves to a typed `ActionResult` — unknown actions and
+  handler errors fall through to a notice. The terminal renders every result as
+  **"⚡ System Action Triggered: \<label\>"** (emerald when ok, amber otherwise).
+- The terminal intercepts directives from the engine reply, suppresses the raw
+  text, finalizes the assistant bubble with the cleaned prose (dropping it if
+  the reply was a pure command), then dispatches each action and appends notices.
 
 ---
 

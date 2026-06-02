@@ -40,17 +40,34 @@ import {
   type ChatMessage,
   type EngineStatus,
 } from '../lib/vexsoraClient';
+import {
+  actionRouter,
+  extractActions,
+  sanitizeStreaming,
+  describeActions,
+} from '../utils/actionRouter';
 
 const SYSTEM_PROMPT =
   'You are Vexsora, a premium offline-first AI assistant running entirely on ' +
-  'the user\'s device. Be precise, fast, and helpful.';
+  "the user's device. Be precise, fast, and helpful.\n\n" +
+  'You can trigger local device actions. When the user clearly asks to perform ' +
+  'one, emit a directive using EXACTLY this syntax (you may add a short ' +
+  'natural-language confirmation alongside it):\n' +
+  '  [[EXEC: action_name key="value"]]\n' +
+  'Available actions:\n' +
+  describeActions() +
+  '\nOnly emit a directive when an action is actually requested.';
 
-type LineRole = 'user' | 'assistant' | 'system';
+type LineRole = 'user' | 'assistant' | 'system' | 'action';
 
 interface TerminalLine {
   id: string;
   role: LineRole;
   text: string;
+  /** Optional detail line (used by action notices). */
+  detail?: string;
+  /** Whether an action succeeded (drives the notice color). */
+  ok?: boolean;
 }
 
 let _seq = 0;
@@ -173,6 +190,18 @@ function LineView({ line, active }: { line: TerminalLine; active?: boolean }) {
     );
   }
 
+  if (line.role === 'action') {
+    const accent = line.ok ? C.emerald : C.amber;
+    return (
+      <View style={[styles.action, { borderColor: accent + '66' }]}>
+        <Text style={[styles.actionTitle, { color: accent }]}>
+          ⚡ SYSTEM ACTION TRIGGERED: {line.text}
+        </Text>
+        {!!line.detail && <Text style={styles.actionDetail}>{line.detail}</Text>}
+      </View>
+    );
+  }
+
   const isUser = line.role === 'user';
   return (
     <View style={styles.lineRow}>
@@ -233,23 +262,46 @@ export default function VexsoraTerminal() {
       .filter((l) => l.role === 'user' || l.role === 'assistant')
       .map((l) => ({ role: l.role as 'user' | 'assistant', content: l.text }));
 
-    // Create the assistant line on the first token, then keep updating it in
-    // place so streamed tokens land in the active bubble immediately.
+    // Create the assistant line on the first visible token, then keep updating
+    // it in place so streamed tokens land in the active bubble immediately.
+    // Empty content (e.g. while a suppressed command streams) creates nothing.
     const upsertAssistant = (content: string) =>
-      setLines((prev) =>
-        prev.some((l) => l.id === aiId)
+      setLines((prev) => {
+        const exists = prev.some((l) => l.id === aiId);
+        if (!exists && content.length === 0) return prev;
+        return exists
           ? prev.map((l) => (l.id === aiId ? { ...l, text: content } : l))
-          : [...prev, { id: aiId, role: 'assistant', text: content }]
-      );
+          : [...prev, { id: aiId, role: 'assistant', text: content }];
+      });
 
     const result = await vexsoraClient.chatStream(history, {
       systemPrompt: SYSTEM_PROMPT,
-      onToken: (_delta, full) => upsertAssistant(full),
+      // Hide any raw command syntax from the chat window as it streams in.
+      onToken: (_delta, full) => upsertAssistant(sanitizeStreaming(full)),
     });
 
     if (result.ok) {
       setStatus('online');
-      upsertAssistant(result.content);
+
+      // Intercept structured action directives the engine embedded in its reply.
+      const { cleanedText, actions } = extractActions(result.content);
+
+      // Finalize the assistant bubble with the display-safe text. If the reply
+      // was a pure command (no prose), drop the empty bubble entirely.
+      if (cleanedText.length > 0) {
+        upsertAssistant(cleanedText);
+      } else {
+        setLines((prev) => prev.filter((l) => l.id !== aiId));
+      }
+
+      // Trigger each detected action locally and surface a terminal notice.
+      for (const invocation of actions) {
+        const res = await actionRouter.dispatch(invocation);
+        setLines((prev) => [
+          ...prev,
+          { id: nextId(), role: 'action', text: res.label, detail: res.detail, ok: res.ok },
+        ]);
+      }
     } else {
       // The client already produced a clean, non-crashing diagnostic message.
       // Any partial text already streamed into the bubble is left intact.
@@ -487,6 +539,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: MonoFont,
     opacity: 0.9,
+  },
+
+  // Action notice ("System Action Triggered")
+  action: {
+    borderWidth: 1,
+    borderRadius: R.md,
+    backgroundColor: C.surface,
+    padding: S.md,
+    gap: 5,
+  },
+  actionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    fontFamily: MonoFont,
+  },
+  actionDetail: {
+    color: C.textDim,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: MonoFont,
   },
 
   // Retry
