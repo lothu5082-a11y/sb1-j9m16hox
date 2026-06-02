@@ -51,6 +51,13 @@ different local port) without touching the UI.
   with a typed `ChatResult` (`{ ok: true, content }` or
   `{ ok: false, reason, message }`). It never throws, so the UI cannot crash on
   a network failure.
+- **`vexsoraClient.chatStream(history, { onToken })`** — real-time streaming
+  turn. Requests `stream: true` and parses the Server-Sent Events from
+  llama-server, calling `onToken(delta, full)` for each chunk so tokens render
+  the instant they arrive. Built on `XMLHttpRequest` (not `fetch`) because RN's
+  `fetch` buffers the whole body — XHR exposes `responseText` progressively on
+  both native and web. Resolves with the same typed `ChatResult`; partial text
+  already delivered via `onToken` is preserved even if the stream errors mid-way.
 - **`vexsoraClient.ping()` / `.status()`** — lightweight liveness probe against
   `/v1/models` with a short timeout.
 - **Error boundaries / diagnostics:** every failure is classified into a stable

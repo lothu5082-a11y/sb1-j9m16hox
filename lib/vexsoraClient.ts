@@ -45,6 +45,14 @@ export interface ChatOptions {
   signal?: AbortSignal;
 }
 
+/** Callback fired for every token chunk as it streams in from the engine. */
+export type StreamTokenHandler = (delta: string, full: string) => void;
+
+export interface StreamChatOptions extends ChatOptions {
+  /** Invoked for each incremental token. `full` is the accumulated text. */
+  onToken: StreamTokenHandler;
+}
+
 /** Why a request could not be completed — drives the UI diagnostic copy. */
 export type EngineFailureReason =
   | 'offline' // could not reach the loopback server at all
@@ -227,6 +235,164 @@ class VexsoraClient {
     } catch {
       return { ok: false, reason: 'parse', message: diagnosticFor('parse') };
     }
+  }
+
+  /**
+   * Streaming variant of `chat`. Requests `stream: true` and parses the
+   * Server-Sent Events emitted by llama-server, invoking `onToken` for every
+   * incremental chunk so the UI can render tokens the instant they arrive.
+   *
+   * Implemented on `XMLHttpRequest` rather than `fetch` because React Native's
+   * `fetch` buffers the whole response body (no `ReadableStream`), whereas XHR
+   * exposes `responseText` progressively during `readyState === LOADING` on
+   * both native and web.
+   *
+   * Like `chat`, it always resolves with a typed `ChatResult` and never throws.
+   * The resolved `content` holds the final accumulated text; any tokens already
+   * delivered via `onToken` remain even if the stream later errors mid-flight.
+   */
+  chatStream(history: ChatMessage[], options: StreamChatOptions): Promise<ChatResult> {
+    const {
+      model = 'local',
+      systemPrompt,
+      temperature = 0.7,
+      maxTokens = 1024,
+      signal,
+      onToken,
+    } = options;
+
+    const messages: ChatMessage[] = systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...history]
+      : history;
+
+    return new Promise<ChatResult>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      let settled = false;
+      let timedOut = false;
+      let full = '';
+      let processed = 0; // index into responseText already consumed
+      let sseBuffer = ''; // carries an incomplete trailing line between chunks
+
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+      };
+      const finish = (result: ChatResult) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(result);
+      };
+      const onAbort = () => {
+        finish({ ok: false, reason: 'aborted', message: diagnosticFor('aborted') });
+        try {
+          xhr.abort();
+        } catch {
+          /* noop */
+        }
+      };
+
+      // Parse one SSE line ("data: {...}" / "data: [DONE]"); ignore comments.
+      const handleLine = (raw: string) => {
+        const line = raw.trim();
+        if (!line || !line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') {
+          finish(
+            full.trim().length > 0
+              ? { ok: true, content: full.trim() }
+              : { ok: false, reason: 'parse', message: diagnosticFor('parse') }
+          );
+          return;
+        }
+        try {
+          const json = JSON.parse(payload);
+          const choice = json?.choices?.[0];
+          // Support both chat-style deltas and raw completion text.
+          const delta: unknown = choice?.delta?.content ?? choice?.text;
+          if (typeof delta === 'string' && delta.length > 0) {
+            full += delta;
+            onToken(delta, full);
+          }
+        } catch {
+          /* keepalive or partial JSON — skip */
+        }
+      };
+
+      // Consume newly arrived text; on `final`, flush any trailing partial line.
+      const drain = (final: boolean) => {
+        const text = xhr.responseText || '';
+        if (text.length > processed) {
+          sseBuffer += text.slice(processed);
+          processed = text.length;
+        }
+        let nl: number;
+        while ((nl = sseBuffer.indexOf('\n')) >= 0) {
+          const line = sseBuffer.slice(0, nl);
+          sseBuffer = sseBuffer.slice(nl + 1);
+          handleLine(line);
+          if (settled) return;
+        }
+        if (final && sseBuffer.trim().length > 0) {
+          handleLine(sseBuffer);
+          sseBuffer = '';
+        }
+      };
+
+      xhr.onreadystatechange = () => {
+        if (settled) return;
+        if (xhr.readyState === 3 /* LOADING */) {
+          drain(false);
+        } else if (xhr.readyState === 4 /* DONE */) {
+          drain(true);
+          if (settled) return;
+          if (timedOut) {
+            finish({ ok: false, reason: 'timeout', message: diagnosticFor('timeout') });
+          } else if (xhr.status === 0) {
+            finish({ ok: false, reason: 'offline', message: diagnosticFor('offline') });
+          } else if (xhr.status < 200 || xhr.status >= 300) {
+            finish({ ok: false, reason: 'http', status: xhr.status, message: diagnosticFor('http') });
+          } else if (full.trim().length === 0) {
+            finish({ ok: false, reason: 'parse', message: diagnosticFor('parse') });
+          } else {
+            finish({ ok: true, content: full.trim() });
+          }
+        }
+      };
+
+      xhr.ontimeout = () => {
+        timedOut = true;
+        finish({ ok: false, reason: 'timeout', message: diagnosticFor('timeout') });
+      };
+      xhr.onerror = () => {
+        finish({ ok: false, reason: 'offline', message: diagnosticFor('offline') });
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      try {
+        xhr.open('POST', VEXSORA_CHAT_ENDPOINT);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Accept', 'text/event-stream');
+        xhr.timeout = CHAT_TIMEOUT_MS;
+        xhr.send(
+          JSON.stringify({
+            model,
+            messages,
+            temperature,
+            max_tokens: maxTokens,
+            stream: true,
+          })
+        );
+      } catch {
+        finish({ ok: false, reason: 'offline', message: diagnosticFor('offline') });
+      }
+    });
   }
 }
 

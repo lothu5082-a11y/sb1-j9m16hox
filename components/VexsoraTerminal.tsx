@@ -131,8 +131,8 @@ function StatusPill({ status }: { status: EngineStatus }) {
   );
 }
 
-// ── Animated "thinking" cursor (active AI state) ───────────────────────────────
-function ThinkingRow() {
+// ── Blinking caret (shared) ────────────────────────────────────────────────
+function BlinkingCaret() {
   const blink = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -144,14 +144,18 @@ function ThinkingRow() {
     loop.start();
     return () => loop.stop();
   }, [blink]);
+  return <Animated.Text style={[styles.cursor, { opacity: blink }]}>▋</Animated.Text>;
+}
 
+// ── "Thinking" row — shown only until the first token streams in ───────────────
+function ThinkingRow() {
   return (
     <View style={styles.lineRow}>
       <Text style={[styles.glyph, styles.glyphAssistant]}>◆</Text>
       <View style={styles.lineBody}>
         <View style={styles.thinkingRow}>
           <Text style={styles.thinkingText}>thinking</Text>
-          <Animated.Text style={[styles.cursor, { opacity: blink }]}>▋</Animated.Text>
+          <BlinkingCaret />
         </View>
       </View>
     </View>
@@ -159,7 +163,7 @@ function ThinkingRow() {
 }
 
 // ── Single terminal line ────────────────────────────────────────────────────
-function LineView({ line }: { line: TerminalLine }) {
+function LineView({ line, active }: { line: TerminalLine; active?: boolean }) {
   if (line.role === 'system') {
     return (
       <View style={styles.diagnostic}>
@@ -175,10 +179,12 @@ function LineView({ line }: { line: TerminalLine }) {
       <Text style={[styles.glyph, isUser ? styles.glyphUser : styles.glyphAssistant]}>
         {isUser ? '❯' : '◆'}
       </Text>
-      <View style={styles.lineBody}>
+      <View style={[styles.lineBody, active && styles.lineBodyActive]}>
         {!isUser && <Text style={styles.speaker}>vexsora</Text>}
+        {/* Active AI bubble: tokens append in real time, trailed by a live caret. */}
         <Text style={[styles.lineText, isUser && styles.lineTextUser]} selectable>
           {line.text}
+          {active && <BlinkingCaret />}
         </Text>
       </View>
     </View>
@@ -194,6 +200,8 @@ export default function VexsoraTerminal() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<EngineStatus>('unknown');
+  // The assistant line currently receiving streamed tokens (null when idle).
+  const [streamingId, setStreamingId] = useState<string | null>(null);
 
   const checkEngine = useCallback(async () => {
     setStatus('checking');
@@ -217,25 +225,45 @@ export default function VexsoraTerminal() {
     setInput('');
     setBusy(true);
 
+    const aiId = nextId();
+    setStreamingId(aiId);
+
     // Build history (assistant + user turns only) for the engine.
     const history: ChatMessage[] = [...lines, userLine]
       .filter((l) => l.role === 'user' || l.role === 'assistant')
       .map((l) => ({ role: l.role as 'user' | 'assistant', content: l.text }));
 
-    const result = await vexsoraClient.chat(history, { systemPrompt: SYSTEM_PROMPT });
+    // Create the assistant line on the first token, then keep updating it in
+    // place so streamed tokens land in the active bubble immediately.
+    const upsertAssistant = (content: string) =>
+      setLines((prev) =>
+        prev.some((l) => l.id === aiId)
+          ? prev.map((l) => (l.id === aiId ? { ...l, text: content } : l))
+          : [...prev, { id: aiId, role: 'assistant', text: content }]
+      );
+
+    const result = await vexsoraClient.chatStream(history, {
+      systemPrompt: SYSTEM_PROMPT,
+      onToken: (_delta, full) => upsertAssistant(full),
+    });
 
     if (result.ok) {
       setStatus('online');
-      setLines((prev) => [...prev, { id: nextId(), role: 'assistant', text: result.content }]);
+      upsertAssistant(result.content);
     } else {
       // The client already produced a clean, non-crashing diagnostic message.
+      // Any partial text already streamed into the bubble is left intact.
       if (result.reason === 'offline' || result.reason === 'timeout') setStatus('offline');
       setLines((prev) => [...prev, { id: nextId(), role: 'system', text: result.message }]);
     }
+    setStreamingId(null);
     setBusy(false);
   }, [input, busy, lines]);
 
   const canSend = input.trim().length > 0 && !busy;
+  // Show the "thinking" footer only while waiting for the very first token.
+  const awaitingFirstToken =
+    busy && streamingId !== null && !lines.some((l) => l.id === streamingId);
 
   return (
     <View style={styles.root}>
@@ -270,9 +298,11 @@ export default function VexsoraTerminal() {
           ref={listRef}
           data={lines}
           keyExtractor={(l) => l.id}
-          renderItem={({ item }) => <LineView line={item} />}
+          renderItem={({ item }) => (
+            <LineView line={item} active={item.id === streamingId} />
+          )}
           contentContainerStyle={styles.listContent}
-          ListFooterComponent={busy ? <ThinkingRow /> : null}
+          ListFooterComponent={awaitingFirstToken ? <ThinkingRow /> : null}
           onContentSizeChange={scrollToEnd}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -398,6 +428,17 @@ const styles = StyleSheet.create({
   glyphUser: { color: C.violet },
   glyphAssistant: { color: C.emerald },
   lineBody: { flex: 1 },
+  lineBodyActive: {
+    backgroundColor: C.emeraldDim,
+    borderRadius: R.md,
+    borderWidth: 1,
+    borderColor: C.emerald + '40',
+    paddingHorizontal: S.sm,
+    paddingVertical: 8,
+    ...VexsoraGlow.emerald,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+  },
   speaker: {
     color: C.emerald,
     fontSize: 10,
