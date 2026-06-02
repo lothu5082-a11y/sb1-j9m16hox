@@ -42,7 +42,7 @@ export const VEXSORA_CORE_SYSTEM_PROMPT =
   'param_name="value"]]. Do not use markdown code blocks for actions.\n' +
   'Available Tools:\n' +
   '1. create_file (params: name, content)\n' +
-  '2. toggle_state (params: systemState)\n' +
+  '2. toggle_state (params: name, value)\n' +
   '3. run_shell (params: command)\n\n' +
   'Example: If asked to log an idea to note.txt, emit: [[EXEC: create_file ' +
   'name="note.txt" content="user idea"]]';
