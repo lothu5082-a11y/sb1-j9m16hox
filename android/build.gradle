@@ -1,0 +1,6 @@
+// Modern plugins-block style — keeps settings.gradle's FAIL_ON_PROJECT_REPOS happy.
+// Plugin versions are declared here; each module applies them without 'apply false'.
+plugins {
+    id 'com.android.application' version '8.2.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+}
