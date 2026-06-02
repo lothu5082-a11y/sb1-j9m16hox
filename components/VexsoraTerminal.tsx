@@ -45,6 +45,7 @@ import {
   extractActions,
   sanitizeStreaming,
 } from '../utils/actionRouter';
+import ActionConsole, { type ActionStatus } from './ActionConsole';
 
 // Note: the engine's system instruction (identity + the [[EXEC: ...]] tool
 // syntax) is owned by the API client (VEXSORA_CORE_SYSTEM_PROMPT) and prepended
@@ -56,10 +57,12 @@ interface TerminalLine {
   id: string;
   role: LineRole;
   text: string;
-  /** Optional detail line (used by action notices). */
+  /** Optional detail line (used by diagnostics + action consoles). */
   detail?: string;
-  /** Whether an action succeeded (drives the notice color). */
-  ok?: boolean;
+  /** Action identifier, e.g. "create_file" (action lines only). */
+  actionName?: string;
+  /** Execution state of an action line. */
+  status?: ActionStatus;
 }
 
 let _seq = 0;
@@ -183,14 +186,12 @@ function LineView({ line, active }: { line: TerminalLine; active?: boolean }) {
   }
 
   if (line.role === 'action') {
-    const accent = line.ok ? C.emerald : C.amber;
     return (
-      <View style={[styles.action, { borderColor: accent + '66' }]}>
-        <Text style={[styles.actionTitle, { color: accent }]}>
-          ⚡ SYSTEM ACTION TRIGGERED: {line.text}
-        </Text>
-        {!!line.detail && <Text style={styles.actionDetail}>{line.detail}</Text>}
-      </View>
+      <ActionConsole
+        name={line.actionName ?? line.text}
+        status={line.status ?? 'ok'}
+        detail={line.detail}
+      />
     );
   }
 
@@ -285,13 +286,22 @@ export default function VexsoraTerminal() {
         setLines((prev) => prev.filter((l) => l.id !== aiId));
       }
 
-      // Trigger each detected action locally and surface a terminal notice.
+      // Trigger each detected action locally, rendering a live execution
+      // console that transitions running → success/failure as dispatch settles.
       for (const invocation of actions) {
-        const res = await actionRouter.dispatch(invocation);
+        const actId = nextId();
         setLines((prev) => [
           ...prev,
-          { id: nextId(), role: 'action', text: res.label, detail: res.detail, ok: res.ok },
+          { id: actId, role: 'action', text: invocation.name, actionName: invocation.name, status: 'running' },
         ]);
+        const res = await actionRouter.dispatch(invocation);
+        setLines((prev) =>
+          prev.map((l) =>
+            l.id === actId
+              ? { ...l, status: res.ok ? 'ok' : 'error', detail: res.detail }
+              : l
+          )
+        );
       }
     } else {
       // The client already produced a clean, non-crashing diagnostic message.
@@ -530,27 +540,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: MonoFont,
     opacity: 0.9,
-  },
-
-  // Action notice ("System Action Triggered")
-  action: {
-    borderWidth: 1,
-    borderRadius: R.md,
-    backgroundColor: C.surface,
-    padding: S.md,
-    gap: 5,
-  },
-  actionTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    fontFamily: MonoFont,
-  },
-  actionDetail: {
-    color: C.textDim,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: MonoFont,
   },
 
   // Retry

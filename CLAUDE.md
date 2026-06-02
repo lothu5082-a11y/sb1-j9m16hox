@@ -34,6 +34,7 @@ index.js  ──▶  App.tsx (composition root: fonts, providers, status bar)
 | Entry | `index.js` | Registers the root component via `registerRootComponent`. |
 | Root | `App.tsx` | Fonts, `SafeAreaProvider`, `GestureHandlerRootView`, status bar, mounts the terminal. Intentionally thin. |
 | UI | `components/VexsoraTerminal.tsx` | All view primitives, chat list, composer, status pill, diagnostics. Calls **only** `vexsoraClient`. |
+| UI | `components/ActionConsole.tsx` | Inline terminal execution console for a dispatched action — live running → success/failure state with state-colored border + glow. |
 | Client | `lib/vexsoraClient.ts` | The single bridge to the engine. Owns the loopback endpoint, request shape, timeouts, and **all error handling**. |
 | Actions | `utils/actionRouter.ts` | Local tool registry: schema, directive parser, dispatcher, and built-in on-device actions. |
 | Theme | `constants/vexsoraTheme.ts` | The "Void Black" design tokens (colors, spacing, radii, glows, mono font). |
@@ -98,11 +99,14 @@ dependencies (only `Platform` + the existing `expo-file-system`).
   so raw command syntax never flashes in the chat window.
 - **Dispatch + fallback:** `actionRouter.dispatch(invocation)` runs the handler
   and **always** resolves to a typed `ActionResult` — unknown actions and
-  handler errors fall through to a notice. The terminal renders every result as
-  **"⚡ System Action Triggered: \<label\>"** (emerald when ok, amber otherwise).
-- The terminal intercepts directives from the engine reply, suppresses the raw
-  text, finalizes the assistant bubble with the cleaned prose (dropping it if
-  the reply was a pure command), then dispatches each action and appends notices.
+  handler errors fall through to a notice.
+- **Execution console:** the terminal intercepts directives from the engine
+  reply, suppresses the raw text, finalizes the assistant bubble with the
+  cleaned prose (dropping it if the reply was a pure command), then for each
+  action renders an inline `ActionConsole` that starts in a **running** state
+  (`SYSTEM :: EXECUTING CREATE_FILE…`, pulsing violet, `EXEC` code) and
+  transitions to **success** (emerald, `200`) or **failure** (amber, `500`)
+  once `dispatch` settles.
 
 ---
 
