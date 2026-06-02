@@ -28,6 +28,25 @@ export const VEXSORA_MODELS_ENDPOINT = `${VEXSORA_HOST}/v1/models`;
 const HEALTH_TIMEOUT_MS = 2_500;
 const CHAT_TIMEOUT_MS = 120_000;
 
+/**
+ * Strict core system instruction prepended to EVERY request before it reaches
+ * the engine. The local model has no inherent knowledge of Vexsora's tool
+ * syntax, so this teaches it the exact `[[EXEC: ...]]` directive format that
+ * `utils/actionRouter.ts` knows how to intercept. Owned by the client so no
+ * caller can forget it.
+ */
+export const VEXSORA_CORE_SYSTEM_PROMPT =
+  'You are Vexsora Core, an offline device automation assistant. You possess ' +
+  'system-level capabilities. When a command requires a local tool, you MUST ' +
+  'prefix or embed the exact command syntax using: [[EXEC: action_name ' +
+  'param_name="value"]]. Do not use markdown code blocks for actions.\n' +
+  'Available Tools:\n' +
+  '1. create_file (params: name, content)\n' +
+  '2. toggle_state (params: systemState)\n' +
+  '3. run_shell (params: command)\n\n' +
+  'Example: If asked to log an idea to note.txt, emit: [[EXEC: create_file ' +
+  'name="note.txt" content="user idea"]]';
+
 // ── Types ───────────────────────────────────────────────────────────────────
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -153,6 +172,19 @@ class VexsoraClient {
   readonly endpoint = VEXSORA_CHAT_ENDPOINT;
 
   /**
+   * Build the final message array sent to the engine. The Vexsora Core system
+   * instruction is always prepended first; an optional caller-supplied
+   * systemPrompt follows it, then the conversation history.
+   */
+  private composeMessages(history: ChatMessage[], systemPrompt?: string): ChatMessage[] {
+    const preamble: ChatMessage[] = [
+      { role: 'system', content: VEXSORA_CORE_SYSTEM_PROMPT },
+    ];
+    if (systemPrompt) preamble.push({ role: 'system', content: systemPrompt });
+    return [...preamble, ...history];
+  }
+
+  /**
    * Lightweight liveness probe. Resolves to `true` only if the loopback
    * engine answers the models endpoint. Never throws.
    */
@@ -189,9 +221,7 @@ class VexsoraClient {
       signal,
     } = options;
 
-    const messages: ChatMessage[] = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...history]
-      : history;
+    const messages = this.composeMessages(history, systemPrompt);
 
     let res: Response;
     try {
@@ -261,9 +291,7 @@ class VexsoraClient {
       onToken,
     } = options;
 
-    const messages: ChatMessage[] = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...history]
-      : history;
+    const messages = this.composeMessages(history, systemPrompt);
 
     return new Promise<ChatResult>((resolve) => {
       const xhr = new XMLHttpRequest();

@@ -50,6 +50,12 @@ different local port) without touching the UI.
 ## Local API client (`lib/vexsoraClient.ts`)
 
 - **Endpoint:** `http://127.0.0.1:8080/v1/chat/completions` (device loopback).
+- **Core system prompt:** `VEXSORA_CORE_SYSTEM_PROMPT` is prepended to **every**
+  request's message array (via the private `composeMessages` helper) so the
+  local model always knows its identity and the exact `[[EXEC: action_name
+  param="value"]]` tool syntax that `utils/actionRouter.ts` intercepts. Owned by
+  the client so no caller can forget it; an optional caller `systemPrompt`
+  follows it.
 - **`vexsoraClient.chat(history, options)`** — sends a turn. **Always resolves**
   with a typed `ChatResult` (`{ ok: true, content }` or
   `{ ok: false, reason, message }`). It never throws, so the UI cannot crash on

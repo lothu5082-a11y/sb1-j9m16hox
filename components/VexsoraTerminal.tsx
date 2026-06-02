@@ -44,19 +44,11 @@ import {
   actionRouter,
   extractActions,
   sanitizeStreaming,
-  describeActions,
 } from '../utils/actionRouter';
 
-const SYSTEM_PROMPT =
-  'You are Vexsora, a premium offline-first AI assistant running entirely on ' +
-  "the user's device. Be precise, fast, and helpful.\n\n" +
-  'You can trigger local device actions. When the user clearly asks to perform ' +
-  'one, emit a directive using EXACTLY this syntax (you may add a short ' +
-  'natural-language confirmation alongside it):\n' +
-  '  [[EXEC: action_name key="value"]]\n' +
-  'Available actions:\n' +
-  describeActions() +
-  '\nOnly emit a directive when an action is actually requested.';
+// Note: the engine's system instruction (identity + the [[EXEC: ...]] tool
+// syntax) is owned by the API client (VEXSORA_CORE_SYSTEM_PROMPT) and prepended
+// to every request there, so the UI no longer passes its own system prompt.
 
 type LineRole = 'user' | 'assistant' | 'system' | 'action';
 
@@ -275,7 +267,6 @@ export default function VexsoraTerminal() {
       });
 
     const result = await vexsoraClient.chatStream(history, {
-      systemPrompt: SYSTEM_PROMPT,
       // Hide any raw command syntax from the chat window as it streams in.
       onToken: (_delta, full) => upsertAssistant(sanitizeStreaming(full)),
     });
