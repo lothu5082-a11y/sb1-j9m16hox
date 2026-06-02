@@ -3,6 +3,7 @@ package com.vexora.aiassistant
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.Settings
@@ -69,7 +70,13 @@ class MainActivity : AppCompatActivity() {
         setupChat()
         setupVoice()
         setupButtons()
-        registerReceiver(wakeWordReceiver, IntentFilter(VexoraService.ACTION_WAKE_WORD))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(wakeWordReceiver, IntentFilter(VexoraService.ACTION_WAKE_WORD),
+                RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(wakeWordReceiver, IntentFilter(VexoraService.ACTION_WAKE_WORD))
+        }
         requestPermissionsAndStartService()
 
         updateModelStatusBar()

@@ -3,6 +3,7 @@ package com.vexora.aiassistant
 import android.app.*
 import android.content.*
 import android.os.*
+import android.os.Build
 import android.speech.*
 import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
@@ -64,7 +65,12 @@ class VexoraService : Service() {
             addAction(ACTION_ANNOUNCE_SMS)
             addAction(ACTION_ANNOUNCE_CALL)
         }
-        registerReceiver(controlReceiver, filter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(controlReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(controlReceiver, filter)
+        }
 
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS

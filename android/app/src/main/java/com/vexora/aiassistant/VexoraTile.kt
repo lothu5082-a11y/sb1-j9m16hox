@@ -1,6 +1,7 @@
 package com.vexora.aiassistant
 
 import android.content.Intent
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
@@ -29,10 +30,12 @@ class VexoraTile : TileService() {
                 else -> Tile.STATE_UNAVAILABLE
             }
             label = "Vexora AI"
-            subtitle = when {
-                VexoraService.wakeWordEnabled -> "Listening"
-                VexoraService.isRunning -> "Standby"
-                else -> "Off"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                subtitle = when {
+                    VexoraService.wakeWordEnabled -> "Listening"
+                    VexoraService.isRunning -> "Standby"
+                    else -> "Off"
+                }
             }
             updateTile()
         }
