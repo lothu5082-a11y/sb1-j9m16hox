@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.nova.assistant.data.model.BrainMode
 import com.nova.assistant.data.model.Role
 import com.nova.assistant.ui.theme.AssistantBubble
 import com.nova.assistant.ui.theme.OnAssistantBubble
@@ -56,6 +57,7 @@ fun ChatScreen(
     val context = LocalContext.current
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val brainMode by viewModel.brainMode.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var inputText by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(false) }
@@ -90,7 +92,25 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nova", style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Nova", style = MaterialTheme.typography.titleLarge)
+                        val (color, label) = when (brainMode) {
+                            BrainMode.OFFLINE -> MaterialTheme.colorScheme.tertiary to "Offline"
+                            BrainMode.AUTO    -> MaterialTheme.colorScheme.secondary to "Auto"
+                            BrainMode.ONLINE  -> MaterialTheme.colorScheme.primary to "Online"
+                        }
+                        SuggestionChip(
+                            onClick = onOpenSettings,
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = color.copy(alpha = 0.15f),
+                                labelColor = color
+                            )
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.clearHistory() }) {
                         Icon(Icons.Default.Delete, contentDescription = "Clear chat")

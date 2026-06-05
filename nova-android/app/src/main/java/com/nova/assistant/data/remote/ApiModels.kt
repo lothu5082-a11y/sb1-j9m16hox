@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ApiMessage(
     val role: String,
-    val content: String
+    val content: String? = null  // nullable: some providers omit it on safety/tool responses
 )
 
 @Serializable
@@ -22,6 +22,6 @@ data class ChatResponse(
 
 @Serializable
 data class Choice(
-    val message: ApiMessage,
+    val message: ApiMessage? = null,
     @SerialName("finish_reason") val finishReason: String? = null
 )

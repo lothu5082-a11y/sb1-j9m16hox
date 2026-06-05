@@ -18,6 +18,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/versions/**"
+        }
+        jniLibs {
+            pickFirsts += "**/*.so"
+        }
     }
 
     buildTypes {
@@ -63,6 +77,7 @@ dependencies {
     implementation(libs.datastore.preferences)
 
     implementation(libs.material)
+    implementation(libs.mediapipe.tasks.genai)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)

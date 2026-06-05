@@ -3,6 +3,7 @@ package com.nova.assistant.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.nova.assistant.data.model.BrainMode
 import com.nova.assistant.data.model.ChatMessage
 import com.nova.assistant.data.model.Role
 import com.nova.assistant.data.remote.ApiResult
@@ -32,6 +33,9 @@ class ChatViewModel(
 
     val messages: StateFlow<List<UiMessage>> = repo.messages
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val brainMode: StateFlow<BrainMode> = settingsRepo.brainMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BrainMode.ONLINE)
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
