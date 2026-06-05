@@ -62,6 +62,7 @@ dependencies {
 
     implementation(libs.datastore.preferences)
 
+    implementation(libs.material)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
