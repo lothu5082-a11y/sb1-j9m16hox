@@ -8,8 +8,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.nova.assistant.NovaApp
 import com.nova.assistant.ui.chat.ChatScreen
+import com.nova.assistant.ui.chat.ChatViewModel
 import com.nova.assistant.ui.chat.ChatViewModelFactory
 import com.nova.assistant.ui.settings.SettingsScreen
+import com.nova.assistant.ui.settings.SettingsViewModel
 import com.nova.assistant.ui.settings.SettingsViewModelFactory
 
 object Routes {
@@ -24,14 +26,14 @@ fun NavGraph() {
 
     NavHost(navController = navController, startDestination = Routes.CHAT) {
         composable(Routes.CHAT) {
-            val vm = viewModel(factory = ChatViewModelFactory(app.chatRepository, app.settingsRepository))
+            val vm = viewModel<ChatViewModel>(factory = ChatViewModelFactory(app.chatRepository, app.settingsRepository))
             ChatScreen(
                 viewModel = vm,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
         composable(Routes.SETTINGS) {
-            val vm = viewModel(factory = SettingsViewModelFactory(app.settingsRepository))
+            val vm = viewModel<SettingsViewModel>(factory = SettingsViewModelFactory(app.settingsRepository))
             SettingsScreen(
                 viewModel = vm,
                 onBack = { navController.popBackStack() }

@@ -65,7 +65,7 @@ fun ChatScreen(
     val stt = remember {
         SpeechRecognizerManager(context,
             onResult = { text -> inputText = text; isListening = false },
-            onError = { isListening = false }
+            onErrorCallback = { isListening = false }
         )
     }
 

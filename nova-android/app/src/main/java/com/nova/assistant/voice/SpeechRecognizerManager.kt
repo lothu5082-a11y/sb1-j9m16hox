@@ -10,7 +10,7 @@ import android.speech.SpeechRecognizer
 class SpeechRecognizerManager(
     context: Context,
     private val onResult: (String) -> Unit,
-    private val onError: (Int) -> Unit
+    private val onErrorCallback: (Int) -> Unit
 ) {
     private val recognizer: SpeechRecognizer? =
         if (SpeechRecognizer.isRecognitionAvailable(context))
@@ -24,7 +24,7 @@ class SpeechRecognizerManager(
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = Unit
-            override fun onError(error: Int) = onError(error)
+            override fun onError(error: Int) = onErrorCallback(error)
             override fun onPartialResults(partialResults: Bundle?) = Unit
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
