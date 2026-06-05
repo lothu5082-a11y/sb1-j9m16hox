@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nova.assistant.data.preferences.SettingsPreferences
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
@@ -27,10 +27,12 @@ fun SettingsScreen(
 ) {
     val savedApiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val savedModel by viewModel.modelId.collectAsStateWithLifecycle()
+    val savedBaseUrl by viewModel.baseUrl.collectAsStateWithLifecycle()
     val speakReplies by viewModel.speakReplies.collectAsStateWithLifecycle()
 
     var apiKeyDraft by remember(savedApiKey) { mutableStateOf(savedApiKey) }
     var modelDraft by remember(savedModel) { mutableStateOf(savedModel) }
+    var baseUrlDraft by remember(savedBaseUrl) { mutableStateOf(savedBaseUrl) }
     var apiKeyVisible by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -57,13 +59,54 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // API Key
-            SectionLabel("OpenRouter API Key")
+
+            // ── Provider ──────────────────────────────────────────────────────
+            SectionLabel("Provider")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsPreferences.PRESETS.forEach { (label, url) ->
+                    val selected = baseUrlDraft == url
+                    FilterChip(
+                        selected = selected,
+                        onClick = {
+                            baseUrlDraft = url
+                            viewModel.saveBaseUrl(url)
+                            // Auto-switch default model hint when changing provider
+                            if (url.contains("generativelanguage") &&
+                                modelDraft == SettingsPreferences.DEFAULT_MODEL) {
+                                modelDraft = "gemini-2.0-flash"
+                                viewModel.saveModelId("gemini-2.0-flash")
+                            } else if (!url.contains("generativelanguage") &&
+                                modelDraft == "gemini-2.0-flash") {
+                                modelDraft = SettingsPreferences.DEFAULT_MODEL
+                                viewModel.saveModelId(SettingsPreferences.DEFAULT_MODEL)
+                            }
+                        },
+                        label = { Text(label) }
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = baseUrlDraft,
+                onValueChange = { baseUrlDraft = it },
+                label = { Text("Base URL") },
+                supportingText = { Text("URL up to (not including) /chat/completions") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Button(
+                onClick = { viewModel.saveBaseUrl(baseUrlDraft) },
+                modifier = Modifier.align(Alignment.End)
+            ) { Text("Save URL") }
+
+            HorizontalDivider()
+
+            // ── API Key ───────────────────────────────────────────────────────
+            SectionLabel("API Key")
             OutlinedTextField(
                 value = apiKeyDraft,
                 onValueChange = { apiKeyDraft = it },
                 label = { Text("API Key") },
-                placeholder = { Text("sk-or-...") },
+                placeholder = { Text("sk-or-…  or  AIza…") },
                 visualTransformation = if (apiKeyVisible) VisualTransformation.None
                 else PasswordVisualTransformation(),
                 trailingIcon = {
@@ -85,18 +128,18 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // Model ID
+            // ── Model ─────────────────────────────────────────────────────────
             SectionLabel("Model")
             OutlinedTextField(
                 value = modelDraft,
                 onValueChange = { modelDraft = it },
                 label = { Text("Model ID") },
-                placeholder = { Text(SettingsPreferences.DEFAULT_MODEL) },
                 supportingText = {
-                    Text(
-                        "Browse free models at openrouter.ai/models?q=free",
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    val hint = if (baseUrlDraft.contains("generativelanguage"))
+                        "e.g. gemini-2.0-flash  •  gemini-1.5-pro"
+                    else
+                        "Browse free models at openrouter.ai/models?q=free"
+                    Text(hint, style = MaterialTheme.typography.labelSmall)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -108,7 +151,7 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // Voice
+            // ── Voice ─────────────────────────────────────────────────────────
             SectionLabel("Voice")
             Row(
                 modifier = Modifier.fillMaxWidth(),

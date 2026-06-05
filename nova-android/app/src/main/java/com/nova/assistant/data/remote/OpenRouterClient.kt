@@ -1,5 +1,6 @@
 package com.nova.assistant.data.remote
 
+import com.nova.assistant.data.preferences.SettingsPreferences
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,19 +27,21 @@ class OpenRouterClient {
     suspend fun chat(
         apiKey: String,
         model: String,
-        messages: List<ApiMessage>
+        messages: List<ApiMessage>,
+        baseUrl: String = SettingsPreferences.DEFAULT_BASE_URL
     ): ApiResult {
-        if (apiKey.isBlank()) return ApiResult.Error("API key is not set. Go to Settings and enter your OpenRouter key.")
+        if (apiKey.isBlank()) return ApiResult.Error("API key is not set. Go to Settings and enter your key.")
+
+        val endpoint = baseUrl.trimEnd('/') + "/chat/completions"
 
         val body = ChatRequest(model = model, messages = messages)
         val requestBody = json.encodeToString(body)
             .toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("https://openrouter.ai/api/v1/chat/completions")
+            .url(endpoint)
             .addHeader("Authorization", "Bearer $apiKey")
             .addHeader("Content-Type", "application/json")
-            .addHeader("HTTP-Referer", "https://nova-assistant.app")
             .post(requestBody)
             .build()
 
@@ -48,7 +51,7 @@ class OpenRouterClient {
 
             when {
                 response.code == 401 -> ApiResult.Error("Invalid API key. Please check your key in Settings.")
-                response.code == 402 -> ApiResult.Error("OpenRouter account out of credits.")
+                response.code == 402 -> ApiResult.Error("Account out of credits.")
                 response.code == 404 -> ApiResult.Error("Model \"$model\" not found. Check the model ID in Settings.")
                 response.code == 429 -> ApiResult.Error("Rate limit reached. Please wait a moment.")
                 !response.isSuccessful -> ApiResult.Error("Server error (${response.code}). Try again.")

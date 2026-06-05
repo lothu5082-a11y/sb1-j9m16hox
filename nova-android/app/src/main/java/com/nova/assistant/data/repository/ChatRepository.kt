@@ -26,8 +26,9 @@ class ChatRepository(
         val history = dao.getAll().map { ApiMessage(role = it.role, content = it.content) }
         val apiKey = settingsRepo.apiKey.first()
         val model = settingsRepo.modelId.first()
+        val baseUrl = settingsRepo.baseUrl.first()
 
-        val result = client.chat(apiKey, model, history)
+        val result = client.chat(apiKey, model, history, baseUrl)
 
         if (result is ApiResult.Success) {
             dao.insert(MessageEntity(role = "assistant", content = result.content))

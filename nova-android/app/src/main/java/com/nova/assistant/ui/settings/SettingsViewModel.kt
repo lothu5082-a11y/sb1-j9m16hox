@@ -12,10 +12,12 @@ class SettingsViewModel(private val repo: SettingsRepository) : ViewModel() {
 
     val apiKey = repo.apiKey.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val modelId = repo.modelId.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+    val baseUrl = repo.baseUrl.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
     val speakReplies = repo.speakReplies.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun saveApiKey(key: String) = viewModelScope.launch { repo.saveApiKey(key) }
     fun saveModelId(model: String) = viewModelScope.launch { repo.saveModelId(model) }
+    fun saveBaseUrl(url: String) = viewModelScope.launch { repo.saveBaseUrl(url) }
     fun saveSpeakReplies(enabled: Boolean) = viewModelScope.launch { repo.saveSpeakReplies(enabled) }
 }
 
