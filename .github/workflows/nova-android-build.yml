@@ -23,26 +23,11 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Generate Gradle wrapper
-        working-directory: nova-android
-        run: gradle wrapper --gradle-version=8.7 --distribution-type=bin
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('nova-android/**/*.gradle.kts', 'nova-android/gradle/libs.versions.toml') }}
-          restore-keys: gradle-
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Build debug APK
         working-directory: nova-android
@@ -58,7 +43,6 @@ jobs:
           path: nova-android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Print APK info
-        run: |
-          echo "=== Build complete ==="
-          find nova-android/app/build/outputs/apk/debug -name "*.apk" -exec ls -lh {} \;
+      - name: Print APK size
+        if: success()
+        run: find nova-android/app/build/outputs/apk/debug -name "*.apk" -exec ls -lh {} \;
