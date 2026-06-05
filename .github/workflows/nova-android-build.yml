@@ -33,8 +33,7 @@ jobs:
         working-directory: nova-android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon \
-            -Dorg.gradle.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=512m"
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
