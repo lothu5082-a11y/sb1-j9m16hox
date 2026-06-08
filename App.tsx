@@ -24,8 +24,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular } from '@expo-google-fonts/inter';
 import { Orbitron_700Bold } from '@expo-google-fonts/orbitron';
-import { VexsoraColors } from './constants/vexsoraTheme';
-import VexsoraTerminal from './components/VexsoraTerminal';
+import { TochiColors } from './constants/tochiTheme';
+import TochiGame from './components/TochiGame';
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -36,7 +36,7 @@ export default function App() {
   if (!fontsLoaded && !fontError) {
     return (
       <View style={styles.boot}>
-        <ActivityIndicator color={VexsoraColors.violet} size="large" />
+        <ActivityIndicator color={TochiColors.body} size="large" />
       </View>
     );
   }
@@ -45,8 +45,8 @@ export default function App() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <View style={styles.flex}>
-          <VexsoraTerminal />
-          <StatusBar style="light" backgroundColor={VexsoraColors.void} />
+          <TochiGame />
+          <StatusBar style="dark" backgroundColor={TochiColors.skyDay1} />
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -54,10 +54,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: VexsoraColors.void },
+  flex: { flex: 1, backgroundColor: TochiColors.skyDay3 },
   boot: {
     flex: 1,
-    backgroundColor: VexsoraColors.void,
+    backgroundColor: TochiColors.skyDay3,
     alignItems: 'center',
     justifyContent: 'center',
   },
