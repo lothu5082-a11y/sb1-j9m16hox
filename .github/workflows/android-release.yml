@@ -1,0 +1,60 @@
+name: Android Release (AAB)
+
+# Builds a signed Android App Bundle (.aab) ready to upload to Google Play.
+# Run it manually from the Actions tab once you have:
+#   1. Deployed the web app to a public HTTPS URL.
+#   2. Added the signing secrets listed below (see PLAY_STORE.md).
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Deployed HTTPS URL of the ShopBook web app (e.g. https://shopbook.vercel.app)"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor (inject the live web URL)
+        env:
+          CAP_SERVER_URL: ${{ inputs.server_url }}
+        run: npx cap sync android
+
+      - name: Decode upload keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Build signed AAB
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopbook-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error

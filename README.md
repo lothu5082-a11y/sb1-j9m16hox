@@ -90,12 +90,36 @@ supabase/migrations/    Database schema + RLS
 
 ---
 
+## Mobile & Play Store
+
+ShopBook is a **PWA** — open the deployed site on a phone and use the browser's
+"Install app" option to add it to the home screen (works offline thanks to the
+service worker in `public/sw.js`).
+
+For a real **Google Play** listing, the repo includes a **Capacitor** Android
+project (`android/`) and a GitHub Actions workflow that builds a **signed
+`.aab`**. Full, step-by-step instructions — deploy, signing key, secrets,
+building, and creating the Play listing — are in
+**[PLAY_STORE.md](PLAY_STORE.md)**.
+
+```bash
+npm run icons        # regenerate PWA icons (sharp)
+npm run cap:assets   # regenerate Android launcher icons + splash
+npm run cap:sync     # copy config/assets into the android project
+npm run android:open # open the project in Android Studio
+```
+
+---
+
 ## Scripts
 
-| Command             | Purpose                          |
-| ------------------- | -------------------------------- |
-| `npm run dev`       | Start the dev server             |
-| `npm run build`     | Production build                 |
-| `npm run start`     | Run the production build         |
-| `npm run lint`      | Lint with `eslint-config-next`   |
-| `npm run typecheck` | `tsc --noEmit`                   |
+| Command             | Purpose                                   |
+| ------------------- | ----------------------------------------- |
+| `npm run dev`       | Start the dev server                      |
+| `npm run build`     | Production build                          |
+| `npm run start`     | Run the production build                  |
+| `npm run lint`      | Lint with `eslint-config-next`            |
+| `npm run typecheck` | `tsc --noEmit`                            |
+| `npm run icons`     | Generate PWA icons                        |
+| `npm run cap:assets`| Generate Android icons + splash           |
+| `npm run cap:sync`  | Sync web config into the Android project  |
