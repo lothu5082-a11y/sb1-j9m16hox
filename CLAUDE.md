@@ -1,164 +1,114 @@
-# Vexsora — Project Guide
+# ShopBook — Project Guide
 
-Vexsora is a **premium, 100% offline-first AI assistant** for mobile. The
-inference engine runs natively on the device loopback interface
-(`http://127.0.0.1:8080`) and exposes an OpenAI-compatible Chat Completions
-API. No part of the app reaches out to any cloud service.
+ShopBook is a **mobile-first web app** that replaces the paper notebook small
+shop owners use to track daily **sales** and **expenses**. It is built with
+**Next.js (App Router) + Tailwind CSS** on the front end and **Supabase**
+(Postgres + Auth) for secure, multi-device cloud storage.
+
+The product goal: a shop owner can open the app on any phone, sign in, and log a
+transaction in **under 10 seconds**.
 
 ---
 
 ## Architecture
 
-The app is split into clean, decoupled layers. The UI never touches the
-network — it speaks only to the local API client.
-
 ```
-index.js  ──▶  App.tsx (composition root: fonts, providers, status bar)
-                  │
-                  ▼
-        components/VexsoraTerminal.tsx   ← UI layer (Void Black terminal)
-                  │            │
-                  │            └────────────▶ utils/actionRouter.ts  ← local tools
-                  │  (imports the client, theme, and action router)
-                  ▼
-            lib/vexsoraClient.ts         ← transport + error boundaries
-                  │
-                  ▼
-   http://127.0.0.1:8080/v1/chat/completions   ← on-device engine
+middleware.ts -> refreshes the Supabase session + guards every route
+                 (redirects to /login when signed out)
+
+app/layout.tsx  (phone-width column, global styles)
+   |
+   |-- app/login/page.tsx     -> components/AuthForm        (email/password)
+   |-- app/page.tsx           -> components/DashboardSummary (totals + list)
+   |-- app/add/page.tsx       -> components/QuickAddForm     (the core feature)
+   |-- app/settings/page.tsx  -> components/SettingsForm + SignOutButton
+
+Server Components read data via  lib/supabase/server.ts  (cookie-based session).
+Client Components write data via lib/supabase/client.ts  (browser, anon key).
+Row Level Security in Postgres is the real authority -- users only ever touch
+their own rows.
 ```
 
 ### Layer responsibilities
 
-| Layer | File | Owns |
-|-------|------|------|
-| Entry | `index.js` | Registers the root component via `registerRootComponent`. |
-| Root | `App.tsx` | Fonts, `SafeAreaProvider`, `GestureHandlerRootView`, status bar, mounts the terminal. Intentionally thin. |
-| UI | `components/VexsoraTerminal.tsx` | All view primitives, chat list, composer, status pill, diagnostics. Calls **only** `vexsoraClient`. |
-| UI | `components/ActionConsole.tsx` | Inline terminal execution console for a dispatched action — live running → success/failure state with state-colored border + glow. |
-| Client | `lib/vexsoraClient.ts` | The single bridge to the engine. Owns the loopback endpoint, request shape, timeouts, and **all error handling**. |
-| Actions | `utils/actionRouter.ts` | Local tool registry: schema, directive parser, dispatcher, and built-in on-device actions. |
-| Theme | `constants/vexsoraTheme.ts` | The "Void Black" design tokens (colors, spacing, radii, glows, mono font). |
-
-### Why the UI is decoupled from transport
-
-`VexsoraTerminal` imports `vexsoraClient` and the theme — nothing else
-network-related. It never sees `fetch`, URLs, or HTTP status codes. This keeps
-the surface easy to test and lets transport evolve (streaming, auth, a
-different local port) without touching the UI.
+| Layer       | File                          | Owns                                                            |
+| ----------- | ----------------------------- | -------------------------------------------------------------- |
+| Middleware  | `middleware.ts` + `lib/supabase/middleware.ts` | Session refresh, auth route guard.            |
+| Auth helper | `lib/auth.ts`                 | `requireProfile()` -- load user + profile, redirect if absent.  |
+| Pages       | `app/**/page.tsx`             | Server Components: fetch data, compose the screen.              |
+| UI/forms    | `components/*.tsx`            | Client Components: all interactivity and writes.               |
+| Transport   | `lib/supabase/{client,server}.ts` | The only Supabase entry points.                            |
+| Domain      | `lib/types.ts`, `lib/currencies.ts`, `lib/format.ts` | Types, currency list, money/date helpers. |
 
 ---
 
-## Local API client (`lib/vexsoraClient.ts`)
+## Data model (`supabase/migrations/..._create_shopbook_schema.sql`)
 
-- **Endpoint:** `http://127.0.0.1:8080/v1/chat/completions` (device loopback).
-- **Core system prompt:** `VEXSORA_CORE_SYSTEM_PROMPT` is prepended to **every**
-  request's message array (via the private `composeMessages` helper) so the
-  local model always knows its identity and the exact `[[EXEC: action_name
-  param="value"]]` tool syntax that `utils/actionRouter.ts` intercepts. Owned by
-  the client so no caller can forget it; an optional caller `systemPrompt`
-  follows it.
-- **`vexsoraClient.chat(history, options)`** — sends a turn. **Always resolves**
-  with a typed `ChatResult` (`{ ok: true, content }` or
-  `{ ok: false, reason, message }`). It never throws, so the UI cannot crash on
-  a network failure.
-- **`vexsoraClient.chatStream(history, { onToken })`** — real-time streaming
-  turn. Requests `stream: true` and parses the Server-Sent Events from
-  llama-server, calling `onToken(delta, full)` for each chunk so tokens render
-  the instant they arrive. Built on `XMLHttpRequest` (not `fetch`) because RN's
-  `fetch` buffers the whole body — XHR exposes `responseText` progressively on
-  both native and web. Resolves with the same typed `ChatResult`; partial text
-  already delivered via `onToken` is preserved even if the stream errors mid-way.
-- **`vexsoraClient.ping()` / `.status()`** — lightweight liveness probe against
-  `/v1/models` with a short timeout.
-- **Error boundaries / diagnostics:** every failure is classified into a stable
-  `EngineFailureReason` (`offline`, `timeout`, `http`, `parse`, `aborted`) and
-  mapped to clean, actionable copy via `diagnosticFor()`. When the local engine
-  isn't running, the user sees a calm "Local engine not detected — initialize
-  the Vexsora engine" message instead of an error/crash.
-- **Timeouts:** `fetchWithTimeout` composes the caller's `AbortSignal` with an
-  internal timer (health probe ~2.5s, chat ~120s) so requests can't hang.
-- **No cloud dependencies** — only the platform `fetch` + `AbortController`.
+- **`profiles`** -- one row per `auth.users` id. Holds `shop_name` and
+  `currency` (default `USD`). Auto-created on signup by the `handle_new_user`
+  trigger; `lib/auth.ts` also creates it on demand as a fallback.
+- **`transactions`** -- `type` (`sale` | `expense`), `amount` (`numeric > 0`),
+  `description`, `occurred_on` (date, defaults to today), `created_at`.
+- **RLS is ON** for both tables. Every policy is `auth.uid() = <owner column>`,
+  so a user can only read/write their own data.
+
+When changing the schema, add a **new** timestamped migration file rather than
+editing the existing one.
 
 ---
 
-## Local Action / Tool Registry (`utils/actionRouter.ts`)
+## The core feature -- Quick Add (`components/QuickAddForm.tsx`)
 
-Turns Vexsora from a chatbot into a system assistant. Strictly local, no new
-dependencies (only `Platform` + the existing `expo-file-system`).
+Optimised for speed:
 
-- **Registry:** `actionRouter.register({ name, label, description, params, run })`.
-  Built-ins: `create_file`, `toggle_state`, `run_shell`. `describeActions()`
-  feeds the action catalog into the system prompt so the engine knows the syntax.
-- **Directive parsing:** the engine can request an action two ways —
-  - bracket syntax: `[[EXEC: create_file name="notes.txt" content="hi"]]`
-  - a JSON tool-call payload (`{ "action": "...", "params": { ... } }`).
-  `extractActions(text)` returns `{ cleanedText, actions }`; bracket directives
-  win over JSON to avoid double-triggering.
-- **Suppression:** `sanitizeStreaming(text)` strips completed directives and
-  hides any in-progress directive (unterminated `[[…` tail or a JSON payload)
-  so raw command syntax never flashes in the chat window.
-- **Dispatch + fallback:** `actionRouter.dispatch(invocation)` runs the handler
-  and **always** resolves to a typed `ActionResult` — unknown actions and
-  handler errors fall through to a notice.
-- **Execution console:** the terminal intercepts directives from the engine
-  reply, suppresses the raw text, finalizes the assistant bubble with the
-  cleaned prose (dropping it if the reply was a pure command), then for each
-  action renders an inline `ActionConsole` that starts in a **running** state
-  (`SYSTEM :: EXECUTING CREATE_FILE…`, pulsing violet, `EXEC` code) and
-  transitions to **success** (emerald, `200`) or **failure** (amber, `500`)
-  once `dispatch` settles.
+- Large color-coded **Sale (green) / Expense (red)** toggle.
+- A hero **amount** field (`inputMode="decimal"` -> numeric keypad, autofocus).
+- Optional **note** and a **date** that defaults to today.
+- On save it inserts via the browser client, shows a success flash, **clears the
+  amount/note and refocuses** so the owner can log the next entry without
+  leaving the screen, then `router.refresh()` updates the dashboard.
 
 ---
 
-## Design system — "Void Black" (`constants/vexsoraTheme.ts`)
+## Design system
 
-| Token | Value | Used for |
-|-------|-------|----------|
-| `void` | `#000000` | Pure black background |
-| `violet` | `#8A2BE2` | System / human actions (send, prompt, controls) |
-| `emerald` | `#00FF7F` | **Active AI states** — engine live, thinking, output |
-| `danger` | `#FF4D6D` | Offline / diagnostic states |
+Tailwind tokens in `tailwind.config.ts`:
 
-The terminal uses a per-platform monospace stack (`MonoFont`) for the terminal
-aesthetic, neon glow shadows (`VexsoraGlow`), and a smooth-scrolling `FlatList`
-that auto-scrolls to the latest line.
+| Token     | Value     | Used for                    |
+| --------- | --------- | --------------------------- |
+| `sale`    | `#16a34a` | Money **in** (sales)        |
+| `expense` | `#dc2626` | Money **out** (expenses)    |
+| `brand`   | `#2563eb` | Primary actions / nav       |
+
+UI principles: phone-width centered column, large tap targets, high-contrast
+text, a fixed bottom nav (Today / Add / Settings) with a raised central Add
+button, and `tabular-nums` for aligned money figures.
 
 ---
 
-## Build & run commands
+## Build & run
 
 ```bash
-npm install            # install dependencies
-
-npm run dev            # start the Expo dev server (Metro)
-npm run build:web      # export the web build (expo export --platform web)
-npm run lint           # expo lint
-npm run typecheck      # tsc --noEmit  (currently passes with 0 errors)
+npm install
+cp .env.example .env.local   # add NEXT_PUBLIC_SUPABASE_URL + ANON_KEY
+npm run dev                  # http://localhost:3000
+npm run build                # production build
+npm run lint                 # eslint-config-next
+npm run typecheck            # tsc --noEmit
 ```
 
-> The app boots from `index.js` → `App.tsx` (a single root component). It does
-> **not** use a router for the core terminal experience.
-
-### Running against the local engine
-
-The terminal expects an OpenAI-compatible server listening on
-`127.0.0.1:8080`. Start your on-device engine first; otherwise the UI shows the
-"initialize the local engine" diagnostic and a re-probe button. Tap the status
-pill or the re-probe button to re-check liveness.
+Environment variables required: `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` (public anon key -- safe in the client because
+RLS enforces access).
 
 ---
 
 ## Conventions
 
 - TypeScript strict mode is on; keep `npm run typecheck` clean.
-- Keep transport concerns inside `lib/vexsoraClient.ts`; keep view concerns
-  inside `components/`. Don't call `fetch` from a component.
-- No cloud-dependent packages — Vexsora stays fully offline-first.
-
----
-
-## Legacy
-
-The `app/`, `lib/aiService.ts`, and other `lib/*` files are from the prior
-`expo-router` starter and are **not** part of the Vexsora entry path. They are
-no longer bundled (the entry is `index.js`) and can be removed when convenient.
+- Keep all Supabase access inside `lib/supabase/*` and `lib/auth.ts`.
+- Server Components fetch; Client Components (`"use client"`) handle input and
+  writes. Don't fetch user data in a Client Component when a Server Component
+  can do it.
+- Never trust the client for authorization -- RLS policies are the source of
+  truth. Add matching policies for any new table.
