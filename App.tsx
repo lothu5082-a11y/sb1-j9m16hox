@@ -16,8 +16,8 @@
  * client, which owns all transport + error-boundary concerns.
  */
 
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, ActivityIndicator, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -26,8 +26,17 @@ import { Inter_400Regular } from '@expo-google-fonts/inter';
 import { Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import { VexsoraColors } from './constants/vexsoraTheme';
 import VexsoraTerminal from './components/VexsoraTerminal';
+import NexusBreach from './components/NexusBreach';
+
+type AppMode = 'terminal' | 'game';
+
+const MONO: string =
+  Platform.OS === 'ios' ? 'Menlo' :
+  Platform.OS === 'android' ? 'monospace' : 'monospace';
 
 export default function App() {
+  const [mode, setMode] = useState<AppMode>('terminal');
+
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Orbitron-Bold': Orbitron_700Bold,
@@ -45,7 +54,21 @@ export default function App() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <View style={styles.flex}>
-          <VexsoraTerminal />
+          {mode === 'terminal' ? (
+            <>
+              <VexsoraTerminal />
+              {/* Game launcher button */}
+              <TouchableOpacity
+                style={styles.gameBtn}
+                onPress={() => setMode('game')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.gameBtnText}>⚡ GAME</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <NexusBreach onExit={() => setMode('terminal')} />
+          )}
           <StatusBar style="light" backgroundColor={VexsoraColors.void} />
         </View>
       </SafeAreaProvider>
@@ -60,5 +83,23 @@ const styles = StyleSheet.create({
     backgroundColor: VexsoraColors.void,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  gameBtn: {
+    position: 'absolute',
+    bottom: 88,
+    right: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: VexsoraColors.violet,
+    borderRadius: 20,
+    backgroundColor: '#1a0033',
+  },
+  gameBtnText: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: VexsoraColors.violet,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
 });
