@@ -50,6 +50,14 @@
       "expo-font",
       "expo-web-browser",
       [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Vexsora uses the microphone so you can talk to your AI by voice.",
+          "speechRecognitionPermission": "Vexsora uses speech recognition to turn your voice into text.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
@@ -57,6 +65,7 @@
             "targetSdkVersion": 35,
             "minSdkVersion": 26,
             "buildToolsVersion": "35.0.0",
+            "ndkVersion": "27.1.12297006",
             "packagingOptions": {
               "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
             }

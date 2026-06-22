@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
 import { setAIConfig, setVoiceReplyEnabled, setWakeWordActive } from './chat';
+import ModelManager from '../../components/ModelManager';
 
 const { width: W } = Dimensions.get('window');
 
@@ -272,7 +273,7 @@ export default function SettingsScreen() {
   };
 
   const clearMemory = () => {
-    Alert.alert('Clear Memories', 'Erase all memories Riuka has learned about you?', [
+    Alert.alert('Clear Memories', 'Erase all memories Vexsora has learned about you?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Erase', style: 'destructive', onPress: () => {
         if (Platform.OS === 'web') {
@@ -283,7 +284,7 @@ export default function SettingsScreen() {
         }
         setMemCount(0);
         setEvo({ xp: 0, level: 1, totalLearned: 0 });
-        Alert.alert('Done', 'Memories cleared. Riuka starts fresh. ✨');
+        Alert.alert('Done', 'Memories cleared. Vexsora starts fresh. ✨');
       }},
     ]);
   };
@@ -294,7 +295,7 @@ export default function SettingsScreen() {
       const raw = localStorage.getItem('riuka_chat_v1');
       if (!raw) { Alert.alert('No history', 'Chat is empty.'); return; }
       const msgs: any[] = JSON.parse(raw);
-      const txt = msgs.map(m => `[${m.time}] ${m.isUser ? 'You' : 'Riuka'}: ${m.text}`).join('\n\n');
+      const txt = msgs.map(m => `[${m.time}] ${m.isUser ? 'You' : 'Vexsora'}: ${m.text}`).join('\n\n');
       const blob = new Blob([txt], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = (document as any).createElement('a');
@@ -328,7 +329,7 @@ export default function SettingsScreen() {
       (window as any).Notification.requestPermission().then((perm: string) => {
         if (perm === 'granted') {
           setNotifListener(true);
-          new (window as any).Notification('Riuka AI', { body: 'Notification listener is now active.', icon: '/favicon.ico' });
+          new (window as any).Notification('Vexsora AI', { body: 'Notification listener is now active.', icon: '/favicon.ico' });
         } else {
           setNotifListener(false);
           Alert.alert('Permission Needed', 'Allow notifications in your browser settings, then try again.');
@@ -344,7 +345,7 @@ export default function SettingsScreen() {
         (pos) => {
           setLocationCtx(true);
           try { localStorage.setItem('riuka_location_v1', JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude })); } catch {}
-          Alert.alert('Location Active', `Got your position. Riuka now has location context.`);
+          Alert.alert('Location Active', `Got your position. Vexsora now has location context.`);
         },
         () => {
           setLocationCtx(false);
@@ -429,7 +430,7 @@ export default function SettingsScreen() {
       navigator.clipboard.readText()
         .then(() => {
           setClipEngine(true);
-          Alert.alert('Clipboard Active', 'Riuka will analyze content you copy. Say "read clipboard" in chat.');
+          Alert.alert('Clipboard Active', 'Vexsora will analyze content you copy. Say "read clipboard" in chat.');
         })
         .catch(() => {
           setClipEngine(true); // Still enable — paste events still work
@@ -456,7 +457,7 @@ export default function SettingsScreen() {
               </View>
               <View>
                 <GeminiTitle text="Settings" />
-                <Text style={styles.headerSub}>Riuka AI · Personalisation & Control</Text>
+                <Text style={styles.headerSub}>Vexsora AI · Personalisation & Control</Text>
               </View>
             </Animated.View>
           </View>
@@ -542,6 +543,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
             )}
+            {selectedProvider === 'local' && <ModelManager />}
             <View style={{ alignSelf: 'flex-start', marginTop: Spacing.sm }}>
               <GeminiSaveButton label="Apply Engine" onPress={saveAIConfig} />
             </View>
@@ -557,7 +559,7 @@ export default function SettingsScreen() {
               <ToggleRow
                 icon={<Mic size={18} color={voiceEnabled ? Colors.primary : Colors.textTertiary} />}
                 label="Voice Input"
-                desc="Tap mic or say Hey Riuka"
+                desc="Tap mic or say Hey Vexsora"
                 value={voiceEnabled}
                 onValueChange={setVoiceEnabled}
                 color={Colors.primary}
@@ -565,7 +567,7 @@ export default function SettingsScreen() {
               <ToggleRow
                 icon={<Volume2 size={18} color={voiceReply ? Colors.secondary : Colors.textTertiary} />}
                 label="Voice Reply"
-                desc="Riuka speaks responses aloud"
+                desc="Vexsora speaks responses aloud"
                 value={voiceReply}
                 onValueChange={v => {
                   setVoiceReply(v);
@@ -579,14 +581,14 @@ export default function SettingsScreen() {
               />
               <ToggleRow
                 icon={<Zap size={18} color={wakeWord ? Colors.primary : Colors.textTertiary} />}
-                label='Wake Word — "Hey Riuka"'
+                label='Wake Word — "Hey Vexsora"'
                 desc="Always-on voice activation (Chrome)"
                 value={wakeWord}
                 onValueChange={v => {
                   setWakeWord(v);
                   setWakeWordActive(v);
                   if (Platform.OS === 'web') { try { localStorage.setItem('riuka_wake_v1', String(v)); } catch {} }
-                  if (v) Alert.alert('Wake Word Active', '"Hey Riuka" is now listening.');
+                  if (v) Alert.alert('Wake Word Active', '"Hey Vexsora" is now listening.');
                 }}
                 color={Colors.primary}
               />
@@ -603,7 +605,7 @@ export default function SettingsScreen() {
               <ToggleRow
                 icon={<Bell size={18} color={notifListener ? Colors.primary : Colors.textTertiary} />}
                 label="Browser Notifications"
-                desc="Riuka alerts you when tab is in background"
+                desc="Vexsora alerts you when tab is in background"
                 value={notifListener}
                 onValueChange={enableNotifications}
                 color={Colors.primary}
@@ -627,7 +629,7 @@ export default function SettingsScreen() {
               <ToggleRow
                 icon={<Smartphone size={18} color={shakeWake ? '#F97316' : Colors.textTertiary} />}
                 label="Shake to Wake"
-                desc="Shake phone/device to trigger Riuka"
+                desc="Shake phone/device to trigger Vexsora"
                 value={shakeWake}
                 onValueChange={enableShake}
                 color="#F97316"
@@ -821,7 +823,7 @@ export default function SettingsScreen() {
               >
                 <Crown color={Colors.primary} size={22} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.premiumTitle}>Upgrade to Riuka Pro</Text>
+                  <Text style={styles.premiumTitle}>Upgrade to Vexsora Pro</Text>
                   <Text style={styles.premiumDesc}>Unlimited memory · Extended automation · Priority model updates</Text>
                 </View>
                 <ChevronRight color={Colors.primary} size={16} />
@@ -832,7 +834,7 @@ export default function SettingsScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <Sparkles color={Colors.primary} size={13} />
-            <Text style={styles.footerText}>Riuka AI v1.0.0</Text>
+            <Text style={styles.footerText}>Vexsora AI v1.0.0</Text>
             <Text style={styles.footerSub}>On-Device · Zero Cloud · Evolving</Text>
           </View>
 

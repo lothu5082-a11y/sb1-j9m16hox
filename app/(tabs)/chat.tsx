@@ -31,6 +31,8 @@ import Animated, {
 import { useFocusEffect } from 'expo-router';
 import { Send, Mic, Cpu, Sparkles, Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../constants/theme';
+import { llamaService, type ChatTurn } from '../../lib/llamaService';
+import { voiceService } from '../../lib/voiceService';
 import ChatBubble from '../../components/ChatBubble';
 import SiriModal from '../../components/SiriModal';
 import GestureController from '../../components/GestureController';
@@ -125,7 +127,15 @@ const detectTtsLang = (text: string): string => {
 };
 
 const speakText = (text: string) => {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  // On a real device, use native text-to-speech (expo-speech).
+  if (Platform.OS !== 'web') {
+    const ttsLang = detectTtsLang(text);
+    voiceService.setLanguage(LANG_TTS_CODE[ttsLang] ?? 'en-US');
+    voiceService.setVolume(_speechVolume);
+    voiceService.speak(text);
+    return;
+  }
+  if (typeof window === 'undefined') return;
   const synth = (window as any).speechSynthesis;
   if (!synth) return;
   synth.cancel();
@@ -158,8 +168,10 @@ const speakText = (text: string) => {
 };
 
 export const stopSpeaking = () => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    (window as any).speechSynthesis?.cancel();
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') (window as any).speechSynthesis?.cancel();
+  } else {
+    voiceService.stopSpeaking();
   }
 };
 
@@ -315,7 +327,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     if (lang) {
       _userLang = code;
       if (Platform.OS === 'web') { try { localStorage.setItem('riuka_lang_v1', code); } catch {} }
-      return `${lang.flag} ${lang.greet} I'll respond in ${lang.name} from now on. / Riuka speaks ${lang.name}! 🌐`;
+      return `${lang.flag} ${lang.greet} I'll respond in ${lang.name} from now on. / Vexsora speaks ${lang.name}! 🌐`;
     }
     return `Language "${requested}" not found. Try: Spanish, French, German, Japanese, Arabic, Hindi, Chinese, Korean, Russian, Turkish, Portuguese, Italian, Dutch, Swedish, Norwegian, Danish, Finnish, Polish, Ukrainian, Greek, Hebrew, Thai, Vietnamese, Indonesian, Swahili, Filipino, Bengali, Urdu, Persian, Romanian, Hungarian, Czech, Slovak, Afrikaans, Amharic`;
   }
@@ -384,7 +396,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     const pct = Math.round(newVol * 100);
     const bar = '█'.repeat(Math.round(newVol * 10)) + '░'.repeat(10 - Math.round(newVol * 10));
     if (newVol === 0) return `🔇 Muted — voice replies silenced.\nSay "unmute" or "volume up" to restore.`;
-    return `🔊 Volume: ${pct}%\n${bar}\n\nThis controls Riuka's voice reply volume.`;
+    return `🔊 Volume: ${pct}%\n${bar}\n\nThis controls Vexsora's voice reply volume.`;
   }
 
   // ── GESTURE MODE ─────────────────────────────────────────────────────────
@@ -405,7 +417,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
       try {
         if (wantOn) {
           await (navigator as any).wakeLock.request('screen');
-          return '📱 Screen will stay on while Riuka is open.';
+          return '📱 Screen will stay on while Vexsora is open.';
         }
       } catch {}
     }
@@ -492,7 +504,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
         const perm = (window as any).Notification.permission;
         if (perm === 'granted') {
-          new (window as any).Notification('Riuka — Timer Done', {
+          new (window as any).Notification('Vexsora — Timer Done', {
             body: `Your ${label} timer has finished!`,
             icon: '/favicon.ico',
           });
@@ -998,7 +1010,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window) {
         const perm = (window as any).Notification.permission;
         if (perm === 'granted') {
-          new (window as any).Notification('Riuka — Focus Complete! 🍅', {
+          new (window as any).Notification('Vexsora — Focus Complete! 🍅', {
             body: '25 minutes done. Take a 5-minute break — you earned it.',
             icon: '/favicon.ico',
           });
@@ -1294,7 +1306,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
     const ms = mins * 60000;
     setTimeout(() => {
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
-        new (window as any).Notification(`Riuka — ${mins}min session done ⏱️`, {
+        new (window as any).Notification(`Vexsora — ${mins}min session done ⏱️`, {
           body: `Great focus! Take a ${Math.max(5, Math.round(mins / 5))} minute break.`,
           icon: '/favicon.ico',
         });
@@ -1464,7 +1476,7 @@ const tryExecuteCommand = async (text: string): Promise<string | null> => {
       .catch(() => {});
     setTimeout(() => {
       if (Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window && (window as any).Notification.permission === 'granted') {
-        new (window as any).Notification('Riuka — Meditation complete 🧘', { body: `${mins} minutes done. Carry that calm with you.`, icon: '/favicon.ico' });
+        new (window as any).Notification('Vexsora — Meditation complete 🧘', { body: `${mins} minutes done. Carry that calm with you.`, icon: '/favicon.ico' });
       }
     }, ms);
     return `🧘 ${mins}-minute meditation session started.\nOpening a guided session on YouTube...\nI'll notify you when the time is up.`;
@@ -1604,7 +1616,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     const profileName = getProfile().name;
     const namePart = profileName ? `, ${profileName}` : '';
     const greets = [
-      `${greeting}${namePart}! I'm Riuka — your personal AI. Ask me anything, or give me a command. I'm all yours.`,
+      `${greeting}${namePart}! I'm Vexsora — your personal AI. Ask me anything, or give me a command. I'm all yours.`,
       `${greeting}${namePart}! What do you need? I can search, open apps, answer questions, do math, check weather — just talk to me.`,
       `${greeting}${namePart}! Ready when you are. What's on your mind?`,
     ];
@@ -1650,7 +1662,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── PERSONAL / WHAT'S YOUR NAME ──────────────────────────────────────────
   if (/what('?s| is) your name|who are you|what are you|tell me about yourself/.test(lower)) {
-    return "I'm Riuka — your personal AI assistant, built to live on your device and work for you. Not some distant cloud service — I'm yours, always here, always private. I can open apps, search anything, answer questions, do math, check weather, set timers, navigate — basically your smart co-pilot. What do you want to know or do?";
+    return "I'm Vexsora — your personal AI assistant, built to live on your device and work for you. Not some distant cloud service — I'm yours, always here, always private. I can open apps, search anything, answer questions, do math, check weather, set timers, navigate — basically your smart co-pilot. What do you want to know or do?";
   }
 
   // ── USER INTRODUCES THEMSELVES ────────────────────────────────────────────
@@ -1904,7 +1916,7 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
 
   // ── WHO MADE YOU ─────────────────────────────────────────────────────────
   if (/who (made|built|created|designed) you|your (creator|developer|maker)/.test(lower)) {
-    return "I'm Riuka AI — built to be your personal, private, on-device assistant. I run locally with built-in intelligence, and you can power me up further with OpenAI, Gemini, Claude, or Groq by adding an API key in Settings. The goal: a smart AI that's entirely yours.";
+    return "I'm Vexsora AI — built to be your personal, private, on-device assistant. I run locally with built-in intelligence, and you can power me up further with OpenAI, Gemini, Claude, or Groq by adding an API key in Settings. The goal: a smart AI that's entirely yours.";
   }
 
   // ── VS OTHER AIs ─────────────────────────────────────────────────────────
@@ -2110,43 +2122,43 @@ const getLocalResponse = (text: string, history: Message[] = []): string => {
     if (activeLang !== 'en' || detectedLang !== 'en') {
       if (isGreeting) {
         const intro: Record<string, string> = {
-          es: `${L.greet} 🌟 Soy Riuka — tu asistente IA personal. ¿En qué puedo ayudarte hoy?`,
-          fr: `${L.greet} 🌟 Je suis Riuka — votre assistant IA. Comment puis-je vous aider?`,
-          de: `${L.greet} 🌟 Ich bin Riuka — dein KI-Assistent. Wie kann ich dir helfen?`,
-          it: `${L.greet} 🌟 Sono Riuka — il tuo assistente IA. Come posso aiutarti?`,
-          pt: `${L.greet} 🌟 Sou Riuka — seu assistente IA. Como posso ajudá-lo?`,
+          es: `${L.greet} 🌟 Soy Vexsora — tu asistente IA personal. ¿En qué puedo ayudarte hoy?`,
+          fr: `${L.greet} 🌟 Je suis Vexsora — votre assistant IA. Comment puis-je vous aider?`,
+          de: `${L.greet} 🌟 Ich bin Vexsora — dein KI-Assistent. Wie kann ich dir helfen?`,
+          it: `${L.greet} 🌟 Sono Vexsora — il tuo assistente IA. Come posso aiutarti?`,
+          pt: `${L.greet} 🌟 Sou Vexsora — seu assistente IA. Como posso ajudá-lo?`,
           ar: `${L.greet} 🌟 أنا ريوكا — مساعدك الذكي الشخصي. كيف يمكنني مساعدتك؟`,
-          hi: `${L.greet} 🌟 मैं Riuka हूँ — आपका AI सहायक। मैं आपकी कैसे मदद कर सकता हूँ?`,
-          ja: `${L.greet} 🌟 私はRiukaです — あなたのAIアシスタント。何かお手伝いできますか？`,
-          zh: `${L.greet} 🌟 我是Riuka — 您的AI助手。我能为您做什么？`,
-          ko: `${L.greet} 🌟 저는 Riuka입니다 — 당신의 AI 어시스턴트. 무엇을 도와드릴까요?`,
-          ru: `${L.greet} 🌟 Я Riuka — твой ИИ-ассистент. Чем могу помочь?`,
-          uk: `${L.greet} 🌟 Я Riuka — твій ШІ-помічник. Чим можу допомогти?`,
-          tr: `${L.greet} 🌟 Ben Riuka — kişisel AI asistanınız. Size nasıl yardımcı olabilirim?`,
-          nl: `${L.greet} 🌟 Ik ben Riuka — jouw AI-assistent. Hoe kan ik je helpen?`,
-          sv: `${L.greet} 🌟 Jag är Riuka — din AI-assistent. Hur kan jag hjälpa dig?`,
-          no: `${L.greet} 🌟 Jeg er Riuka — din AI-assistent. Hvordan kan jeg hjelpe deg?`,
-          da: `${L.greet} 🌟 Jeg er Riuka — din AI-assistent. Hvordan kan jeg hjælpe dig?`,
-          fi: `${L.greet} 🌟 Olen Riuka — tekoälyavustajasi. Kuinka voin auttaa?`,
-          pl: `${L.greet} 🌟 Jestem Riuka — Twój asystent AI. W czym mogę pomóc?`,
-          cs: `${L.greet} 🌟 Jsem Riuka — váš AI asistent. Jak vám mohu pomoci?`,
-          ro: `${L.greet} 🌟 Sunt Riuka — asistentul tău AI. Cu ce pot ajuta?`,
-          hu: `${L.greet} 🌟 Riuka vagyok — AI asisztensed. Miben segíthetek?`,
-          el: `${L.greet} 🌟 Είμαι η Riuka — ο AI βοηθός σου. Πώς μπορώ να βοηθήσω;`,
-          he: `${L.greet} 🌟 !אני Riuka — העוזר הבינה המלאכותי שלך. כיצד אוכל לעזור?`,
-          th: `${L.greet} 🌟 ฉันคือ Riuka — ผู้ช่วย AI ของคุณ จะให้ช่วยอะไรได้บ้าง?`,
-          vi: `${L.greet} 🌟 Tôi là Riuka — trợ lý AI của bạn. Tôi có thể giúp gì cho bạn?`,
-          id: `${L.greet} 🌟 Saya Riuka — asisten AI Anda. Bagaimana saya bisa membantu?`,
-          ms: `${L.greet} 🌟 Saya Riuka — pembantu AI anda. Bagaimana saya boleh membantu?`,
-          sw: `${L.greet} 🌟 Mimi ni Riuka — msaidizi wako wa AI. Ninaweza kukusaidia vipi?`,
-          tl: `${L.greet} 🌟 Ako si Riuka — ang iyong AI assistant. Paano kita matutulungan?`,
-          bn: `${L.greet} 🌟 আমি Riuka — আপনার AI সহকারী। আমি কীভাবে সাহায্য করতে পারি?`,
-          af: `${L.greet} 🌟 Ek is Riuka — jou AI-assistent. Hoe kan ek jou help?`,
-          ta: `${L.greet} 🌟 நான் Riuka — உங்கள் AI உதவியாளர். நான் எப்படி உதவலாம்? (Say "speak tamil" for Tamil responses!)`,
-          ml: `${L.greet} 🌟 ഞാൻ Riuka ആണ് — നിങ്ങളുടെ AI അസിസ്റ്റന്റ്. എങ്ങനെ സഹായിക്കാം? (Say "speak malayalam" for Malayalam!)`,
-          si: `${L.greet} 🌟 මම Riuka — ඔබේ AI සහකාරයා. මට ඔබට කෙසේ උදව් කළ හැකිද? (Say "speak sinhala"!)`,
+          hi: `${L.greet} 🌟 मैं Vexsora हूँ — आपका AI सहायक। मैं आपकी कैसे मदद कर सकता हूँ?`,
+          ja: `${L.greet} 🌟 私はVexsoraです — あなたのAIアシスタント。何かお手伝いできますか？`,
+          zh: `${L.greet} 🌟 我是Vexsora — 您的AI助手。我能为您做什么？`,
+          ko: `${L.greet} 🌟 저는 Vexsora입니다 — 당신의 AI 어시스턴트. 무엇을 도와드릴까요?`,
+          ru: `${L.greet} 🌟 Я Vexsora — твой ИИ-ассистент. Чем могу помочь?`,
+          uk: `${L.greet} 🌟 Я Vexsora — твій ШІ-помічник. Чим можу допомогти?`,
+          tr: `${L.greet} 🌟 Ben Vexsora — kişisel AI asistanınız. Size nasıl yardımcı olabilirim?`,
+          nl: `${L.greet} 🌟 Ik ben Vexsora — jouw AI-assistent. Hoe kan ik je helpen?`,
+          sv: `${L.greet} 🌟 Jag är Vexsora — din AI-assistent. Hur kan jag hjälpa dig?`,
+          no: `${L.greet} 🌟 Jeg er Vexsora — din AI-assistent. Hvordan kan jeg hjelpe deg?`,
+          da: `${L.greet} 🌟 Jeg er Vexsora — din AI-assistent. Hvordan kan jeg hjælpe dig?`,
+          fi: `${L.greet} 🌟 Olen Vexsora — tekoälyavustajasi. Kuinka voin auttaa?`,
+          pl: `${L.greet} 🌟 Jestem Vexsora — Twój asystent AI. W czym mogę pomóc?`,
+          cs: `${L.greet} 🌟 Jsem Vexsora — váš AI asistent. Jak vám mohu pomoci?`,
+          ro: `${L.greet} 🌟 Sunt Vexsora — asistentul tău AI. Cu ce pot ajuta?`,
+          hu: `${L.greet} 🌟 Vexsora vagyok — AI asisztensed. Miben segíthetek?`,
+          el: `${L.greet} 🌟 Είμαι η Vexsora — ο AI βοηθός σου. Πώς μπορώ να βοηθήσω;`,
+          he: `${L.greet} 🌟 !אני Vexsora — העוזר הבינה המלאכותי שלך. כיצד אוכל לעזור?`,
+          th: `${L.greet} 🌟 ฉันคือ Vexsora — ผู้ช่วย AI ของคุณ จะให้ช่วยอะไรได้บ้าง?`,
+          vi: `${L.greet} 🌟 Tôi là Vexsora — trợ lý AI của bạn. Tôi có thể giúp gì cho bạn?`,
+          id: `${L.greet} 🌟 Saya Vexsora — asisten AI Anda. Bagaimana saya bisa membantu?`,
+          ms: `${L.greet} 🌟 Saya Vexsora — pembantu AI anda. Bagaimana saya boleh membantu?`,
+          sw: `${L.greet} 🌟 Mimi ni Vexsora — msaidizi wako wa AI. Ninaweza kukusaidia vipi?`,
+          tl: `${L.greet} 🌟 Ako si Vexsora — ang iyong AI assistant. Paano kita matutulungan?`,
+          bn: `${L.greet} 🌟 আমি Vexsora — আপনার AI সহকারী। আমি কীভাবে সাহায্য করতে পারি?`,
+          af: `${L.greet} 🌟 Ek is Vexsora — jou AI-assistent. Hoe kan ek jou help?`,
+          ta: `${L.greet} 🌟 நான் Vexsora — உங்கள் AI உதவியாளர். நான் எப்படி உதவலாம்? (Say "speak tamil" for Tamil responses!)`,
+          ml: `${L.greet} 🌟 ഞാൻ Vexsora ആണ് — നിങ്ങളുടെ AI അസിസ്റ്റന്റ്. എങ്ങനെ സഹായിക്കാം? (Say "speak malayalam" for Malayalam!)`,
+          si: `${L.greet} 🌟 මම Vexsora — ඔබේ AI සහකාරයා. මට ඔබට කෙසේ උදව් කළ හැකිද? (Say "speak sinhala"!)`,
         };
-        const resp = intro[activeLang] ?? `${L.greet} 🌟 I'm Riuka — your AI assistant. How can I help?`;
+        const resp = intro[activeLang] ?? `${L.greet} 🌟 I'm Vexsora — your AI assistant. How can I help?`;
         if (detectedLang !== 'en' && _userLang === 'en') {
           return `${resp}\n\n_(Say "speak ${L.name}" to always respond in ${L.name})_`;
         }
@@ -2514,6 +2526,27 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
   if (commandResult) return commandResult;
 
   if (config.provider === 'local' || !config.apiKey) {
+    // Real on-device AI: if a GGUF model is loaded, run it fully offline.
+    if (llamaService.isLoaded()) {
+      try {
+        const now = new Date();
+        const sys = `You are Vexsora, a private on-device AI assistant running fully offline on the user's phone. Today is ${now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Be helpful, smart, and concise. You cannot access the internet.`;
+        const turns: ChatTurn[] = [
+          { role: 'system', content: sys },
+          ...history.slice(-12).map((m) => ({
+            role: (m.isUser ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: m.text,
+          })),
+          { role: 'user', content: userMessage },
+        ];
+        // Streaming tokens are surfaced by the existing typing animation,
+        // so we just collect the full reply here.
+        const reply = await llamaService.completion(turns, () => {});
+        return reply || getLocalResponse(userMessage, history);
+      } catch (err: any) {
+        return `On-device model error: ${err?.message ?? 'inference failed'}. You can pick another model in Settings.`;
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
     return getLocalResponse(userMessage, history);
   }
@@ -2524,7 +2557,7 @@ const sendToAI = async (userMessage: string, history: Message[]): Promise<string
     const messages = [
       {
         role: 'system',
-        content: `You are Riuka AI — a powerful, privacy-first autonomous assistant. ${timeContext}${getMemoryContext()}
+        content: `You are Vexsora AI — a powerful, privacy-first autonomous assistant. ${timeContext}${getMemoryContext()}
 
 EXECUTABLE COMMANDS (respond with the EXACT command text if the user needs one):
 • open [app] — youtube, whatsapp, telegram, instagram, twitter/x, spotify, netflix, gmail, maps, facebook, tiktok, linkedin, reddit, chrome
@@ -2669,7 +2702,7 @@ function ColorCycleText({ text, style, entering }: { text: string; style?: any; 
 }
 
 // ── Gemini-style rotating gradient orb ────────────────────────────────────────
-function RiukaOrb() {
+function VexsoraOrb() {
   const SIZE = 130;
   const rot1       = useSharedValue(0);
   const rot2       = useSharedValue(0);
@@ -2914,8 +2947,8 @@ const SLASH_CMDS = [
   { cmd: '/gesture',    desc: 'Camera gesture control (e.g. /gesture on)' },
   { cmd: '/volume',     desc: 'Voice volume (e.g. volume up / volume down / mute)' },
   { cmd: '/evolve',     desc: 'Show your AI evolution level & XP' },
-  { cmd: '/memory',     desc: 'Show everything Riuka has learned about you' },
-  { cmd: '/teach',      desc: 'Teach Riuka a fact (e.g. /teach I prefer dark mode)' },
+  { cmd: '/memory',     desc: 'Show everything Vexsora has learned about you' },
+  { cmd: '/teach',      desc: 'Teach Vexsora a fact (e.g. /teach I prefer dark mode)' },
   { cmd: '/forget',     desc: 'Remove a memory (e.g. /forget my name)' },
 ];
 
@@ -3274,7 +3307,7 @@ export default function ChatScreen() {
         r.interimResults = false;
         r.onresult = (e: any) => {
           const t = (e.results[0]?.[0]?.transcript ?? '').toLowerCase().trim();
-          const wakeWords = ['hey riuka', 'ok riuka', 'riuka', 'hey ruka', 'ok ruka', 'ruka', 'hi riuka', 'yo riuka'];
+          const wakeWords = ['hey vexsora', 'ok vexsora', 'vexsora', 'hey vex', 'ok vex', 'vexora', 'hi vexsora', 'yo vexsora'];
           if (wakeWords.some(w => t.includes(w))) {
             setShowSiriModal(true);
             startVoice();
@@ -3300,7 +3333,25 @@ export default function ChatScreen() {
 
   const startVoice = () => {
     if (Platform.OS !== 'web') {
-      Alert.alert('Voice Commands', 'Voice works in the web version. Visit the app in your browser to use it.');
+      // Native: real on-device speech-to-text via the microphone.
+      if (!voiceService.isAvailable()) {
+        Alert.alert('Voice Input', 'Speech recognition is not available on this device build.');
+        return;
+      }
+      setVoiceTranscript('');
+      setShowSiriModal(true);
+      voiceService.onStateChange = (s) => setIsVoiceListening(s === 'listening');
+      voiceService.onTranscript = (text) => {
+        setVoiceTranscript(text);
+        setShowSiriModal(false);
+        if (text.trim()) sendMessage(text.trim());
+      };
+      voiceService.onError = (msg) => {
+        setIsVoiceListening(false);
+        setShowSiriModal(false);
+        Alert.alert('Voice Input', msg);
+      };
+      voiceService.startListening();
       return;
     }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -3346,6 +3397,7 @@ export default function ChatScreen() {
   };
 
   const stopVoice = () => {
+    if (Platform.OS !== 'web') voiceService.stopListening();
     recognitionRef.current?.stop();
     setIsVoiceListening(false);
     setShowSiriModal(false);
@@ -3435,7 +3487,7 @@ export default function ChatScreen() {
     if (Platform.OS === 'web' && typeof document !== 'undefined' && document.hidden &&
         'Notification' in window && (window as any).Notification.permission === 'granted') {
       const preview = reply.replace(/[*_`#>]/g, '').slice(0, 80);
-      try { new (window as any).Notification('Riuka AI', { body: preview, icon: '/favicon.ico', tag: 'riuka-reply' }); } catch {}
+      try { new (window as any).Notification('Vexsora AI', { body: preview, icon: '/favicon.ico', tag: 'riuka-reply' }); } catch {}
     }
     if (_voiceReplyEnabled) {
       setSpeakingMsgId(aiMsgId);
@@ -3478,13 +3530,13 @@ export default function ChatScreen() {
 
           <View style={styles.headerLeft}>
             <Animated.View style={[styles.riukaAvatar, avatarColorStyle]}>
-              <Text style={styles.riukaLetter}>R</Text>
+              <Text style={styles.riukaLetter}>V</Text>
               <View style={styles.sparkleWrap}>
                 <Sparkles color={Colors.primary} size={9} />
               </View>
             </Animated.View>
             <View>
-              <ColorCycleText text="Riuka AI" style={styles.headerTitle} />
+              <ColorCycleText text="Vexsora AI" style={styles.headerTitle} />
               <View style={styles.headerMeta}>
                 <Animated.View style={[styles.onlineDot, dotGlowStyle]} />
                 <Text style={styles.headerStatus}>
@@ -3515,9 +3567,9 @@ export default function ChatScreen() {
         >
           {messages.length === 0 && (
             <Animated.View entering={FadeInUp.duration(700)} style={styles.emptyState}>
-              <RiukaOrb />
+              <VexsoraOrb />
               <ColorCycleText
-                text="Riuka AI"
+                text="Vexsora AI"
                 style={styles.emptyTitle}
                 entering={FadeInUp.duration(600).delay(150)}
               />
@@ -3615,7 +3667,7 @@ export default function ChatScreen() {
             <AnimatedInputBorder focused={inputFocused}>
               <TextInput
                 style={styles.input}
-                placeholder="Command Riuka…"
+                placeholder="Command Vexsora…"
                 placeholderTextColor={Colors.textTertiary}
                 value={inputText}
                 onChangeText={setInputText}

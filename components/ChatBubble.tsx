@@ -273,7 +273,7 @@ export default function ChatBubble({
         </View>
       )}
       <View style={styles.bubbleWrapper}>
-        {!isUser && <Text style={styles.senderLabel}>Riuka AI</Text>}
+        {!isUser && <Text style={styles.senderLabel}>Vexsora AI</Text>}
 
         {isUser ? (
           <LinearGradient
